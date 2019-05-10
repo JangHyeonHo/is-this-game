@@ -20,10 +20,12 @@ public class Grader {
 
     public static void main(String[] args) {
 
-        final String BF = "D:/Work/miri-exam/sample/";
-        grade(new Stock(), BF + "주식투자-input02.txt", BF + "주식투자-output02.txt");
+//        final String BF = "D:/Work/miri-exam/sample/";
+    	final String BF = "C:/Users/Administrator/Downloads/TestFile/";
+//        grade(new Stock(), BF + "주식투자-input02.txt", BF + "주식투자-output02.txt");
+//        grade(new Stock(), BF + "주식투자-예시문제.txt", BF + "주식투자-예시답.txt");
         grade(new RotatedRect(), BF + "회전사각형-input.txt", BF + "회전사각형-output.txt");
-        grade(new Raster(), BF + "래스터그래픽-input00.txt", BF + "래스터그래픽-output00.txt");
+//        grade(new Raster(), BF + "래스터그래픽-input00.txt", BF + "래스터그래픽-output00.txt");
 
     }
 
