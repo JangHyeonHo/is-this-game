@@ -15,7 +15,7 @@ namespace Guildwright.Core.Training;
 /// 그리고 배치 시뮬레이션에는 자동 경로가 반드시 필요합니다 — 사람이 10,000번 클릭할 수는 없습니다.
 /// </para>
 /// </summary>
-/// <param name="Priorities">우선순위 순서로 순환하며 훈련할 능력치.</param>
+/// <param name="Priorities">우선순위 순서로 순환하며 시킬 활동.</param>
 /// <param name="RestFatigueThreshold">이 피로도 이상이면 쉽니다.</param>
 /// <param name="Name">표시용 이름.</param>
 /// <param name="OpportunisticBonus">
@@ -27,43 +27,47 @@ namespace Guildwright.Core.Training;
 /// </para>
 /// </param>
 public sealed record TrainingPolicy(
-    IReadOnlyList<TrainingFocus> Priorities,
+    IReadOnlyList<TrainingActivity> Priorities,
     int RestFatigueThreshold,
     string Name,
     int OpportunisticBonus = 0)
 {
-    /// <summary>6 능력치를 골고루. 특화가 없는 대신 안전합니다.</summary>
+    /// <summary>다섯 활동을 골고루. 특화가 없는 대신 어디도 비지 않습니다.</summary>
     public static TrainingPolicy Balanced { get; } = new(
     [
-        TrainingFocus.Strength, TrainingFocus.Agility, TrainingFocus.Finesse,
-        TrainingFocus.Vitality, TrainingFocus.Intellect, TrainingFocus.Spirit
-    ], RestFatigueThreshold: 48, "균형");
+        TrainingActivity.Strength, TrainingActivity.Endurance, TrainingActivity.Technique,
+        TrainingActivity.Study, TrainingActivity.Meditation
+    ], RestFatigueThreshold: 42, "균형");
 
-    /// <summary>전위형. 힘·활력 중심.</summary>
+    /// <summary>전위형. 근력과 지구력 중심.</summary>
     public static TrainingPolicy Vanguard { get; } = new(
-        [TrainingFocus.Strength, TrainingFocus.Vitality, TrainingFocus.Spirit],
-        RestFatigueThreshold: 48, "전위");
+        [TrainingActivity.Strength, TrainingActivity.Endurance, TrainingActivity.Technique],
+        RestFatigueThreshold: 42, "전위");
 
-    /// <summary>마법사형. 지능·정신 중심.</summary>
+    /// <summary>마법사형. 학술과 명상 중심.</summary>
     public static TrainingPolicy Mage { get; } = new(
-        [TrainingFocus.Intellect, TrainingFocus.Spirit, TrainingFocus.Vitality],
-        RestFatigueThreshold: 48, "마법");
+        [TrainingActivity.Study, TrainingActivity.Meditation, TrainingActivity.Endurance],
+        RestFatigueThreshold: 42, "마법");
 
-    /// <summary>유격형. 민첩·기교 중심.</summary>
+    /// <summary>유격형. 기술과 지구력 중심.</summary>
     public static TrainingPolicy Skirmisher { get; } = new(
-        [TrainingFocus.Agility, TrainingFocus.Finesse, TrainingFocus.Strength],
-        RestFatigueThreshold: 48, "유격");
+        [TrainingActivity.Technique, TrainingActivity.Endurance, TrainingActivity.Strength],
+        RestFatigueThreshold: 42, "유격");
 
-    /// <summary>무리하지 않는 방침. 성장은 느리지만 부상 위험이 사실상 0입니다.</summary>
+    /// <summary>무기 숙련에 집중. 기술 훈련만이 숙련도를 올립니다.</summary>
+    public static TrainingPolicy Weaponmaster { get; } = new(
+        [TrainingActivity.Technique],
+        RestFatigueThreshold: 42, "무예");
+
+    /// <summary>무리하지 않는 방침. 성장은 느리지만 실패 위험이 0입니다.</summary>
     public TrainingPolicy Cautious() => this with { RestFatigueThreshold = 34, Name = $"{Name}(신중)" };
 
     /// <summary>
-    /// 부상을 감수하고 밀어붙이는 방침.
+    /// 실패를 감수하고 밀어붙이는 방침.
     /// <para>
-    /// ⚠️ 배치 시뮬레이션 기준 <b>기대 성장이 신중 방침보다 낮습니다.</b>
-    /// 피로 페널티와 부상 손실이 늘어난 훈련 횟수보다 크기 때문입니다.
-    /// 그럼에도 남겨두는 이유는 "지금 당장 이 아이를 써야 한다"는 상황이 존재하기 때문입니다.
-    /// 기대값이 아니라 <b>시간</b>을 사는 선택지입니다. (docs/06-balance-log.md #8)
+    /// ⚠️ 예전 구조에서는 <b>기대 성장이 신중 방침보다 낮았습니다</b> — 피로 페널티와
+    /// 부상 손실이 늘어난 훈련 횟수보다 컸기 때문입니다. 부상을 걷어내고 실패로 바꾼 지금은
+    /// <b>다시 재야 합니다.</b> (docs/06-balance-log.md #8, 개정으로 무효)
     /// </para>
     /// </summary>
     public TrainingPolicy Aggressive() => this with { RestFatigueThreshold = 72, Name = $"{Name}(강행)" };
@@ -73,19 +77,19 @@ public sealed record TrainingPolicy(
         this with { OpportunisticBonus = 22, Name = $"{Name}(호기포착)" };
 
     /// <summary>이번 달에 무엇을 할지 정합니다.</summary>
-    public TrainingFocus ChooseFor(TrainingYearSession session)
+    public TrainingActivity ChooseFor(TrainingYearSession session)
     {
-        if (Priorities.Count == 0) return TrainingFocus.Rest;
+        if (Priorities.Count == 0) return TrainingActivity.Rest;
 
         // 컨디션이 좋은 달은 성장 배율이 높으므로, 피로를 조금 더 감수할 가치가 있습니다.
         int threshold = session.Condition >= Condition.Good
             ? RestFatigueThreshold + OpportunisticBonus
             : RestFatigueThreshold;
 
-        if (session.Fatigue >= threshold) return TrainingFocus.Rest;
+        if (session.Fatigue >= threshold) return TrainingActivity.Rest;
 
         // 우선순위를 순환합니다. 훈련한 달만 세어야 순환이 고르게 돕니다.
-        int trained = session.Months.Count(m => m.Focus != TrainingFocus.Rest);
+        int trained = session.Months.Count(m => m.Activity != TrainingActivity.Rest);
         return Priorities[trained % Priorities.Count];
     }
 }

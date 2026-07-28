@@ -205,13 +205,13 @@ internal sealed class Guild(IRandomSource rng)
     }
 
     /// <summary>연초에 12개월 계획을 짭니다. 예상 성장을 보면서 고칠 수 있습니다.</summary>
-    private List<TrainingFocus> BuildYearPlan(Adventurer member, ScoutingReport report, Mentorship? mentorship)
+    private List<TrainingActivity> BuildYearPlan(Adventurer member, ScoutingReport report, Mentorship? mentorship)
     {
         Ui.Line();
         Ui.Line("   ── 1년 계획 ──");
         Ui.Note("12개월을 미리 짭니다. 실행 중 상황이 바뀌면 그때 고칠 수 있습니다.");
 
-        var plan = new List<TrainingFocus>();
+        var plan = new List<TrainingActivity>();
         var menu = Display.FocusMenu().Append("이후 전부 휴식").ToList();
 
         for (int month = 1; month <= TrainingRules.MonthsPerYear; month++)
@@ -227,7 +227,7 @@ internal sealed class Guild(IRandomSource rng)
 
             if (pick == menu.Count - 1)
             {
-                while (plan.Count < TrainingRules.MonthsPerYear) plan.Add(TrainingFocus.Rest);
+                while (plan.Count < TrainingRules.MonthsPerYear) plan.Add(TrainingActivity.Rest);
                 break;
             }
 
@@ -243,10 +243,10 @@ internal sealed class Guild(IRandomSource rng)
         return plan;
     }
 
-    private static List<TrainingFocus> PadPlan(List<TrainingFocus> plan)
+    private static List<TrainingActivity> PadPlan(List<TrainingActivity> plan)
     {
-        var padded = new List<TrainingFocus>(plan);
-        while (padded.Count < TrainingRules.MonthsPerYear) padded.Add(TrainingFocus.Rest);
+        var padded = new List<TrainingActivity>(plan);
+        while (padded.Count < TrainingRules.MonthsPerYear) padded.Add(TrainingActivity.Rest);
         return padded;
     }
 
@@ -254,7 +254,7 @@ internal sealed class Guild(IRandomSource rng)
     /// 계획대로 자동 진행하되, <b>상황이 바뀌는 달에만 멈춰서</b> 물어봅니다.
     /// <para>계획의 재미와 대응의 재미를 둘 다 얻기 위한 절충입니다.</para>
     /// </summary>
-    private void ExecuteYearPlan(Adventurer member, List<TrainingFocus> plan, Mentorship? mentorship)
+    private void ExecuteYearPlan(Adventurer member, List<TrainingActivity> plan, Mentorship? mentorship)
     {
         Ui.Line();
         Ui.Line("   ── 실행 ──");
@@ -271,7 +271,7 @@ internal sealed class Guild(IRandomSource rng)
             {
                 Ui.Line();
                 Ui.Note($"{month}월 · 컨디션 {session.Condition.ToKorean()} · 피로 {session.Fatigue}" +
-                        (session.RecoveryMonthsRemaining > 0 ? $" · 요양 {session.RecoveryMonthsRemaining}개월 남음" : ""));
+                        (session.FailureChance > 0 ? $" · 실패 확률 {session.FailureChance:P0}" : ""));
                 Ui.Note($"계획은 [{Display.FocusLabel(planned)}] 입니다.");
 
                 if (Ui.Confirm("   계획을 바꾸시겠습니까?"))
@@ -287,11 +287,6 @@ internal sealed class Guild(IRandomSource rng)
 
             // 월별 성장치는 표시하지 않습니다. 내부적으로는 실수로 누적하고 연말에 한 번만
             // 반올림하므로, 월별 반올림값을 더해도 연간 합계와 맞지 않아 오히려 혼란스럽습니다.
-            // 부상은 실제로 그 자리에서 깎이는 값이라 보여줍니다.
-            if (outcome.GotInjured)
-            {
-                Ui.Line($"        → {FormatGain(outcome.StatGain)}");
-            }
         }
 
         session.Complete();
@@ -302,18 +297,16 @@ internal sealed class Guild(IRandomSource rng)
     }
 
     /// <summary>계획을 다시 물어볼 만한 순간인가.</summary>
-    private static bool ShouldInterrupt(TrainingYearSession session, TrainingFocus planned)
+    private static bool ShouldInterrupt(TrainingYearSession session, TrainingActivity planned)
     {
-        if (session.RecoveryMonthsRemaining > 0) return false;   // 요양 중엔 선택권이 없음
-
         // 절호조인데 쉬려고 한다 — 놓치면 아까운 달
-        if (session.Condition >= Condition.Excellent && planned == TrainingFocus.Rest) return true;
+        if (session.Condition >= Condition.Excellent && planned == TrainingActivity.Rest) return true;
 
         // 컨디션이 바닥인데 훈련하려 한다
-        if (session.Condition <= Condition.Terrible && planned != TrainingFocus.Rest) return true;
+        if (session.Condition <= Condition.Terrible && planned != TrainingActivity.Rest) return true;
 
-        // 부상 위험선을 넘었는데 계속 훈련하려 한다
-        if (session.Fatigue >= TrainingRules.InjuryThreshold && planned != TrainingFocus.Rest) return true;
+        // 실패 확률이 무시 못 할 수준인데 계속 훈련하려 한다
+        if (session.FailureChance >= 0.15 && planned != TrainingActivity.Rest) return true;
 
         return false;
     }

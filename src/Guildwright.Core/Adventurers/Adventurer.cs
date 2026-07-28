@@ -40,6 +40,14 @@ public enum DeploymentOutcome
 /// <param name="Income">벌어들인 금액.</param>
 /// <param name="Note">이력에 남길 서술.</param>
 /// <param name="SupportRole">그 해에 맡은 비전투 역할. 없으면 전투원으로만 굴렀다는 뜻입니다.</param>
+/// <param name="ProficiencyGain">
+/// 그 해에 오른 장착 무기 숙련도. null이면 활동 종류에 따른 기본값을 씁니다.
+/// <para>
+/// 훈련 연도는 <b>기술 훈련을 몇 달 했는지</b>에 따라 달라지므로 세션이 직접 계산해 넘깁니다.
+/// 예전에는 훈련 연도이기만 하면 무엇을 시켰든 자동으로 올랐는데,
+/// 그러면 숙련도가 선택 대상이 아니게 됩니다. (docs/08-design-revision.md §2)
+/// </para>
+/// </param>
 public sealed record YearRecord(
     int Age,
     YearActivity Activity,
@@ -47,7 +55,8 @@ public sealed record YearRecord(
     DeploymentOutcome? Outcome,
     int Income,
     string Note,
-    SupportSkill? SupportRole = null);
+    SupportSkill? SupportRole = null,
+    double? ProficiencyGain = null);
 
 /// <summary>
 /// 모험가 한 명.
@@ -227,11 +236,14 @@ public sealed class Adventurer
         // 그 해를 들고 있던 무기의 숙련도가 오릅니다. 사망한 해는 제외합니다.
         if (record.Outcome != DeploymentOutcome.Died)
         {
-            double baseGain = record.Activity == YearActivity.Deployment
-                ? WeaponProficiency.PerDeploymentYear
-                : WeaponProficiency.PerTrainingYear;
+            // 훈련 연도는 세션이 계산해 넘겨줍니다 — 기술 훈련을 몇 달 했느냐로 달라지므로.
+            // 실전은 무기를 쓸 수밖에 없으니 연 단위 기본값을 씁니다.
+            double baseGain = record.ProficiencyGain
+                ?? (record.Activity == YearActivity.Deployment
+                    ? WeaponProficiency.PerDeploymentYear
+                    : 0.0);
 
-            Proficiency.Advance(EquippedStyle, Aptitudes[EquippedStyle], baseGain);
+            if (baseGain > 0.0) Proficiency.Advance(EquippedStyle, Aptitudes[EquippedStyle], baseGain);
 
             // 비전투 역량은 실전에서만 늡니다. 훈련장에서는 함정을 만날 일이 없습니다.
             if (record.Activity == YearActivity.Deployment)

@@ -152,6 +152,8 @@ public class FloatingPointStabilityTests
         var a = Adventurer.Recruit("P", "핀", new DeterministicRandom(31));
         CareerSimulator.ResolveTrainingYear(a, new DeterministicRandom(32));
 
-        Assert.Equal(new PrimaryStats(16, 15, 17, 24, 23, 23), a.Stats);
+        // 2026-07 개정으로 훈련이 활동 기반이 되면서 값이 바뀌었습니다.
+        // (16,15,17,24,23,23) → (16,13,14,25,22,21). 근거: docs/06-balance-log.md #29
+        Assert.Equal(new PrimaryStats(16, 13, 14, 25, 22, 21), a.Stats);
     }
 }

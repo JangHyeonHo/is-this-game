@@ -91,10 +91,13 @@ public static class Display
     }
 
     /// <summary>
-    /// 달마다의 예상 피로.
+    /// 달마다의 예상 피로와 실패 확률.
     /// <para>
-    /// 성장 예상과 달리 <b>피로는 계획만으로 정확히 계산됩니다.</b> (부상이 나지 않는 한)
-    /// 숨길 이유가 없고, 오히려 이걸 봐야 "언제 쉴 것인가"라는 선택이 성립합니다.
+    /// <b>피로는 계획만으로 정확히 계산됩니다</b> (실패하지 않는 한). 숨길 이유가 없고,
+    /// 이걸 봐야 "언제 쉴 것인가"라는 선택이 성립합니다.
+    /// </para>
+    /// <para>
+    /// 실패 확률도 같이 보여줍니다. 확률을 숨기면 "무리할까 말까"가 판단이 아니라 감이 됩니다.
     /// </para>
     /// </summary>
     private static void Fatigue(YearForecast forecast, int? decidedMonths)
@@ -104,54 +107,88 @@ public static class Display
 
         int decided = decidedMonths ?? count;
 
-        Ui.Line($"   예상 피로 (위험선 {TrainingRules.InjuryThreshold} · 훈련 +{TrainingRules.FatiguePerTraining} " +
-                $"· 휴식 −{TrainingRules.FatigueRecoveryOnRest} · {TrainingRules.FatigueSoftCap} 넘으면 성장 저하)");
+        // 실패 판정은 "그 달을 시작할 때"의 피로로 합니다. 그래서 훈련을 마친 뒤 피로가
+        // 실패선을 넘어도 그 달은 위험이 아닙니다. 안 적어두면 화면이 모순처럼 보입니다.
+        Ui.Line($"   예상 피로 (훈련 +{TrainingRules.FatiguePerTraining} · 휴식 −{TrainingRules.FatigueRecoveryOnRest} " +
+                $"· {TrainingRules.FatigueSoftCap} 넘으면 성장 저하 " +
+                $"· 달을 시작할 때 {TrainingRules.FailureThreshold} 넘으면 실패 위험)");
 
         Ui.Line("     월  " + string.Join("", Enumerable.Range(1, count).Select(m => $"{m,5}")));
         Ui.Line("     피로" + string.Join("", forecast.FatigueByMonth.Select((f, i) =>
-            i >= decided ? $"{"·",5}"
-            : f > TrainingRules.InjuryThreshold ? $"{f + "!",5}"
-            : $"{f,5}")));
+            i >= decided ? $"{"·",5}" : $"{f,5}")));
 
-        string risk = forecast.MonthsAtInjuryRisk == 0
-            ? "부상 위험 없음"
-            : $"⚠ 부상 위험 {forecast.MonthsAtInjuryRisk}개월 (!)";
+        // 실패 확률이 붙은 달이 하나라도 있을 때만 줄을 늘립니다.
+        if (forecast.MonthsAtRisk > 0)
+        {
+            Ui.Line("     실패" + string.Join("", forecast.FailureChanceByMonth.Select((c, i) =>
+                i >= decided ? $"{"·",5}"
+                : c <= 0.0 ? $"{"-",5}"
+                : $"{$"{c * 100:F0}%",5}")));
+        }
 
-        Ui.Note($"최고 피로 {forecast.PeakFatigue} · {risk}" +
+        string risk = forecast.MonthsAtRisk == 0
+            ? "실패 위험 없음"
+            : $"⚠ 실패 위험 {forecast.MonthsAtRisk}개월 · 최대 {forecast.WorstFailureChance:P0} " +
+              $"· 기대 실패 {forecast.ExpectedFailedMonths:F1}개월";
+
+        string weapon = forecast.ProficiencyGain > 0
+            ? $" · 무기 숙련 +{forecast.ProficiencyGain:F0}"
+            : "";
+
+        Ui.Note($"최고 피로 {forecast.PeakFatigue} · {risk}{weapon}" +
                 (decided < count ? $" · {decided + 1}월부터는 아직 미정" : ""));
     }
 
-    /// <summary>문장 안에서 읽히는 이름. 계획 요약줄의 압축 표기(<see cref="FocusName"/>)와 다릅니다.</summary>
-    public static string FocusLabel(TrainingFocus focus) =>
-        focus == TrainingFocus.Rest ? "휴식" : FocusName(focus) + " 훈련";
-
-    public static string FocusName(TrainingFocus focus) => focus switch
+    /// <summary>계획 요약줄의 압축 표기.</summary>
+    public static string FocusName(TrainingActivity activity) => activity switch
     {
-        TrainingFocus.Strength => "힘",
-        TrainingFocus.Agility => "민첩",
-        TrainingFocus.Finesse => "기교",
-        TrainingFocus.Vitality => "활력",
-        TrainingFocus.Intellect => "지능",
-        TrainingFocus.Spirit => "정신",
+        TrainingActivity.Strength => "근력",
+        TrainingActivity.Endurance => "지구력",
+        TrainingActivity.Technique => "기술",
+        TrainingActivity.Study => "학술",
+        TrainingActivity.Meditation => "명상",
         _ => "휴식"
     };
 
-    /// <summary>
-    /// 월별 행동 메뉴. 피로 증감을 라벨에 함께 적습니다 —
-    /// 휴식이 얼마나 회복시키는지 모르면 "언제 쉴까"를 계산할 수 없습니다.
-    /// </summary>
-    public static IReadOnlyList<string> FocusMenu() =>
-    [
-        $"힘 훈련 (피로 +{TrainingRules.FatiguePerTraining})",
-        $"민첩 훈련 (피로 +{TrainingRules.FatiguePerTraining})",
-        $"기교 훈련 (피로 +{TrainingRules.FatiguePerTraining})",
-        $"활력 훈련 (피로 +{TrainingRules.FatiguePerTraining})",
-        $"지능 훈련 (피로 +{TrainingRules.FatiguePerTraining})",
-        $"정신 훈련 (피로 +{TrainingRules.FatiguePerTraining})",
-        $"휴식 (피로 −{TrainingRules.FatigueRecoveryOnRest}, 컨디션 회복)"
-    ];
+    /// <summary>문장 안에서 읽히는 이름.</summary>
+    public static string FocusLabel(TrainingActivity activity) => TrainingActivities.NameOf(activity);
 
-    public static TrainingFocus FocusFromIndex(int index) => (TrainingFocus)index;
+    /// <summary>
+    /// 월별 행동 메뉴.
+    /// <para>
+    /// 무엇이 오르는지를 라벨에 적습니다 — 활동 이름만으로는 "명상이 뭘 올리지"를 알 수 없고,
+    /// 그러면 첫 플레이에서 12번 다 찍어봐야 합니다.
+    /// 피로 증감도 같이 적습니다. 휴식이 얼마나 회복시키는지 모르면 "언제 쉴까"를 계산할 수 없습니다.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<string> FocusMenu()
+    {
+        var menu = new List<string>();
+
+        foreach (var p in TrainingActivities.Trainings)
+        {
+            string stats = string.Join(" ", p.AffectedStats
+                .OrderByDescending(p.WeightOf)
+                .Select(s => $"{s.ToKorean()}{Dots(p.WeightOf(s))}"));
+
+            string weapon = p.ProficiencyPerMonth > 0 ? $" 무기숙련+{p.ProficiencyPerMonth:0.#}" : "";
+
+            menu.Add($"{p.Name} ({p.Flavor}) — {stats}{weapon} · 피로 +{TrainingRules.FatiguePerTraining}");
+        }
+
+        menu.Add($"휴식 — 피로 −{TrainingRules.FatigueRecoveryOnRest}, 컨디션 회복");
+        return menu;
+    }
+
+    /// <summary>가중치를 점으로. 숫자를 그대로 보여주면 화면이 표처럼 됩니다.</summary>
+    private static string Dots(double weight) => weight switch
+    {
+        >= 0.9 => "●●●",
+        >= 0.45 => "●●",
+        _ => "●"
+    };
+
+    public static TrainingActivity FocusFromIndex(int index) => (TrainingActivity)index;
 
     /// <summary>전투 한 라운드의 진영 상태.</summary>
     public static void Formation(BattleState state)
