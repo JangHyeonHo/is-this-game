@@ -52,12 +52,31 @@ docs/
 
 ---
 
+## 플레이해보기 — Docker (설치할 것 없음)
+
+**.NET을 깔지 않아도 됩니다.** Docker만 있으면 됩니다.
+
+```bash
+docker build -t guildwright .
+
+docker run -it --rm guildwright              # 플레이
+docker run -it --rm guildwright sim 400 5    # 배치 시뮬레이션 (시행수 · 연차)
+docker run -it --rm guildwright 12345        # 시드 지정 — 같은 숫자는 같은 세계
+```
+
+> ⚠️ **`-it`를 꼭 붙이세요.** 없으면 입력을 못 받아 첫 질문에서 바로 종료됩니다.
+
+이미지를 만들 때 테스트가 함께 돌아갑니다. 깨진 채로는 빌드가 끝나지 않습니다.
+
 ## 개발 시작하기
 
-필요한 것은 .NET SDK 8.0 뿐입니다. 게임 엔진은 아직 필요하지 않습니다.
+직접 고치실 거라면 .NET SDK 8.0이 필요합니다. 게임 엔진은 아직 필요하지 않습니다.
 
 ```bash
 dotnet build
 dotnet test
+
+dotnet run --project src/Guildwright.Console              # 플레이
+dotnet run --project src/Guildwright.Console -- sim 400 5 # 배치 시뮬레이션
 ```
 
