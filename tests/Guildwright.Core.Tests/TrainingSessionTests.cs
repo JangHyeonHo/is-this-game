@@ -47,19 +47,19 @@ public class TrainingSessionTests(ITestOutputHelper output)
         for (int i = 0; i < 12; i++)
         {
             Assert.False(session.IsComplete);
-            session.AdvanceMonth(TrainingFocus.Rest);
+            session.AdvanceMonth(TrainingActivity.Rest);
         }
 
         Assert.True(session.IsComplete);
         Assert.Equal(12, session.MonthsCompleted);
-        Assert.Throws<InvalidOperationException>(() => session.AdvanceMonth(TrainingFocus.Rest));
+        Assert.Throws<InvalidOperationException>(() => session.AdvanceMonth(TrainingActivity.Rest));
     }
 
     [Fact]
     public void 열두달을_마치기_전에는_결과를_확정할_수_없다()
     {
         var session = new TrainingYearSession(Rookie(), new DeterministicRandom(Seed));
-        session.AdvanceMonth(TrainingFocus.Strength);
+        session.AdvanceMonth(TrainingActivity.Strength);
 
         Assert.Throws<InvalidOperationException>(() => session.Complete());
     }
@@ -70,7 +70,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
         var adventurer = Rookie(age: 18);
         var session = new TrainingYearSession(adventurer, new DeterministicRandom(Seed));
 
-        for (int i = 0; i < 12; i++) session.AdvanceMonth(TrainingFocus.Strength);
+        for (int i = 0; i < 12; i++) session.AdvanceMonth(TrainingActivity.Strength);
         session.Complete();
 
         Assert.Equal(19, adventurer.Age);
@@ -83,38 +83,60 @@ public class TrainingSessionTests(ITestOutputHelper output)
     // ---------------------------------------------------------------
 
     [Fact]
-    public void 한_능력치에_집중하면_그_능력치가_크게_자란다()
+    public void 활동에_따라_자라는_능력치가_갈린다()
     {
-        // 이게 성립해야 "캐릭터별 특화"를 플레이어가 유도할 수 있습니다.
-        var adventurer = Rookie();
-        var session = new TrainingYearSession(adventurer, new DeterministicRandom(Seed));
-
-        for (int i = 0; i < 12; i++)
+        // 훈련이 능력치 이름이 아니라 활동 이름이 된 뒤로도, 무엇을 시켰는지가
+        // 결과에 뚜렷하게 나타나야 합니다. 안 그러면 매달 고르는 의미가 없습니다.
+        PrimaryStats After(TrainingActivity activity)
         {
-            session.AdvanceMonth(session.Fatigue >= 48 ? TrainingFocus.Rest : TrainingFocus.Strength);
+            var adventurer = Rookie();
+            var session = new TrainingYearSession(adventurer, new DeterministicRandom(Seed));
+
+            for (int i = 0; i < 12; i++)
+            {
+                session.AdvanceMonth(session.Fatigue >= 42 ? TrainingActivity.Rest : activity);
+            }
+            session.Complete();
+            return adventurer.Stats;
         }
-        session.Complete();
 
-        output.WriteLine($"공격 집중 1년: {adventurer.Stats}");
+        var lifted = After(TrainingActivity.Strength);
+        var studied = After(TrainingActivity.Study);
 
-        Assert.True(adventurer.Stats.Strength > adventurer.Stats.Vitality * 2,
-            "집중한 능력치가 뚜렷하게 앞서지 않으면, 매달 무엇을 훈련할지 고르는 의미가 없습니다.");
+        output.WriteLine($"근력 1년: {lifted}");
+        output.WriteLine($"학술 1년: {studied}");
+
+        Assert.True(lifted.Strength > studied.Strength * 1.5,
+            "근력 훈련을 시켰는데 힘이 학술 쪽보다 뚜렷하게 앞서지 않습니다.");
+        Assert.True(studied.Intellect > lifted.Intellect * 1.5,
+            "학술 훈련을 시켰는데 지능이 근력 쪽보다 뚜렷하게 앞서지 않습니다.");
     }
 
     [Fact]
-    public void 집중하지_않은_능력치도_조금은_자란다()
+    public void 한_활동이_여러_능력치를_함께_올린다()
     {
-        // 파급이 0이면 한 능력치만 미는 게 항상 정답이 되어 선택이 사라집니다.
+        // 활동 기반으로 바꾼 핵심 이유입니다. 능력치 1:1이면 12개월 계획이
+        // "같은 6지선다를 12번 반복"하는 것이 됩니다.
+        // 근력 훈련은 힘●●● + 활력●● 이므로 활력도 같이 올라야 합니다.
         var adventurer = Rookie();
         var session = new TrainingYearSession(adventurer, new DeterministicRandom(Seed));
 
         for (int i = 0; i < 12; i++)
         {
-            session.AdvanceMonth(session.Fatigue >= 48 ? TrainingFocus.Rest : TrainingFocus.Strength);
+            session.AdvanceMonth(session.Fatigue >= 42 ? TrainingActivity.Rest : TrainingActivity.Strength);
         }
         session.Complete();
 
-        Assert.True(adventurer.Stats.Vitality > 15);
+        output.WriteLine($"근력 집중 1년: {adventurer.Stats}");
+
+        Assert.True(adventurer.Stats.Strength > adventurer.Stats.Vitality,
+            "주 능력치가 부 능력치를 앞서야 활동마다 성격이 갈립니다.");
+        Assert.True(adventurer.Stats.Vitality > 15,
+            "근력 훈련은 활력도 함께 올려야 합니다 (힘●●● 활력●●).");
+
+        // 반대로 근력 훈련이 전혀 건드리지 않는 능력치는 제자리여야 합니다.
+        // 파급(spillover)을 없앴으므로 여기서 오르면 안 됩니다.
+        Assert.Equal(Rookie().Stats.Intellect, adventurer.Stats.Intellect);
     }
 
     // ---------------------------------------------------------------
@@ -126,18 +148,18 @@ public class TrainingSessionTests(ITestOutputHelper output)
     {
         var session = new TrainingYearSession(Rookie(), new DeterministicRandom(Seed));
 
-        session.AdvanceMonth(TrainingFocus.Strength);
+        session.AdvanceMonth(TrainingActivity.Strength);
         int afterTraining = session.Fatigue;
         Assert.True(afterTraining > 0);
 
-        session.AdvanceMonth(TrainingFocus.Rest);
+        session.AdvanceMonth(TrainingActivity.Rest);
         Assert.True(session.Fatigue < afterTraining);
     }
 
     [Fact]
-    public void 쉬지_않고_밀어붙이면_부상_위험이_생긴다()
+    public void 쉬지_않고_밀어붙이면_실패_위험이_생긴다()
     {
-        int InjuredRuns(int restThreshold)
+        int RunsWithFailure(int restThreshold)
         {
             int injured = 0;
             const int trials = 400;
@@ -150,20 +172,20 @@ public class TrainingSessionTests(ITestOutputHelper output)
 
                 while (!session.IsComplete)
                 {
-                    session.AdvanceMonth(session.Fatigue >= restThreshold ? TrainingFocus.Rest : TrainingFocus.Strength);
+                    session.AdvanceMonth(session.Fatigue >= restThreshold ? TrainingActivity.Rest : TrainingActivity.Strength);
                 }
                 session.Complete();
 
-                if (session.Months.Any(m => m.GotInjured)) injured++;
+                if (session.Months.Any(m => m.Failed)) injured++;
             }
 
             return injured;
         }
 
-        int cautious = InjuredRuns(34);
-        int reckless = InjuredRuns(95);
+        int cautious = RunsWithFailure(34);
+        int reckless = RunsWithFailure(95);
 
-        output.WriteLine($"400회 중 부상 발생 · 신중(34) {cautious}건 / 강행(95) {reckless}건");
+        output.WriteLine($"400회 중 훈련 실패 발생 · 신중(34) {cautious}건 / 강행(95) {reckless}건");
 
         Assert.Equal(0, cautious);
         Assert.True(reckless > cautious,
@@ -171,32 +193,44 @@ public class TrainingSessionTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void 부상당하면_몇달간_훈련이_불가능하다()
+    public void 훈련에_실패하면_성장이_거의_없고_피로가_더_쌓인다()
     {
-        // 강행하다 부상당한 케이스를 하나 찾습니다.
+        // 육성의 부상은 걷어냈습니다 (실전에도 부상이 있는데 중복이라).
+        // 대신 실패가 "그 달을 잃는" 대가를 집니다 — 성장이 없는데 피로만 더 쌓입니다.
         for (int t = 0; t < 400; t++)
         {
             var adventurer = Rookie();
-            var rng = new DeterministicRandom(Seed).Fork($"inj:{t}");
+            var rng = new DeterministicRandom(Seed).Fork($"fail:{t}");
             var session = new TrainingYearSession(adventurer, rng);
 
-            while (!session.IsComplete) session.AdvanceMonth(TrainingFocus.Strength);
+            var before = new List<int>();
+            MonthOutcome? failure = null;
+            int fatigueBefore = 0;
 
-            var injury = session.Months.FirstOrDefault(m => m.GotInjured);
-            if (injury is null) continue;
+            while (!session.IsComplete)
+            {
+                int f = session.Fatigue;
+                var outcome = session.AdvanceMonth(TrainingActivity.Strength);
+                if (outcome.Failed) { failure = outcome; fatigueBefore = f; break; }
+            }
 
-            // 부상 다음 달부터는 선택과 무관하게 요양이어야 합니다.
-            var next = session.Months.FirstOrDefault(m => m.Month == injury.Month + 1);
-            if (next is null) continue;
+            if (failure is null) continue;
 
-            output.WriteLine($"{injury.Note} → 다음 달: {next.Note}");
+            output.WriteLine($"{failure.Note} (직전 피로 {fatigueBefore})");
 
-            Assert.True(next.WasRecovering);
-            Assert.Equal(TrainingFocus.Rest, next.Focus);
+            // 피로 상한(100)에 걸리면 증가폭이 줄어드므로 그 경우는 제외합니다.
+            int expected = TrainingActivities.Of(TrainingActivity.Strength).FatigueCost
+                         + TrainingRules.ExtraFatigueOnFailure;
+
+            if (failure.FatigueAfter < TrainingRules.MaxFatigue)
+            {
+                Assert.Equal(expected, failure.FatigueAfter - fatigueBefore);
+            }
+            Assert.True(failure.StatGain.Total >= 0, "실패해도 능력치를 잃지는 않습니다.");
             return;
         }
 
-        Assert.Fail("400회 중 부상 사례를 찾지 못했습니다. 부상 확률이 지나치게 낮을 수 있습니다.");
+        Assert.Fail("400회 중 실패 사례를 찾지 못했습니다. 실패 확률이 지나치게 낮을 수 있습니다.");
     }
 
     [Fact]
@@ -206,7 +240,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
         {
             var adventurer = Rookie();
             var session = new TrainingYearSession(adventurer, new DeterministicRandom(Seed), startingFatigue: startingFatigue);
-            var outcome = session.AdvanceMonth(TrainingFocus.Strength);
+            var outcome = session.AdvanceMonth(TrainingActivity.Strength);
             return outcome.StatGain.Strength;
         }
 
@@ -346,7 +380,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
             var session = new TrainingYearSession(a, new DeterministicRandom(Seed));
             for (int i = 0; i < 12; i++)
             {
-                session.AdvanceMonth(i % 4 == 3 ? TrainingFocus.Rest : TrainingFocus.Agility);
+                session.AdvanceMonth(i % 4 == 3 ? TrainingActivity.Rest : TrainingActivity.Endurance);
             }
             session.Complete();
             return $"{a.Stats}|{a.Age}";

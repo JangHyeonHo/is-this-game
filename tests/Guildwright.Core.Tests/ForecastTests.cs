@@ -35,12 +35,12 @@ public class ForecastTests(ITestOutputHelper output)
             WeaponAptitudes.Uniform(AptitudeGrade.B), WeaponStyle.SwordAndShield, WeaponClass.Blade);
     }
 
-    private static List<TrainingFocus> Plan(TrainingFocus focus, int months)
+    private static List<TrainingActivity> Plan(TrainingActivity focus, int months)
     {
-        var plan = new List<TrainingFocus>();
+        var plan = new List<TrainingActivity>();
         for (int i = 0; i < TrainingRules.MonthsPerYear; i++)
         {
-            plan.Add(i < months ? focus : TrainingFocus.Rest);
+            plan.Add(i < months ? focus : TrainingActivity.Rest);
         }
         return plan;
     }
@@ -53,7 +53,7 @@ public class ForecastTests(ITestOutputHelper output)
 
         int Center(int months)
         {
-            var f = TrainingForecaster.ForecastYear(a, report, Plan(TrainingFocus.Strength, months))
+            var f = TrainingForecaster.ForecastYear(a, report, Plan(TrainingActivity.Strength, months))
                 .First(x => x.Stat == PrimaryStat.Strength);
             output.WriteLine($"   힘 훈련 {months,2}개월 → +{f.Min}~+{f.Max}");
             return (f.Min + f.Max) / 2;
@@ -77,7 +77,7 @@ public class ForecastTests(ITestOutputHelper output)
         int Width(double confidence)
         {
             var report = Appraiser.Appraise(a, confidence, rng.Fork($"c:{confidence}"));
-            var f = TrainingForecaster.ForecastYear(a, report, Plan(TrainingFocus.Strength, 8))
+            var f = TrainingForecaster.ForecastYear(a, report, Plan(TrainingActivity.Strength, 8))
                 .First(x => x.Stat == PrimaryStat.Strength);
 
             output.WriteLine($"   감정 역량 {confidence:P0} (확신도 {report.Confidence:P0}) → 힘 +{f.Min}~+{f.Max}");
@@ -97,7 +97,7 @@ public class ForecastTests(ITestOutputHelper output)
         var a = Rookie();
         var report = Appraiser.Appraise(a, 1.0, new DeterministicRandom(Seed));
 
-        var forecast = TrainingForecaster.ForecastYear(a, report, Plan(TrainingFocus.Intellect, 9));
+        var forecast = TrainingForecaster.ForecastYear(a, report, Plan(TrainingActivity.Study, 9));
 
         foreach (var f in forecast) output.WriteLine($"   {f}");
 
@@ -118,9 +118,9 @@ public class ForecastTests(ITestOutputHelper output)
         var wildlyWrong = Appraiser.Appraise(a, 0.0, rng.Fork("vague"));
         var accurate = Appraiser.Appraise(a, 1.0, rng.Fork("sharp"));
 
-        var vagueCenter = TrainingForecaster.ForecastYear(a, wildlyWrong, Plan(TrainingFocus.Strength, 8))
+        var vagueCenter = TrainingForecaster.ForecastYear(a, wildlyWrong, Plan(TrainingActivity.Strength, 8))
             .First(x => x.Stat == PrimaryStat.Strength);
-        var sharpCenter = TrainingForecaster.ForecastYear(a, accurate, Plan(TrainingFocus.Strength, 8))
+        var sharpCenter = TrainingForecaster.ForecastYear(a, accurate, Plan(TrainingActivity.Strength, 8))
             .First(x => x.Stat == PrimaryStat.Strength);
 
         output.WriteLine($"   추정 잠재력 힘 · 흐림 {wildlyWrong.EstimatedPotential.Strength} / 선명 {accurate.EstimatedPotential.Strength} (실제 80)");

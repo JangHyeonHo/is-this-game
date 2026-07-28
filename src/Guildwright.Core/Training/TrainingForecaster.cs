@@ -41,16 +41,32 @@ public readonly record struct DerivedForecast(DerivedStat Stat, double Min, doub
 /// </summary>
 /// <param name="Stats">원천 능력치 예상 증가 범위.</param>
 /// <param name="Derived">그에 따른 전투 수치 변화 범위.</param>
-/// <param name="FatigueByMonth">각 달의 행동을 마친 시점의 피로도 (12개).</param>
+/// <param name="FatigueByMonth">
+/// 각 달의 행동을 마친 시점의 피로도 (12개). <b>실패하지 않았을 때 기준</b>입니다 —
+/// 실패하면 +25가 붙어 어긋나므로, 실패 확률은 <see cref="FailureChanceByMonth"/>로 따로 봅니다.
+/// </param>
+/// <param name="FailureChanceByMonth">각 달의 실패 확률. 휴식인 달은 0.</param>
+/// <param name="ProficiencyGain">계획대로 했을 때 오르는 장착 무기 숙련도.</param>
+/// <param name="JudgementGain">계획대로 했을 때 오르는 판단력 (모의전에서만).</param>
 public sealed record YearForecast(
     IReadOnlyList<StatForecast> Stats,
     IReadOnlyList<DerivedForecast> Derived,
-    IReadOnlyList<int> FatigueByMonth)
+    IReadOnlyList<int> FatigueByMonth,
+    IReadOnlyList<double> FailureChanceByMonth,
+    double ProficiencyGain,
+    double JudgementGain)
 {
     public int PeakFatigue => FatigueByMonth.Count == 0 ? 0 : FatigueByMonth.Max();
 
-    /// <summary>부상 위험선을 넘긴 채 훈련하는 달 수. 0이 아니면 계획을 다시 볼 이유가 됩니다.</summary>
-    public int MonthsAtInjuryRisk => FatigueByMonth.Count(f => f > TrainingRules.InjuryThreshold);
+    /// <summary>실패 확률이 붙은 달 수. 0이 아니면 계획을 다시 볼 이유가 됩니다.</summary>
+    public int MonthsAtRisk => FailureChanceByMonth.Count(c => c > 0.0);
+
+    /// <summary>가장 위험한 달의 실패 확률.</summary>
+    public double WorstFailureChance =>
+        FailureChanceByMonth.Count == 0 ? 0.0 : FailureChanceByMonth.Max();
+
+    /// <summary>12개월 중 실패할 것으로 기대되는 달 수.</summary>
+    public double ExpectedFailedMonths => FailureChanceByMonth.Sum();
 }
 
 /// <summary>
@@ -96,7 +112,7 @@ public static class TrainingForecaster
     public static IReadOnlyList<StatForecast> ForecastYear(
         Adventurer adventurer,
         ScoutingReport report,
-        IReadOnlyList<TrainingFocus> plan,
+        IReadOnlyList<TrainingActivity> plan,
         Mentorship? mentorship = null)
         => Forecast(adventurer, report, plan, mentorship).Stats;
 
@@ -110,7 +126,7 @@ public static class TrainingForecaster
     public static YearForecast Forecast(
         Adventurer adventurer,
         ScoutingReport report,
-        IReadOnlyList<TrainingFocus> plan,
+        IReadOnlyList<TrainingActivity> plan,
         Mentorship? mentorship = null)
     {
         var mentor = mentorship ?? Mentorship.None;
@@ -128,39 +144,55 @@ public static class TrainingForecaster
         double bloom = guessed.BloomFactorAt(adventurer.Age);
         double multiplier = bloom * guessed.TrainingMultiplier * mentor.TrainingMultiplier;
 
-        // 계획을 그대로 훑으며 평균적인 피로/컨디션을 가정해 누적합니다.
+        // 계획을 그대로 훑으며 평균적인 컨디션을 가정해 누적합니다.
+        //
+        // 피로는 계획만으로 정확히 정해지지만, 실패하면 +25가 붙어 어긋납니다.
+        // 그래서 예보는 <b>실패하지 않았을 때</b>를 기준으로 내고, 실패 확률을 따로 보여줍니다.
         var accumulated = new double[PrimaryStats.AllStats.Count];
         var fatigueByMonth = new List<int>(plan.Count);
+        var failureByMonth = new List<double>(plan.Count);
+        double proficiency = 0.0;
+        double judgement = 0.0;
         int fatigue = 0;
 
-        foreach (var focus in plan)
+        foreach (var activity in plan)
         {
-            if (focus == TrainingFocus.Rest)
+            if (activity == TrainingActivity.Rest)
             {
-                fatigue = Math.Max(0, fatigue - TrainingRules.FatigueRecoveryOnRest);
+                fatigue = Math.Clamp(
+                    fatigue + TrainingActivities.Of(TrainingActivity.Rest).FatigueCost,
+                    0, TrainingRules.MaxFatigue);
                 fatigueByMonth.Add(fatigue);
+                failureByMonth.Add(0.0);
                 continue;
             }
+
+            // 실패 판정은 훈련 전 피로도로 합니다. 세션과 같은 순서여야 화면과 실제가 맞습니다.
+            failureByMonth.Add(TrainingYearSession.FailureChanceAt(fatigue));
 
             double fatiguePenalty = fatigue <= TrainingRules.FatigueSoftCap
                 ? 1.0
                 : Math.Max(0.35, 1.0 - (double)(fatigue - TrainingRules.FatigueSoftCap)
                     / (TrainingRules.MaxFatigue - TrainingRules.FatigueSoftCap) * 0.65);
 
-            var focused = ToStat(focus);
+            var profile = TrainingActivities.Of(activity);
+            proficiency += profile.ProficiencyPerMonth * mentor.TrainingMultiplier;
+            judgement += profile.JudgementPerMonth;
 
             foreach (var stat in PrimaryStats.AllStats)
             {
+                double weight = profile.WeightOf(stat);
+                if (weight <= 0.0) continue;
+
                 double current = adventurer.Stats[stat] + accumulated[(int)stat];
                 int potential = guessed.Potential[stat];
                 if (potential <= current) continue;
 
-                double share = stat == focused ? 1.0 : TrainingRules.SpilloverRatio;
                 accumulated[(int)stat] +=
-                    (potential - current) * TrainingRules.MonthlyLearnRate * multiplier * fatiguePenalty * share;
+                    (potential - current) * TrainingRules.MonthlyLearnRate * multiplier * fatiguePenalty * weight;
             }
 
-            fatigue = Math.Min(TrainingRules.MaxFatigue, fatigue + TrainingRules.FatiguePerTraining);
+            fatigue = Math.Clamp(fatigue + profile.FatigueCost, 0, TrainingRules.MaxFatigue);
             fatigueByMonth.Add(fatigue);
         }
 
@@ -177,7 +209,8 @@ public static class TrainingForecaster
             })
             .ToList();
 
-        return new YearForecast(stats, ForecastDerived(adventurer, stats), fatigueByMonth);
+        return new YearForecast(
+            stats, ForecastDerived(adventurer, stats), fatigueByMonth, failureByMonth, proficiency, judgement);
     }
 
     /// <summary>
@@ -229,14 +262,4 @@ public static class TrainingForecaster
         _ => 0.0
     };
 
-    private static PrimaryStat ToStat(TrainingFocus focus) => focus switch
-    {
-        TrainingFocus.Strength => PrimaryStat.Strength,
-        TrainingFocus.Agility => PrimaryStat.Agility,
-        TrainingFocus.Finesse => PrimaryStat.Finesse,
-        TrainingFocus.Vitality => PrimaryStat.Vitality,
-        TrainingFocus.Intellect => PrimaryStat.Intellect,
-        TrainingFocus.Spirit => PrimaryStat.Spirit,
-        _ => throw new ArgumentOutOfRangeException(nameof(focus))
-    };
 }
