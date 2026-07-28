@@ -14,7 +14,13 @@ public static class Ui
     private static string ReadLineOrQuit()
     {
         string? input = Console.ReadLine();
-        if (input is not null) return input;
+        if (input is not null)
+        {
+            // 입력을 파이프로 넣으면 터미널이 대신 메아리쳐 주지 않아, 기록만 보면
+            // "무엇을 골랐는지"가 사라집니다. 대본 플레이 기록을 남기려면 필요합니다.
+            if (Console.IsInputRedirected) Console.WriteLine(input);
+            return input;
+        }
 
         Console.WriteLine();
         Console.WriteLine("   입력이 끝나 종료합니다.");

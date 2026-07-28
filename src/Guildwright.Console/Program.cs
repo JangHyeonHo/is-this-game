@@ -378,7 +378,7 @@ internal sealed class Guild(IRandomSource rng)
                 $"추가 회복약 {support.ExtraPotions}");
 
         // 전투를 실제로 치릅니다.
-        var experience = FightAndSummarize(party, contract, support);
+        var fought = FightAndSummarize(party, contract, support);
 
         // 연 단위 결과 적용
         int totalIncome = 0;
@@ -386,9 +386,10 @@ internal sealed class Guild(IRandomSource rng)
         {
             var record = CareerSimulator.ResolveDeploymentYear(
                 fighter, contract.Difficulty, rng.Fork($"deploy:{_year}:{fighter.Id}"),
-                experience.GetValueOrDefault(fighter.Id),
+                fought.Experience.GetValueOrDefault(fighter.Id),
                 fighter.Id == member.Id ? role : null,
-                contract, support);
+                contract, support,
+                new BattleReport(fought.Outcome, fought.Downed.Contains(fighter.Id)));
 
             totalIncome += record.Income;
             Ui.Line($"     {record.Note}");
@@ -404,15 +405,29 @@ internal sealed class Guild(IRandomSource rng)
             }
         }
 
+        // 평판은 해낸 의뢰에만 붙습니다. 지고도 평판이 오르면 실패에 대가가 없어집니다.
+        int reputationGain = fought.Outcome switch
+        {
+            BattleOutcome.PlayerVictory => contract.Difficulty,
+            BattleOutcome.Draw => 0,
+            _ => -1
+        };
+
         _funds += totalIncome;
-        _reputation += contract.Difficulty;
-        Ui.Note($"보수 {totalIncome}, 평판 +{contract.Difficulty}");
+        _reputation = Math.Max(0, _reputation + reputationGain);
+        Ui.Note($"보수 {totalIncome}, 평판 {(reputationGain >= 0 ? "+" : "")}{reputationGain}");
 
         _members.RemoveAll(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled);
     }
 
+    /// <summary>전투 한 판의 결과 — 승패와, 각자가 무엇을 겪었는지.</summary>
+    private sealed record FoughtBattle(
+        BattleOutcome Outcome,
+        IReadOnlySet<string> Downed,
+        IReadOnlyDictionary<string, CombatExperience> Experience);
+
     /// <summary>실제 전투를 한 판 치르고, 각자가 무엇을 겪었는지 돌려줍니다.</summary>
-    private Dictionary<string, CombatExperience> FightAndSummarize(
+    private FoughtBattle FightAndSummarize(
         List<Adventurer> party,
         Contract contract,
         ContractSupport support)
@@ -444,11 +459,17 @@ internal sealed class Guild(IRandomSource rng)
         bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
         var commander = manual ? new ConsoleCommander() : null;
 
-        var result = new BattleResolver(recordLog: true)
-            .Resolve(state, rng.Fork($"battle:{_year}"), commander);
-
+        // 직접 개입할 때는 기록을 실시간으로 흘려보냅니다. 지시를 내리는 시점에
+        // 직전 라운드에 무슨 일이 있었는지 모르면 판단할 근거가 없습니다.
         Ui.Line();
-        foreach (var line in result.Log) Ui.Line("     " + line);
+        var result = new BattleResolver(recordLog: true)
+            .Resolve(state, rng.Fork($"battle:{_year}"), commander,
+                     manual ? line => Ui.Line("     " + line) : null);
+
+        if (!manual)
+        {
+            foreach (var line in result.Log) Ui.Line("     " + line);
+        }
 
         Ui.Line();
         Ui.Note(result.Outcome switch
@@ -460,9 +481,12 @@ internal sealed class Guild(IRandomSource rng)
         Display.Formation(state);
         Ui.Pause();
 
-        return state.All
-            .Where(c => c.Team == Team.Player)
-            .ToDictionary(c => c.Id, c => CombatExperience.From(c.Contribution));
+        var ours = state.All.Where(c => c.Team == Team.Player).ToList();
+
+        return new FoughtBattle(
+            result.Outcome,
+            ours.Where(c => !c.IsAlive).Select(c => c.Id).ToHashSet(),
+            ours.ToDictionary(c => c.Id, c => CombatExperience.From(c.Contribution)));
     }
 
     // ── 연말 ────────────────────────────────────────────────

@@ -42,4 +42,24 @@ public static class CareerRules
 
     /// <summary>불구 시 잃는 능력치 비율.</summary>
     public const double CrippleLoss = 0.30;
+
+    // ── 전투 결과가 그 해에 미치는 영향 ───────────────────────
+    //
+    // 전투에서 지고도 보수를 받고 멀쩡히 돌아오면, 전투를 보는 의미가 사라집니다.
+    // (실제로 "쓰러졌는데 보수 144를 받고 승급"하는 장면을 콘솔에서 봤습니다.)
+    //
+    // ⚠️ 아래 배율은 아직 배치 시뮬레이션으로 검증하지 않은 임시값입니다.
+    //    docs/06-balance-log.md #23 참조.
+
+    /// <summary>전투에서 패배했을 때 사고 위험 배율.</summary>
+    public const double DefeatRiskMultiplier = 3.0;
+
+    /// <summary>결판이 나지 않았을 때 사고 위험 배율.</summary>
+    public const double DrawRiskMultiplier = 1.6;
+
+    /// <summary>전투 중 본인이 쓰러졌을 때 추가로 곱해지는 위험 배율.</summary>
+    public const double DownedRiskMultiplier = 2.2;
+
+    /// <summary>결판이 나지 않았을 때 받는 보수 비율. 의뢰를 절반만 해낸 셈입니다.</summary>
+    public const double DrawIncomeRatio = 0.4;
 }

@@ -36,9 +36,18 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
     /// <param name="commander">
     /// 플레이어 개입 통로. null이면 완전 자동으로 돌아갑니다(배치 시뮬레이션).
     /// </param>
-    public BattleResult Resolve(BattleState state, IRandomSource rng, IBattleCommander? commander = null)
+    /// <param name="onLine">
+    /// 기록이 한 줄 생길 때마다 호출되는 <b>출력 전용</b> 콜백. 관전·수동 전투에서
+    /// 진행 상황을 실시간으로 보여주는 용도입니다. 전투 결과에 영향을 주면 안 됩니다.
+    /// <c>recordLog: false</c>이면 호출되지 않습니다.
+    /// </param>
+    public BattleResult Resolve(
+        BattleState state,
+        IRandomSource rng,
+        IBattleCommander? commander = null,
+        Action<string>? onLine = null)
     {
-        var log = recordLog ? new List<string>() : null;
+        var log = recordLog ? new BattleLog(onLine) : null;
         int commandPoints = commander is null ? 0 : CommandRules.BasePoints;
 
         for (int round = 1; round <= maxRounds; round++)
@@ -92,7 +101,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
     }
 
     /// <summary>라운드 종료 처리 — 지속 피해와 효과 만료.</summary>
-    private static void EndOfRound(BattleState state, List<string>? log)
+    private static void EndOfRound(BattleState state, BattleLog? log)
     {
         foreach (var combatant in state.All)
         {
@@ -114,7 +123,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
         ChosenAction choice,
         BattleState state,
         IRandomSource rng,
-        List<string>? log)
+        BattleLog? log)
     {
         switch (choice.Action)
         {
@@ -281,6 +290,6 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
         return $"{actor.Name} → {target.Name}: {crit}{prefix}{hit.Damage} 피해, {tail}";
     }
 
-    private static IReadOnlyList<string> ReadOnly(List<string>? log) =>
-        log is null ? Array.Empty<string>() : log;
+    private static IReadOnlyList<string> ReadOnly(BattleLog? log) =>
+        log is null ? Array.Empty<string>() : log.Lines;
 }

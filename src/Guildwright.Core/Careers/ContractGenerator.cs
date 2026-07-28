@@ -71,15 +71,32 @@ public static class ContractGenerator
         return new Contract(name, kind, difficulty, preferences);
     }
 
-    /// <summary>길드 평판에 어울리는 난이도 범위로 의뢰 게시판을 채웁니다.</summary>
+    /// <summary>
+    /// 길드 평판에 어울리는 난이도 범위로 의뢰 게시판을 채웁니다.
+    /// <para>
+    /// 같은 이름의 의뢰가 한 게시판에 두 번 뜨지 않게 합니다. 이름이 겹치면 게시판을 보고
+    /// 고르는 행위 자체가 헷갈립니다 — 실제로 "채석장 골렘 파괴"가 나란히 두 개 떴습니다.
+    /// 이름 풀보다 게시판이 클 수도 있으므로 재시도 횟수에 상한을 둡니다.
+    /// </para>
+    /// </summary>
     public static IReadOnlyList<Contract> GenerateBoard(IRandomSource rng, int count, int maxDifficulty)
     {
+        const int MaxRerolls = 8;
+
         var board = new List<Contract>(count);
+        var used = new HashSet<string>();
 
         for (int i = 0; i < count; i++)
         {
             int difficulty = Math.Clamp(1 + rng.NextInt(0, Math.Max(1, maxDifficulty)), 1, 10);
-            board.Add(Generate(rng.Fork($"contract:{i}"), difficulty));
+
+            var contract = Generate(rng.Fork($"contract:{i}"), difficulty);
+            for (int attempt = 1; attempt <= MaxRerolls && !used.Add(contract.Name); attempt++)
+            {
+                contract = Generate(rng.Fork($"contract:{i}:{attempt}"), difficulty);
+            }
+
+            board.Add(contract);
         }
 
         return board;

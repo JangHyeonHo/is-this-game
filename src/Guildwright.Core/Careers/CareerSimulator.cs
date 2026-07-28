@@ -70,6 +70,13 @@ public static class CareerSimulator
     /// 파티의 비전투 역량이 이 의뢰에 미치는 효과.
     /// <see cref="ContractResolver.Evaluate"/>로 계산합니다.
     /// </param>
+    /// <param name="battle">
+    /// 실제로 치른 전투의 결과. 생략하면 전투를 따로 돌리지 않은 것으로 보고 무난한 수행으로 처리합니다.
+    /// <para>
+    /// <b>졌으면 보수가 없고 위험이 크게 오릅니다.</b> 이게 없으면 전투에서 전멸하고도
+    /// 보수를 받고 승급하는 일이 생기고, 그 순간 전투를 보는 의미가 사라집니다.
+    /// </para>
+    /// </param>
     public static YearRecord ResolveDeploymentYear(
         Adventurer adventurer,
         int difficulty,
@@ -77,7 +84,8 @@ public static class CareerSimulator
         CombatExperience? experience = null,
         SupportSkill? supportRole = null,
         Contract? contract = null,
-        ContractSupport? support = null)
+        ContractSupport? support = null,
+        BattleReport? battle = null)
     {
         EnsureActive(adventurer);
 
@@ -101,8 +109,9 @@ public static class CareerSimulator
         // 채집 의뢰는 전투 비중이 낮아 덜 위험합니다 — 전투력이 낮은 캐릭터의 자리입니다.
         double combatWeight = contract?.CombatWeight ?? 1.0;
 
-        // 함정 감지와 척후가 사고 위험을 줄입니다.
-        double riskMultiplier = (support?.RiskMultiplier ?? 1.0) * combatWeight;
+        // 함정 감지와 척후가 사고 위험을 줄입니다. 전투 결과도 여기에 곱해집니다.
+        var report = battle ?? BattleReport.NotFought;
+        double riskMultiplier = (support?.RiskMultiplier ?? 1.0) * combatWeight * report.RiskMultiplier;
 
         var outcome = RollOutcome(adventurer, difficulty, riskMultiplier, rng);
         var penalty = ComputeMishapPenalty(adventurer, outcome, rng);
@@ -115,7 +124,8 @@ public static class CareerSimulator
             : (int)Math.Round(
                 difficulty * CareerRules.IncomePerDifficulty
                 * SuccessRatio(adventurer, difficulty, combatWeight)
-                * (support?.IncomeMultiplier ?? 1.0));
+                * (support?.IncomeMultiplier ?? 1.0)
+                * report.IncomeRatio);
 
         string what = contract?.Name ?? $"난이도 {difficulty} 의뢰";
         string role = supportRole is { } r ? $" ({r.ToKorean()} 담당)" : "";
@@ -125,6 +135,8 @@ public static class CareerSimulator
             DeploymentOutcome.Died => $"{adventurer.Age}세: {what}에서 전사",
             DeploymentOutcome.Crippled => $"{adventurer.Age}세: {what}에서 재기 불능의 부상",
             DeploymentOutcome.Injured => $"{adventurer.Age}세: {what}에서 부상{role}",
+            _ when report.Failed => $"{adventurer.Age}세: {what} 실패 — 살아 돌아온 것에 만족{role}",
+            _ when report.Inconclusive => $"{adventurer.Age}세: {what} 미완 — 일부 보수만{role}",
             _ => $"{adventurer.Age}세: {what} 수행{role}"
         };
 
