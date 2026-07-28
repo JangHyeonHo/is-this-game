@@ -7,7 +7,14 @@ namespace Guildwright.Core.Combat;
 /// <param name="Damage">실제로 들어간 피해. 회피했으면 0.</param>
 /// <param name="Evaded">회피당했는지.</param>
 /// <param name="Critical">치명타였는지.</param>
-public readonly record struct AttackResult(int Damage, bool Evaded, bool Critical);
+/// <param name="Detail">
+/// 계산 과정. <c>explain</c>을 켰을 때만 채워집니다.
+/// <para>
+/// <b>숫자가 어디서 왔는지 보이지 않으면 전술 판단이 감이 됩니다.</b>
+/// 27 피해가 왜 27인지 알 수 없으면 "후열로 뺄까"를 계산할 수 없습니다.
+/// </para>
+/// </param>
+public readonly record struct AttackResult(int Damage, bool Evaded, bool Critical, string? Detail = null);
 
 /// <summary>
 /// 데미지·회복 계산.
@@ -68,24 +75,48 @@ public static class DamageModel
     /// <summary>
     /// 실제 공격을 한 번 해결합니다. 회피 → 치명타 → 피해 순으로 판정합니다.
     /// </summary>
+    /// <param name="attacker">공격자.</param>
+    /// <param name="defender">대상.</param>
+    /// <param name="rng">난수원.</param>
+    /// <param name="area">광역 공격인지.</param>
+    /// <param name="explain">
+    /// 계산 과정을 <see cref="AttackResult.Detail"/>에 남길지.
+    /// <b>난수 소비 순서와 결과는 이 값과 무관하게 완전히 동일합니다.</b>
+    /// (달라지면 배치 시뮬레이션으로 잰 밸런스가 실제 플레이와 어긋납니다.)
+    /// </param>
     public static AttackResult ResolveAttack(
         Combatant attacker,
         Combatant defender,
         IRandomSource rng,
-        bool area = false)
+        bool area = false,
+        bool explain = false)
     {
-        if (RollEvasion(attacker, defender, area, rng))
+        double evasionChance = EvasionChanceOf(attacker, defender, area);
+
+        if (rng.Chance(evasionChance))
         {
-            return new AttackResult(0, Evaded: true, Critical: false);
+            return new AttackResult(0, Evaded: true, Critical: false,
+                Detail: explain ? $"회피 판정 {evasionChance * 100:F1}% 성공 — 빗나감" : null);
         }
 
         bool critical = rng.Chance(attacker.CritChance);
         double critMultiplier = critical ? attacker.Capability.CritMultiplier : 1.0;
 
         double variance = 1.0 + (rng.NextDouble() * 2.0 - 1.0) * Variance;
-        int damage = ComputeDamage(attacker, defender, area, variance, critMultiplier);
 
-        return new AttackResult(damage, Evaded: false, Critical: critical);
+        var steps = explain ? new List<string>() : null;
+        int damage = ComputeDamage(attacker, defender, area, variance, critMultiplier, steps);
+
+        string? detail = null;
+        if (steps is not null)
+        {
+            detail =
+                $"회피 {evasionChance * 100:F1}% 실패 · " +
+                $"치명타 {attacker.CritChance * 100:F1}% {(critical ? "적중" : "실패")}\n" +
+                string.Join(" ", steps) + $"  ⇒ {damage} 피해";
+        }
+
+        return new AttackResult(damage, Evaded: false, Critical: critical, detail);
     }
 
     /// <summary>
@@ -95,7 +126,8 @@ public static class DamageModel
     /// 느린 석궁병이 재빠른 검객을 맞히기 어려운 게 자연스럽습니다.
     /// </para>
     /// </summary>
-    private static bool RollEvasion(Combatant attacker, Combatant defender, bool area, IRandomSource rng)
+    /// <summary>회피 확률만 계산합니다 (굴리지는 않습니다). 화면에 그대로 보여줄 수 있습니다.</summary>
+    public static double EvasionChanceOf(Combatant attacker, Combatant defender, bool area = false)
     {
         double chance = defender.EvasionChance;
 
@@ -109,7 +141,7 @@ public static class DamageModel
         // 후열에서 근접 무기를 휘두르면 제대로 닿지 않으니 더 잘 피합니다.
         if (attacker.Row == Row.Back && !attacker.Capability.CanActFromBackRow) chance *= 1.4;
 
-        return rng.Chance(Math.Clamp(chance, 0.0, MaxEvasionChance));
+        return Math.Clamp(chance, 0.0, MaxEvasionChance);
     }
 
     private static int ComputeDamage(
@@ -117,7 +149,8 @@ public static class DamageModel
         Combatant defender,
         bool area,
         double variance,
-        double critMultiplier)
+        double critMultiplier,
+        List<string>? steps = null)
     {
         bool magic = attacker.Capability.UsesMagic;
 
@@ -125,22 +158,39 @@ public static class DamageModel
         double guard = magic ? defender.EffectiveMagicGuard : defender.EffectivePhysicalGuard;
 
         double raw = offense - guard * 0.5;
+        steps?.Add($"{(magic ? "마법" : "물리")}위력 {offense} − 방어 {guard}×0.5 = {raw:F1}");
 
-        raw *= attacker.Capability.DamageModifier;
-        raw *= attacker.WeaponEffectiveness;
-        raw *= critMultiplier;
+        raw = Step(raw, attacker.Capability.DamageModifier, "무기", steps);
+        raw = Step(raw, attacker.WeaponEffectiveness, "숙련", steps);
+        raw = Step(raw, critMultiplier, "치명타", steps);
 
         // 근접 무기가 후열에서 휘두르면 제대로 닿지 않습니다.
         if (attacker.Row == Row.Back && !attacker.Capability.CanActFromBackRow)
         {
-            raw *= MeleeFromBackRowPenalty;
+            raw = Step(raw, MeleeFromBackRowPenalty, "후열에서 근접", steps);
         }
 
-        if (area) raw *= AreaAttackMultiplier;
-        if (defender.Row == Row.Back) raw *= BackRowDefenseBonus;
-        if (defender.IsDefending) raw *= DefendMultiplier;
+        if (area) raw = Step(raw, AreaAttackMultiplier, "광역", steps);
+        if (defender.Row == Row.Back) raw = Step(raw, BackRowDefenseBonus, "대상 후열", steps);
+        if (defender.IsDefending) raw = Step(raw, DefendMultiplier, "대상 방어", steps);
 
-        return Math.Max(1, (int)Math.Round(raw * variance));
+        raw = Step(raw, variance, "변동", steps);
+
+        return Math.Max(1, (int)Math.Round(raw));
+    }
+
+    /// <summary>배율을 한 번 적용하고, 설명이 필요하면 그 단계를 기록합니다.</summary>
+    private static double Step(double value, double multiplier, string label, List<string>? steps)
+    {
+        double next = value * multiplier;
+
+        // 배율 1.0은 아무것도 안 한 것이므로 굳이 줄을 늘리지 않습니다.
+        if (steps is not null && Math.Abs(multiplier - 1.0) > 0.0005)
+        {
+            steps.Add($"→ {label} ×{multiplier:F2} = {next:F1}");
+        }
+
+        return next;
     }
 
     public static int PotionHealAmount(Combatant target) =>

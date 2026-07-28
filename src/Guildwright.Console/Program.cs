@@ -459,10 +459,14 @@ internal sealed class Guild(IRandomSource rng)
         bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
         var commander = manual ? new ConsoleCommander() : null;
 
+        // 숫자가 어디서 왔는지 보이지 않으면 전술 판단이 감이 됩니다.
+        // 27 피해가 왜 27인지 모르면 "후열로 뺄까"를 계산할 수 없습니다.
+        bool explain = Ui.Confirm("   피해 계산 과정을 자세히 볼까요?");
+
         // 직접 개입할 때는 기록을 실시간으로 흘려보냅니다. 지시를 내리는 시점에
         // 직전 라운드에 무슨 일이 있었는지 모르면 판단할 근거가 없습니다.
         Ui.Line();
-        var result = new BattleResolver(recordLog: true)
+        var result = new BattleResolver(recordLog: true, explainAttacks: explain)
             .Resolve(state, rng.Fork($"battle:{_year}"), commander,
                      manual ? line => Ui.Line("     " + line) : null);
 

@@ -26,7 +26,13 @@ public sealed record BattleResult(
 /// 밸런싱을 배치 시뮬레이션으로 할 수 있습니다.
 /// </para>
 /// </summary>
-public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
+/// <param name="maxRounds">라운드 상한. 넘으면 무승부.</param>
+/// <param name="recordLog">전투 기록을 남길지. 배치 시뮬레이션에서는 꺼서 돌립니다.</param>
+/// <param name="explainAttacks">
+/// 공격 한 번마다 계산 과정을 기록에 남길지. <c>recordLog</c>가 켜져 있어야 의미가 있습니다.
+/// <b>난수 소비와 전투 결과는 이 값과 무관하게 완전히 동일합니다.</b>
+/// </param>
+public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, bool explainAttacks = false)
 {
     /// <summary>
     /// 전투를 진행합니다.
@@ -118,7 +124,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
         }
     }
 
-    private static void Execute(
+    private void Execute(
         Combatant actor,
         ChosenAction choice,
         BattleState state,
@@ -227,13 +233,14 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 foreach (var target in targets.ToList())
                 {
                     if (!target.IsAlive) continue;
-                    var hit = DamageModel.ResolveAttack(actor, target, rng, area: true);
+                    var hit = DamageModel.ResolveAttack(actor, target, rng, area: true, explain: explainAttacks);
 
                     // ⚠️ ApplyHit은 피해를 실제로 적용합니다. log?.Add(ApplyHit(...))로 쓰면
                     //    log가 null일 때 ?. 가 전체 식을 단락시켜 ApplyHit이 호출되지 않습니다.
                     //    실제로 그 버그로 배치 시뮬레이션이 전부 무승부가 났습니다. (docs/06 #13)
                     string areaLine = ApplyHit(actor, target, hit, areaMagic, prefix: "광역 ");
                     log?.Add(areaLine);
+                    Explain(hit, log);
                 }
                 return;
             }
@@ -250,16 +257,28 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                     return;
                 }
 
-                var result = DamageModel.ResolveAttack(actor, target, rng);
+                var result = DamageModel.ResolveAttack(actor, target, rng, explain: explainAttacks);
 
                 // ⚠️ 부작용이 있는 호출을 log?.Add(...)의 인자로 넣지 마세요. 위 주석 참조.
                 string line = ApplyHit(actor, target, result, actor.Capability.UsesMagic);
                 log?.Add(line);
+                Explain(result, log);
                 return;
             }
 
             default:
                 return;
+        }
+    }
+
+    /// <summary>계산 과정을 한 단 들여써서 기록에 붙입니다.</summary>
+    private static void Explain(AttackResult result, BattleLog? log)
+    {
+        if (log is null || result.Detail is null) return;
+
+        foreach (var line in result.Detail.Split('\n'))
+        {
+            log.Add("      " + line);
         }
     }
 
