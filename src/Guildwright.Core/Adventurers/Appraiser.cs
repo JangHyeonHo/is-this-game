@@ -1,4 +1,5 @@
 using Guildwright.Core.Rng;
+using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Adventurers;
 
@@ -12,12 +13,18 @@ namespace Guildwright.Core.Adventurers;
 /// 이 평가를 얼마나 믿을 수 있는지 (0.0~1.0). 플레이어에게 그대로 보여줍니다 —
 /// "확신도 20%"라는 사실 자체가 판단 재료입니다.
 /// </param>
+/// <param name="AptitudeHints">스타일별 적성 추정. 확신도가 낮으면 실제와 다를 수 있습니다.</param>
 public sealed record ScoutingReport(
     BloomTiming TimingHint,
     Temperament TemperamentHint,
     StatBlock EstimatedPotential,
-    double Confidence)
+    double Confidence,
+    IReadOnlyDictionary<WeaponStyle, AptitudeGrade> AptitudeHints)
 {
+    /// <summary>추정상 가장 잘 맞아 보이는 스타일.</summary>
+    public WeaponStyle SuggestedStyle =>
+        AptitudeHints.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).First().Key;
+
     public string ConfidenceLabel => Confidence switch
     {
         < 0.25 => "짐작뿐",
@@ -90,7 +97,33 @@ public static class Appraiser
             estimated = estimated.With(kind, Math.Max(1, (int)Math.Round(noisy)));
         }
 
-        return new ScoutingReport(timing, temperament, estimated, confidence);
+        // 무기 적성도 같은 확신도를 따릅니다. 등급이 인접 등급으로 흔들립니다.
+        var aptitudeHints = new Dictionary<WeaponStyle, AptitudeGrade>();
+        foreach (var style in WeaponStyles.All)
+        {
+            var actual = adventurer.Aptitudes[style];
+            aptitudeHints[style] = rng.Chance(accuracy) ? actual : Shift(actual, rng);
+        }
+
+        return new ScoutingReport(timing, temperament, estimated, confidence, aptitudeHints);
+    }
+
+    /// <summary>
+    /// 등급을 한 칸 위나 아래로 흔듭니다.
+    /// <para>
+    /// 완전 무작위 등급이 아니라 인접 등급으로만 틀리게 하는 이유는,
+    /// S 적성을 E로 보는 식의 극단적 오류가 나오면 감정이라는 행위 자체가 무의미해 보이기 때문입니다.
+    /// </para>
+    /// </summary>
+    private static AptitudeGrade Shift(AptitudeGrade grade, IRandomSource rng)
+    {
+        int direction = rng.Chance(0.5) ? -1 : 1;
+        int shifted = (int)grade + direction;
+
+        if (shifted < (int)AptitudeGrade.E) shifted = (int)AptitudeGrade.D;
+        if (shifted > (int)AptitudeGrade.S) shifted = (int)AptitudeGrade.A;
+
+        return (AptitudeGrade)shifted;
     }
 
     /// <summary>

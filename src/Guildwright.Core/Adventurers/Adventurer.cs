@@ -1,4 +1,5 @@
 using Guildwright.Core.Rng;
+using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Adventurers;
 
@@ -59,7 +60,16 @@ public sealed class Adventurer
 
     private readonly List<YearRecord> _history = [];
 
-    public Adventurer(string id, string name, StatBlock startingStats, int judgement, GrowthProfile growth, int age = RecruitAge)
+    public Adventurer(
+        string id,
+        string name,
+        StatBlock startingStats,
+        int judgement,
+        GrowthProfile growth,
+        int age = RecruitAge,
+        WeaponAptitudes? aptitudes = null,
+        WeaponStyle equippedStyle = WeaponStyle.SwordAndShield,
+        WeaponClass equippedClass = WeaponClass.Blade)
     {
         Id = id;
         Name = name;
@@ -67,6 +77,9 @@ public sealed class Adventurer
         Judgement = Math.Clamp(judgement, 0, 100);
         Growth = growth;
         Age = age;
+        Aptitudes = aptitudes ?? WeaponAptitudes.Uniform(AptitudeGrade.C);
+        EquippedStyle = equippedStyle;
+        EquippedClass = equippedClass;
     }
 
     public string Id { get; }
@@ -85,6 +98,41 @@ public sealed class Adventurer
     /// </para>
     /// </summary>
     public GrowthProfile Growth { get; }
+
+    /// <summary>
+    /// 무기 적성. 숨겨진 정보입니다 — <see cref="Growth"/>와 마찬가지로
+    /// UI에는 <see cref="Appraiser"/>가 만든 추정만 보여줘야 합니다.
+    /// </summary>
+    public WeaponAptitudes Aptitudes { get; }
+
+    /// <summary>스타일별 숙련도. 숨기지 않습니다 — 본인이 뭘 얼마나 했는지는 알 수 있어야 합니다.</summary>
+    public WeaponProficiency Proficiency { get; } = new();
+
+    public WeaponStyle EquippedStyle { get; private set; }
+
+    public WeaponClass EquippedClass { get; private set; }
+
+    /// <summary>
+    /// 무기를 바꿉니다. 예전 숙련도는 사라지지 않지만, 새 스타일은 처음부터입니다.
+    /// </summary>
+    /// <exception cref="ArgumentException">해당 스타일에 장착할 수 없는 무기종인 경우.</exception>
+    public void Equip(WeaponStyle style, WeaponClass weaponClass)
+    {
+        var allowed = WeaponStyles.AllowedClasses(style);
+        if (!allowed.Contains(weaponClass))
+        {
+            throw new ArgumentException(
+                $"{style.ToKorean()}에는 {weaponClass.ToKorean()}을(를) 장착할 수 없습니다. " +
+                $"가능: {string.Join(", ", allowed.Select(c => c.ToKorean()))}",
+                nameof(weaponClass));
+        }
+
+        EquippedStyle = style;
+        EquippedClass = weaponClass;
+    }
+
+    /// <summary>현재 장비의 전투 효율. 숙련도에서 나옵니다.</summary>
+    public double WeaponEffectiveness => Proficiency.EffectivenessOf(EquippedStyle);
 
     public IReadOnlyList<YearRecord> History => _history;
 
@@ -112,6 +160,16 @@ public sealed class Adventurer
         _history.Add(record);
         Stats = (Stats + record.StatChange).ClampToZero();
         Age++;
+
+        // 그 해를 들고 있던 무기의 숙련도가 오릅니다. 사망한 해는 제외합니다.
+        if (record.Outcome != DeploymentOutcome.Died)
+        {
+            double baseGain = record.Activity == YearActivity.Deployment
+                ? WeaponProficiency.PerDeploymentYear
+                : WeaponProficiency.PerTrainingYear;
+
+            Proficiency.Advance(EquippedStyle, Aptitudes[EquippedStyle], baseGain);
+        }
 
         switch (record.Outcome)
         {
@@ -145,9 +203,16 @@ public sealed class Adventurer
         }
 
         int judgement = 10 + rng.NextInt(0, 25);
-        return new Adventurer(id, name, starting, judgement, growth);
+        var aptitudes = WeaponAptitudes.Roll(growth.Potential, rng.Fork($"aptitude:{id}"));
+
+        // 기본 장비는 가장 잘 맞는 스타일로. 플레이어가 나중에 바꿀 수 있습니다.
+        var style = aptitudes.Best;
+        var weaponClass = WeaponStyles.AllowedClasses(style)[0];
+
+        return new Adventurer(id, name, starting, judgement, growth, RecruitAge, aptitudes, style, weaponClass);
     }
 
     public override string ToString() =>
-        $"{Name} ({Age}세, {Status}) {Stats} 판단력 {Judgement}";
+        $"{Name} ({Age}세, {Status}) {Stats} 판단력 {Judgement} " +
+        $"[{EquippedStyle.ToKorean()}·{EquippedClass.ToKorean()} 숙련 {Proficiency[EquippedStyle]}]";
 }
