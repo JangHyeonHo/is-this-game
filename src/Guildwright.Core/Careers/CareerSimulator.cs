@@ -1,6 +1,7 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Training;
+using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Careers;
 
@@ -49,10 +50,19 @@ public static class CareerSimulator
     /// <param name="adventurer">대상 모험가.</param>
     /// <param name="difficulty">의뢰 난이도. 높을수록 보수가 크고 위험합니다.</param>
     /// <param name="rng">난수원.</param>
+    /// <param name="experience">
+    /// 그 해에 실제로 무엇을 겪었는지. 어느 능력치가 자랄지를 정합니다.
+    /// <para>
+    /// 생략하면 장착 무기와 위치로 근사합니다. 실제 전투를 돌렸다면
+    /// <see cref="CombatExperience.From"/>으로 만든 값을 넘기세요 —
+    /// 그래야 <b>파티 편성과 전술 편성이 육성에 반영</b>됩니다.
+    /// </para>
+    /// </param>
     public static YearRecord ResolveDeploymentYear(
         Adventurer adventurer,
         int difficulty,
-        IRandomSource rng)
+        IRandomSource rng,
+        CombatExperience? experience = null)
     {
         EnsureActive(adventurer);
 
@@ -65,7 +75,13 @@ public static class CareerSimulator
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(difficulty);
 
         double multiplier = adventurer.Growth.DeploymentMultiplier;
-        var growth = ComputeStatChange(adventurer, multiplier, rng);
+
+        // 전투 기록이 없으면 스타일과 위치로 근사합니다.
+        var lived = experience ?? CombatExperience.FromRole(
+            adventurer.EquippedStyle,
+            WeaponStyles.CapabilityOf(adventurer.EquippedStyle).CanActFromBackRow ? Row.Back : Row.Front);
+
+        var growth = ComputeStatChange(adventurer, multiplier, rng, lived);
 
         var outcome = RollOutcome(adventurer, difficulty, rng);
         var penalty = ComputeMishapPenalty(adventurer, outcome, rng);
@@ -104,7 +120,11 @@ public static class CareerSimulator
     /// <b>훈련을 시켜도 거의 자라지 않습니다.</b>
     /// </para>
     /// </summary>
-    private static StatBlock ComputeStatChange(Adventurer adventurer, double activityMultiplier, IRandomSource rng)
+    private static StatBlock ComputeStatChange(
+        Adventurer adventurer,
+        double activityMultiplier,
+        IRandomSource rng,
+        CombatExperience experience)
     {
         var growth = adventurer.Growth;
         double bloom = growth.BloomFactorAt(adventurer.Age);
@@ -122,7 +142,12 @@ public static class CareerSimulator
             {
                 double remaining = potential - current;
                 double variance = 0.85 + rng.NextDouble() * 0.3;
-                gain = (int)Math.Round(remaining * CareerRules.LearnRate * bloom * activityMultiplier * variance);
+
+                // 그 해에 실제로 쓴 능력치가 더 자랍니다.
+                double lived = experience.WeightOf(kind);
+
+                gain = (int)Math.Round(
+                    remaining * CareerRules.LearnRate * bloom * activityMultiplier * lived * variance);
             }
 
             int loss = decline > 0.0 ? (int)Math.Round(current * decline) : 0;

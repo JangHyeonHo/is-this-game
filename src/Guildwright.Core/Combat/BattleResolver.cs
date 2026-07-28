@@ -43,6 +43,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 actor.ClearDefending();
 
                 var choice = TacticalBrain.Decide(actor, state, rng);
+                actor.Contribution.RecordAction();
                 Execute(actor, choice, state, rng, log);
 
                 if (state.IsTeamWipedOut(Team.Enemy))
@@ -93,11 +94,13 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
         {
             case TacticAction.MoveBack:
                 actor.MoveTo(Row.Back);
+                actor.Contribution.RecordReposition();
                 log?.Add($"{actor.Name}: 후열로 물러남 (HP {actor.Hp}/{actor.MaxHp})");
                 return;
 
             case TacticAction.MoveFront:
                 actor.MoveTo(Row.Front);
+                actor.Contribution.RecordReposition();
                 log?.Add($"{actor.Name}: 전열로 나섬");
                 return;
 
@@ -129,6 +132,8 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 int healed = DamageModel.MagicHealAmount(actor);
                 actor.SpendMana(DamageModel.ManaPerSpell);
                 target.Heal(healed);
+                actor.Contribution.RecordHealing(healed);
+                actor.Contribution.RecordSupport();
                 log?.Add($"{actor.Name} → {target.Name}: 회복 +{healed}");
                 return;
             }
@@ -141,6 +146,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 actor.SpendMana(DamageModel.ManaPerSpell);
                 target.ApplyEffect(new StatusEffect(
                     StatusEffectKind.Empowered, DamageModel.BuffDuration, DamageModel.BuffMagnitude, actor.Id));
+                actor.Contribution.RecordSupport();
                 log?.Add($"{actor.Name} → {target.Name}: 공격 강화");
                 return;
             }
@@ -153,6 +159,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 actor.SpendMana(DamageModel.ManaPerSpell);
                 target.ApplyEffect(new StatusEffect(
                     StatusEffectKind.Weakened, DamageModel.BuffDuration, DamageModel.BuffMagnitude, actor.Id));
+                actor.Contribution.RecordSupport();
                 log?.Add($"{actor.Name} → {target.Name}: 공격 약화");
                 return;
             }
@@ -166,6 +173,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                         StatusEffectKind.Taunted, DamageModel.TauntDuration, 0.0, actor.Id));
                 }
                 actor.BeginDefending();
+                actor.Contribution.RecordSupport();
                 log?.Add($"{actor.Name}: 도발 — 적의 공격을 끌어들임");
                 return;
             }
@@ -180,11 +188,14 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 var targets = state.ReachableTargets(actor);
                 if (targets.Count == 0) return;
 
+                bool areaMagic = actor.Capability.UsesMagic;
                 foreach (var target in targets.ToList())
                 {
                     if (!target.IsAlive) continue;
                     int damage = DamageModel.RollDamage(actor, target, rng, area: true);
-                    target.TakeDamage(damage);
+                    target.TakeDamage(damage, areaMagic);
+                    actor.Contribution.RecordDamageDealt(damage, areaMagic);
+                    if (!target.IsAlive) actor.Contribution.RecordKill();
                     log?.Add($"{actor.Name} ⇒ {target.Name}: 광역 {damage} 피해{(target.IsAlive ? "" : ", 쓰러뜨림")}");
                 }
                 return;
@@ -202,8 +213,11 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                     return;
                 }
 
+                bool magic = actor.Capability.UsesMagic;
                 int damage = DamageModel.RollDamage(actor, target, rng);
-                target.TakeDamage(damage);
+                target.TakeDamage(damage, magic);
+                actor.Contribution.RecordDamageDealt(damage, magic);
+                if (!target.IsAlive) actor.Contribution.RecordKill();
                 log?.Add(target.IsAlive
                     ? $"{actor.Name} → {target.Name}: {damage} 피해 (남은 HP {target.Hp})"
                     : $"{actor.Name} → {target.Name}: {damage} 피해, 쓰러뜨림");

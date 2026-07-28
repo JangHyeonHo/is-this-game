@@ -81,6 +81,11 @@ public sealed class Combatant
     public IReadOnlyList<TacticRule> Tactics { get; }
     public IReadOnlyList<StatusEffect> Effects => _effects;
 
+    /// <summary>
+    /// 이 전투에서 실제로 무엇을 했는지. <b>전투가 끝나면 성장 데이터가 됩니다.</b>
+    /// </summary>
+    public CombatContribution Contribution { get; } = new();
+
     public bool IsDefending { get; private set; }
     public bool IsAlive => Hp > 0;
     public double HpRatio => (double)Hp / MaxHp;
@@ -126,6 +131,13 @@ public sealed class Combatant
     // ---- 상태 변경 ----
 
     public void TakeDamage(int amount) => Hp = Math.Max(0, Hp - amount);
+
+    /// <summary>피해를 입고 그 사실을 기록합니다. 어떤 종류로 맞았는지가 성장에 영향을 줍니다.</summary>
+    internal void TakeDamage(int amount, bool magic)
+    {
+        TakeDamage(amount);
+        Contribution.RecordDamageTaken(amount, magic);
+    }
 
     public void Heal(int amount) => Hp = Math.Min(MaxHp, Hp + amount);
 
