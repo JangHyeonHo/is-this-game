@@ -12,19 +12,32 @@ namespace Guildwright.Core.Combat;
 /// </summary>
 public static class CombatantFactory
 {
+    /// <param name="adventurer">전투원이 될 모험가.</param>
+    /// <param name="team">소속.</param>
+    /// <param name="row">시작 위치.</param>
+    /// <param name="tactics">전술 규칙. 생략하면 무기 스타일의 기본값.</param>
+    /// <param name="potions">들고 있는 회복약.</param>
+    /// <param name="startingHp">
+    /// 전투 시작 HP. 생략하면 최대치입니다.
+    /// <para>
+    /// 파견 연도는 12개월 동안 여러 번 싸우고 <b>전투 사이에 저절로 회복되지 않습니다.</b>
+    /// 그래야 "지금 싸울까 피할까"가 판단이 되고 야영과 포션이 의미를 갖습니다.
+    /// </para>
+    /// </param>
     public static Combatant Create(
         Adventurer adventurer,
         Team team,
         Row row,
         IReadOnlyList<TacticRule>? tactics = null,
-        int potions = 2)
+        int potions = 2,
+        int? startingHp = null)
     {
         if (!adventurer.IsAlive)
         {
             throw new ArgumentException($"{adventurer.Name}은(는) 전투에 나갈 수 없습니다 (상태: {adventurer.Status}).", nameof(adventurer));
         }
 
-        return new Combatant(
+        var combatant = new Combatant(
             id: adventurer.Id,
             name: adventurer.Name,
             team: team,
@@ -36,6 +49,13 @@ public static class CombatantFactory
             row: row,
             tactics: tactics ?? DefaultTacticsFor(adventurer.EquippedStyle),
             potions: potions);
+
+        if (startingHp is { } hp && hp < combatant.MaxHp)
+        {
+            combatant.TakeDamage(combatant.MaxHp - Math.Max(1, hp));
+        }
+
+        return combatant;
     }
 
     /// <summary>
@@ -102,17 +122,29 @@ public static class CombatantFactory
     /// 전열이 빈 채로 시작하면 첫 라운드에 후열이 통째로 노출됩니다.
     /// </para>
     /// </summary>
+    /// <param name="playerParty">아군.</param>
+    /// <param name="enemyParty">적군.</param>
+    /// <param name="carriedHp">
+    /// 아군이 이어받는 HP (모험가 Id → 남은 HP). 파견 연도에서 씁니다.
+    /// </param>
+    /// <param name="carriedPotions">아군이 들고 있는 회복약 (Id → 개수).</param>
     public static BattleState FormParty(
         IEnumerable<Adventurer> playerParty,
-        IEnumerable<Adventurer> enemyParty)
+        IEnumerable<Adventurer> enemyParty,
+        IReadOnlyDictionary<string, int>? carriedHp = null,
+        IReadOnlyDictionary<string, int>? carriedPotions = null)
     {
         var combatants = new List<Combatant>();
-        combatants.AddRange(Arrange(playerParty, Team.Player));
+        combatants.AddRange(Arrange(playerParty, Team.Player, carriedHp, carriedPotions));
         combatants.AddRange(Arrange(enemyParty, Team.Enemy));
         return new BattleState(combatants);
     }
 
-    private static List<Combatant> Arrange(IEnumerable<Adventurer> party, Team team)
+    private static List<Combatant> Arrange(
+        IEnumerable<Adventurer> party,
+        Team team,
+        IReadOnlyDictionary<string, int>? carriedHp = null,
+        IReadOnlyDictionary<string, int>? carriedPotions = null)
     {
         var members = party.ToList();
         var rows = members.ToDictionary(
@@ -127,6 +159,11 @@ public static class CombatantFactory
             rows[toughest.Id] = Row.Front;
         }
 
-        return members.Select(a => Create(a, team, rows[a.Id])).ToList();
+        return members
+            .Select(a => Create(
+                a, team, rows[a.Id],
+                potions: carriedPotions?.GetValueOrDefault(a.Id, 2) ?? 2,
+                startingHp: carriedHp?.GetValueOrDefault(a.Id)))
+            .ToList();
     }
 }

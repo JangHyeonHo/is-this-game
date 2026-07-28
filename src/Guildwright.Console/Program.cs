@@ -335,44 +335,33 @@ internal sealed class Guild(IRandomSource rng)
 
     private void DeploymentYear(Adventurer member, IReadOnlyList<Contract> board)
     {
+        // 지금은 목표 수치형 의뢰 하나만 있습니다.
+        // 「난이도 N짜리 전투 한 판」 구조를 걷어내는 중이라 옛 의뢰는 잠시 내렸습니다.
+        var contract = Contract.Combat("가도 정리", difficulty: 1);
+        const int Quota = 10;
+
         Ui.Line();
-        Ui.Line("   ── 의뢰 게시판 ──");
-        Ui.Note($"{member.Name}은(는) {member.Title}이라 난이도 {member.MaxContractDifficulty}까지 수주할 수 있습니다.");
-        Ui.Line();
+        Ui.Line("   ── 의뢰 ──");
+        Ui.Line($"   [{contract.Name}] 난이도 {contract.Difficulty}");
+        Ui.Note($"마을 근처 가도에 고블린이 늘었습니다. 1년 안에 {Quota}마리를 정리하십시오.");
 
-        var available = board.Where(c => c.Difficulty <= member.MaxContractDifficulty).ToList();
+        var party = new List<Adventurer> { member };
 
-        if (available.Count == 0)
-        {
-            Ui.Note("맡을 수 있는 의뢰가 없습니다. 올해는 훈련합니다.");
-            TrainingYear(member);
-            return;
-        }
-
-        for (int i = 0; i < available.Count; i++) Display.Contract(available[i], i + 1);
-
-        int pick = Ui.Choose("   받을 의뢰", available.Select(c => c.Name).ToList());
-        var contract = available[pick];
-
-        // 보조 역할 배정
-        int rolePick = Ui.Choose("   맡길 비전투 역할",
-            SupportSkills.All.Select(sk => $"{sk.ToKorean()} (현재 {member.Support[sk]})").Append("없음").ToList());
-
-        SupportSkill? role = rolePick < SupportSkills.All.Count ? SupportSkills.All[rolePick] : null;
-
-        // 같이 갈 동료 (전투 연출용 파티)
-        var others = _members.Where(m => m.Id != member.Id && m.Status == AdventurerStatus.Active && m.CanDeploy).ToList();
-        var companions = new List<Adventurer>();
+        var others = _members
+            .Where(m => m.Id != member.Id && m.Status == AdventurerStatus.Active && m.CanDeploy)
+            .ToList();
 
         if (others.Count > 0)
         {
             var picks = Ui.ChooseMany("   함께 보낼 동료",
                 others.Select(o => $"{o.Name} · {o.Title} ({o.EquippedStyle.ToKorean()})").ToList(), 3);
-            companions.AddRange(picks.Select(i => others[i]));
+            party.AddRange(picks.Select(i => others[i]));
         }
 
-        var party = new List<Adventurer> { member };
-        party.AddRange(companions);
+        int rolePick = Ui.Choose("   맡길 비전투 역할",
+            SupportSkills.All.Select(sk => $"{sk.ToKorean()} (현재 {member.Support[sk]})").Append("없음").ToList());
+
+        SupportSkill? role = rolePick < SupportSkills.All.Count ? SupportSkills.All[rolePick] : null;
 
         var support = ContractResolver.Evaluate(contract, party.Select(p => p.Support).ToList());
 
@@ -380,19 +369,116 @@ internal sealed class Guild(IRandomSource rng)
         Ui.Note($"파티 역량 반영 — 위험 {support.RiskMultiplier:P0}, 보수 {support.IncomeMultiplier:P0}, " +
                 $"추가 회복약 {support.ExtraPotions}");
 
-        // 전투를 실제로 치릅니다.
-        var fought = FightAndSummarize(party, contract, support);
+        var result = RunFieldYear(party, contract, Quota, support);
 
-        // 연 단위 결과 적용
+        ApplyDeploymentResults(member, party, contract, support, role, result);
+    }
+
+    /// <summary>
+    /// 파견 1년을 월 단위로 진행합니다.
+    /// <para>
+    /// 훈련 연도와 같은 리듬입니다 — 매달 무엇을 할지 고르고, 조우하면 싸울지 피할지 고릅니다.
+    /// <b>HP와 회복약이 전투 사이에 저절로 회복되지 않아서</b> 매 판단에 무게가 생깁니다.
+    /// </para>
+    /// </summary>
+    private FieldYearOutcome RunFieldYear(
+        List<Adventurer> party, Contract contract, int quota, ContractSupport support)
+    {
+        var session = new FieldYearSession(
+            party, contract, quota, rng.Fork($"field:{_year}"),
+            potionsEach: 2 + support.ExtraPotions);
+
+        bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
+        var commander = manual ? new ConsoleCommander() : null;
+
+        Ui.Line();
+        Ui.Line("   ── 파견 ──");
+
+        while (!session.IsComplete)
+        {
+            Display.FieldStatus(session, party);
+
+            int pick = Ui.Choose($"   {session.CurrentMonth}월", Display.FieldMenu());
+            var action = (FieldAction)pick;
+
+            var encounter = session.StartMonth(action);
+
+            if (encounter is null)
+            {
+                Ui.Line($"     {session.Months[^1].Note}");
+                continue;
+            }
+
+            Ui.Line();
+            Ui.Note($"고블린 {encounter.Enemies.Count}마리와 마주쳤습니다. " +
+                    $"빠져나갈 가능성 {encounter.AvoidChance:P0}");
+
+            bool fight = Ui.Choose("   어떻게 할까요",
+                [$"교전한다", $"피한다 (성공 {encounter.AvoidChance:P0} · 실패하면 기습당함)"]) == 0;
+
+            if (!fight && session.Avoid())
+            {
+                Ui.Line($"     {session.Months[^1].Note}");
+                continue;
+            }
+
+            if (!fight) Ui.Note("빠져나가지 못했습니다. 기습당한 채로 싸웁니다.");
+
+            var battle = session.Fight(
+                rng.Fork($"battle:{_year}:{session.CurrentMonth}"),
+                commander,
+                manual ? line => Ui.Line("       " + line) : null);
+
+            if (!manual)
+            {
+                foreach (var line in battle.Log) Ui.Line("       " + line);
+            }
+
+            Ui.Line($"     {session.Months[^1].Note}");
+        }
+
+        var final = session.Complete();
+
+        Ui.Line();
+        Ui.Note(final.Achieved
+            ? $"목표 달성 — 고블린 {final.Killed}마리를 정리했습니다."
+            : final.Retreated
+                ? $"더 싸울 수 없어 돌아왔습니다. {final.Killed}/{final.Quota}마리."
+                : $"1년이 끝났습니다. {final.Killed}/{final.Quota}마리에 그쳤습니다.");
+
+        return new FieldYearOutcome(final, session.Experience);
+    }
+
+    private sealed record FieldYearOutcome(
+        FieldYearResult Result,
+        IReadOnlyDictionary<string, CombatExperience> Experience);
+
+    /// <summary>파견 결과를 각자에게 적용합니다.</summary>
+    private void ApplyDeploymentResults(
+        Adventurer leader,
+        List<Adventurer> party,
+        Contract contract,
+        ContractSupport support,
+        SupportSkill? role,
+        FieldYearOutcome fought)
+    {
+        // 목표를 채웠으면 승리로, 못 채웠으면 미완/실패로 봅니다.
+        var outcome = fought.Result.Achieved
+            ? BattleOutcome.PlayerVictory
+            : fought.Result.Retreated
+                ? BattleOutcome.EnemyVictory
+                : BattleOutcome.Draw;
+
         int totalIncome = 0;
+
         foreach (var fighter in party)
         {
             var record = CareerSimulator.ResolveDeploymentYear(
                 fighter, contract.Difficulty, rng.Fork($"deploy:{_year}:{fighter.Id}"),
                 fought.Experience.GetValueOrDefault(fighter.Id),
-                fighter.Id == member.Id ? role : null,
+                fighter.Id == leader.Id ? role : null,
                 contract, support,
-                new BattleReport(fought.Outcome, fought.Downed.Contains(fighter.Id)));
+                new BattleReport(outcome, Downed: fought.Result.Retreated));
 
             totalIncome += record.Income;
             Ui.Line($"     {record.Note}");
@@ -408,8 +494,7 @@ internal sealed class Guild(IRandomSource rng)
             }
         }
 
-        // 평판은 해낸 의뢰에만 붙습니다. 지고도 평판이 오르면 실패에 대가가 없어집니다.
-        int reputationGain = fought.Outcome switch
+        int reputationGain = outcome switch
         {
             BattleOutcome.PlayerVictory => contract.Difficulty,
             BattleOutcome.Draw => 0,
@@ -421,65 +506,6 @@ internal sealed class Guild(IRandomSource rng)
         Ui.Note($"보수 {totalIncome}, 평판 {(reputationGain >= 0 ? "+" : "")}{reputationGain}");
 
         _members.RemoveAll(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled);
-    }
-
-    /// <summary>전투 한 판의 결과 — 승패와, 각자가 무엇을 겪었는지.</summary>
-    private sealed record FoughtBattle(
-        BattleOutcome Outcome,
-        IReadOnlySet<string> Downed,
-        IReadOnlyDictionary<string, CombatExperience> Experience);
-
-    /// <summary>실제 전투를 한 판 치르고, 각자가 무엇을 겪었는지 돌려줍니다.</summary>
-    private FoughtBattle FightAndSummarize(
-        List<Adventurer> party,
-        Contract contract,
-        ContractSupport support)
-    {
-        Ui.Line();
-        Ui.Line("   ── 전투 ──");
-
-        // 적 생성 규칙은 코어에 있습니다 (EncounterGenerator).
-        // 예전에는 여기서 `난이도/2 + 1`로 정했는데 파티 인원을 전혀 보지 않았습니다.
-        var enemies = EncounterGenerator.Generate(
-            contract.Difficulty, party.Count, rng.Fork($"encounter:{_year}"), Names.Monster);
-
-        var state = CombatantFactory.FormParty(party, enemies.ToList());
-
-        bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
-        var commander = manual ? new ConsoleCommander() : null;
-
-        // 숫자가 어디서 왔는지 보이지 않으면 전술 판단이 감이 됩니다.
-        // 27 피해가 왜 27인지 모르면 "후열로 뺄까"를 계산할 수 없습니다.
-        bool explain = Ui.Confirm("   피해 계산 과정을 자세히 볼까요?");
-
-        // 직접 개입할 때는 기록을 실시간으로 흘려보냅니다. 지시를 내리는 시점에
-        // 직전 라운드에 무슨 일이 있었는지 모르면 판단할 근거가 없습니다.
-        Ui.Line();
-        var result = new BattleResolver(recordLog: true, explainAttacks: explain)
-            .Resolve(state, rng.Fork($"battle:{_year}"), commander,
-                     manual ? line => Ui.Line("     " + line) : null);
-
-        if (!manual)
-        {
-            foreach (var line in result.Log) Ui.Line("     " + line);
-        }
-
-        Ui.Line();
-        Ui.Note(result.Outcome switch
-        {
-            BattleOutcome.PlayerVictory => "승리했습니다.",
-            BattleOutcome.EnemyVictory => "패배했습니다.",
-            _ => "결판이 나지 않았습니다."
-        });
-        Display.Formation(state);
-        Ui.Pause();
-
-        var ours = state.All.Where(c => c.Team == Team.Player).ToList();
-
-        return new FoughtBattle(
-            result.Outcome,
-            ours.Where(c => !c.IsAlive).Select(c => c.Id).ToHashSet(),
-            ours.ToDictionary(c => c.Id, c => CombatExperience.From(c.Contribution)));
     }
 
     // ── 연말 ────────────────────────────────────────────────
