@@ -1,24 +1,38 @@
-# Compiled class file
-*.class
+# ---- .NET ----
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+.vs/
+.idea/
+*.swp
 
-# Log file
-*.log
+# ---- Godot ----
+.godot/
+.import/
+export.cfg
+export_presets.cfg
 
-# BlueJ files
-*.ctxt
+# ---- Unity ----
+[Ll]ibrary/
+[Tt]emp/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+*.unityproj
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+# ---- Build output / tooling ----
+artifacts/
+TestResults/
+coverage/
+*.trx
 
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
+# ---- Local scratch (never commit) ----
+scratch/
+local/
+*.local.json
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-/bin/
+# ---- AI placeholder assets: MUST NOT ship (see docs/adr/0002) ----
+**/_PLACEHOLDER_AI/
