@@ -192,11 +192,13 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 foreach (var target in targets.ToList())
                 {
                     if (!target.IsAlive) continue;
-                    int damage = DamageModel.RollDamage(actor, target, rng, area: true);
-                    target.TakeDamage(damage, areaMagic);
-                    actor.Contribution.RecordDamageDealt(damage, areaMagic);
-                    if (!target.IsAlive) actor.Contribution.RecordKill();
-                    log?.Add($"{actor.Name} ⇒ {target.Name}: 광역 {damage} 피해{(target.IsAlive ? "" : ", 쓰러뜨림")}");
+                    var hit = DamageModel.ResolveAttack(actor, target, rng, area: true);
+
+                    // ⚠️ ApplyHit은 피해를 실제로 적용합니다. log?.Add(ApplyHit(...))로 쓰면
+                    //    log가 null일 때 ?. 가 전체 식을 단락시켜 ApplyHit이 호출되지 않습니다.
+                    //    실제로 그 버그로 배치 시뮬레이션이 전부 무승부가 났습니다. (docs/06 #13)
+                    string areaLine = ApplyHit(actor, target, hit, areaMagic, prefix: "광역 ");
+                    log?.Add(areaLine);
                 }
                 return;
             }
@@ -213,20 +215,44 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                     return;
                 }
 
-                bool magic = actor.Capability.UsesMagic;
-                int damage = DamageModel.RollDamage(actor, target, rng);
-                target.TakeDamage(damage, magic);
-                actor.Contribution.RecordDamageDealt(damage, magic);
-                if (!target.IsAlive) actor.Contribution.RecordKill();
-                log?.Add(target.IsAlive
-                    ? $"{actor.Name} → {target.Name}: {damage} 피해 (남은 HP {target.Hp})"
-                    : $"{actor.Name} → {target.Name}: {damage} 피해, 쓰러뜨림");
+                var result = DamageModel.ResolveAttack(actor, target, rng);
+
+                // ⚠️ 부작용이 있는 호출을 log?.Add(...)의 인자로 넣지 마세요. 위 주석 참조.
+                string line = ApplyHit(actor, target, result, actor.Capability.UsesMagic);
+                log?.Add(line);
                 return;
             }
 
             default:
                 return;
         }
+    }
+
+    /// <summary>
+    /// 공격 결과를 적용하고 기록에 남깁니다.
+    /// <para>회피와 치명타가 성장 데이터로도 쌓입니다 — 피한 만큼 몸이 반응하게 됩니다.</para>
+    /// </summary>
+    private static string ApplyHit(
+        Combatant actor,
+        Combatant target,
+        AttackResult hit,
+        bool magic,
+        string prefix = "")
+    {
+        if (hit.Evaded)
+        {
+            target.Contribution.RecordEvasion();
+            return $"{actor.Name} → {target.Name}: {prefix}빗나감";
+        }
+
+        target.TakeDamage(hit.Damage, magic);
+        actor.Contribution.RecordDamageDealt(hit.Damage, magic);
+        if (hit.Critical) actor.Contribution.RecordCritical();
+        if (!target.IsAlive) actor.Contribution.RecordKill();
+
+        string crit = hit.Critical ? "치명타! " : "";
+        string tail = target.IsAlive ? $"(남은 HP {target.Hp})" : "쓰러뜨림";
+        return $"{actor.Name} → {target.Name}: {crit}{prefix}{hit.Damage} 피해, {tail}";
     }
 
     private static IReadOnlyList<string> ReadOnly(List<string>? log) =>

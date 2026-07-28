@@ -7,13 +7,12 @@ namespace Guildwright.Core.Training;
 /// <summary>한 달에 무엇을 할지.</summary>
 public enum TrainingFocus
 {
+    Strength,
+    Agility,
+    Finesse,
     Vitality,
-    Mana,
-    Attack,
-    Defense,
-    MagicAttack,
-    MagicDefense,
-    Speed,
+    Intellect,
+    Spirit,
     /// <summary>휴식. 성장은 없지만 피로가 크게 줄고 컨디션이 회복됩니다.</summary>
     Rest
 }
@@ -29,7 +28,7 @@ public enum TrainingFocus
 public sealed record MonthOutcome(
     int Month,
     TrainingFocus Focus,
-    StatBlock StatGain,
+    PrimaryStats StatGain,
     int FatigueAfter,
     Condition ConditionAfter,
     bool GotInjured,
@@ -126,7 +125,7 @@ public sealed class TrainingYearSession
     }
 
     /// <summary>본체 능력치 + 아직 확정되지 않은 연중 누적.</summary>
-    private double EffectiveStat(StatKind kind) => _adventurer.Stats[kind] + _accumulated[(int)kind];
+    private double EffectiveStat(PrimaryStat kind) => _adventurer.Stats[kind] + _accumulated[(int)kind];
 
     private MonthOutcome DoRest(int month, bool recovering)
     {
@@ -137,7 +136,7 @@ public sealed class TrainingYearSession
             ? $"{month}월: 요양 (남은 {_recoveryMonthsRemaining}개월)"
             : $"{month}월: 휴식";
 
-        return new MonthOutcome(month, TrainingFocus.Rest, StatBlock.Zero, Fatigue, Condition, false, recovering, note);
+        return new MonthOutcome(month, TrainingFocus.Rest, PrimaryStats.Zero, Fatigue, Condition, false, recovering, note);
     }
 
     private MonthOutcome DoTraining(int month, TrainingFocus focus)
@@ -156,7 +155,7 @@ public sealed class TrainingYearSession
         // 부상 판정 전이므로 아직 확정하지 않고 후보만 계산합니다.
         var pending = new double[_accumulated.Length];
 
-        foreach (var kind in StatBlock.AllKinds)
+        foreach (var kind in PrimaryStats.AllStats)
         {
             double current = EffectiveStat(kind);
             int potential = growth.Potential[kind];
@@ -171,7 +170,7 @@ public sealed class TrainingYearSession
         DriftCondition(restBonus: false);
 
         bool injured = RollInjury();
-        var gain = StatBlock.Zero;
+        var gain = PrimaryStats.Zero;
         string note;
 
         if (injured)
@@ -182,7 +181,7 @@ public sealed class TrainingYearSession
             Condition = Condition.Poor;
 
             // 부상당하면 그 달의 성장은 없던 일이 되고, 능력치도 조금 잃습니다.
-            foreach (var kind in StatBlock.AllKinds)
+            foreach (var kind in PrimaryStats.AllStats)
             {
                 double loss = EffectiveStat(kind) * TrainingRules.InjuryStatLoss;
                 _accumulated[(int)kind] -= loss;
@@ -193,7 +192,7 @@ public sealed class TrainingYearSession
         }
         else
         {
-            foreach (var kind in StatBlock.AllKinds)
+            foreach (var kind in PrimaryStats.AllStats)
             {
                 _accumulated[(int)kind] += pending[(int)kind];
                 gain = gain.With(kind, (int)Math.Round(pending[(int)kind]));
@@ -252,9 +251,9 @@ public sealed class TrainingYearSession
         // 노화는 연 단위로 한 번 적용합니다.
         // 반올림은 여기서 딱 한 번 — 월 단위로 반올림하면 미세한 차이가 전부 사라집니다.
         double decline = _adventurer.Growth.DeclineFactorAt(_adventurer.Age);
-        var change = StatBlock.Zero;
+        var change = PrimaryStats.Zero;
 
-        foreach (var kind in StatBlock.AllKinds)
+        foreach (var kind in PrimaryStats.AllStats)
         {
             double total = _accumulated[(int)kind];
             if (decline > 0.0) total -= _adventurer.Stats[kind] * decline;
@@ -273,27 +272,17 @@ public sealed class TrainingYearSession
         return record;
     }
 
-    private static StatKind ToStatKind(TrainingFocus focus) => focus switch
+    private static PrimaryStat ToStatKind(TrainingFocus focus) => focus switch
     {
-        TrainingFocus.Vitality => StatKind.Vitality,
-        TrainingFocus.Mana => StatKind.Mana,
-        TrainingFocus.Attack => StatKind.Attack,
-        TrainingFocus.Defense => StatKind.Defense,
-        TrainingFocus.MagicAttack => StatKind.MagicAttack,
-        TrainingFocus.MagicDefense => StatKind.MagicDefense,
-        TrainingFocus.Speed => StatKind.Speed,
+        TrainingFocus.Strength => PrimaryStat.Strength,
+        TrainingFocus.Agility => PrimaryStat.Agility,
+        TrainingFocus.Finesse => PrimaryStat.Finesse,
+        TrainingFocus.Vitality => PrimaryStat.Vitality,
+        TrainingFocus.Intellect => PrimaryStat.Intellect,
+        TrainingFocus.Spirit => PrimaryStat.Spirit,
         _ => throw new ArgumentOutOfRangeException(nameof(focus), focus, "Rest는 능력치에 대응하지 않습니다.")
     };
 
-    private static string ToKorean(TrainingFocus focus) => focus switch
-    {
-        TrainingFocus.Vitality => "체력",
-        TrainingFocus.Mana => "마력",
-        TrainingFocus.Attack => "공격",
-        TrainingFocus.Defense => "방어",
-        TrainingFocus.MagicAttack => "마공",
-        TrainingFocus.MagicDefense => "마방",
-        TrainingFocus.Speed => "속도",
-        _ => "휴식"
-    };
+    private static string ToKorean(TrainingFocus focus) =>
+        focus == TrainingFocus.Rest ? "휴식" : ToStatKind(focus).ToKorean();
 }

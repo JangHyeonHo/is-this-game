@@ -23,13 +23,13 @@ public class WeaponSystemTests(ITestOutputHelper output)
 {
     private const ulong Seed = 8080UL;
 
-    private static StatBlock MageStats => new(
-        Vitality: 40, Mana: 95, Attack: 30, Defense: 35,
-        MagicAttack: 95, MagicDefense: 80, Speed: 45);
+    private static PrimaryStats MageStats => new(
+        Strength: 25, Agility: 45, Finesse: 40,
+        Vitality: 40, Intellect: 95, Spirit: 90);
 
-    private static StatBlock WarriorStats => new(
-        Vitality: 90, Mana: 25, Attack: 95, Defense: 85,
-        MagicAttack: 20, MagicDefense: 30, Speed: 50);
+    private static PrimaryStats WarriorStats => new(
+        Strength: 95, Agility: 50, Finesse: 45,
+        Vitality: 90, Intellect: 20, Spirit: 25);
 
     // ---------------------------------------------------------------
     // 적성 — 상관관계
@@ -78,9 +78,7 @@ public class WeaponSystemTests(ITestOutputHelper output)
         // 여기서 말하는 "의외성"은 마공 20짜리가 지팡이 S를 받는 게 아닙니다.
         // 그건 발견이 아니라 앞서 배제하기로 한 모순 캐릭터입니다.
         // 진짜 발견은 <b>비슷하게 그럴듯한 스타일들 사이에서 예상 밖이 1등을 하는 것</b>입니다.
-        var wellRounded = new StatBlock(
-            Vitality: 62, Mana: 55, Attack: 64, Defense: 58,
-            MagicAttack: 57, MagicDefense: 56, Speed: 63);
+        var wellRounded = new PrimaryStats(Strength: 20, Agility: 20, Finesse: 20, Vitality: 62, Intellect: 20, Spirit: 20);
 
         var bestCounts = new Dictionary<WeaponStyle, int>();
         const int trials = 500;
@@ -105,26 +103,35 @@ public class WeaponSystemTests(ITestOutputHelper output)
     [Fact]
     public void 능력치가_극단적이면_적성이_사실상_정해진다()
     {
-        // 위 테스트의 반대쪽. 마공 20짜리 전사가 지팡이 재능을 갖는 일은 없어야 합니다.
-        // 발견의 재미와 모순 캐릭터 방지는 양립해야 하고, 그 경계가 능력치의 극단성입니다.
-        var bestCounts = new HashSet<WeaponStyle>();
+        // 위 테스트의 반대쪽. 지능 95짜리 마법사는 거의 언제나 지팡이가 최고 적성이어야 합니다.
+        //
+        // "예외가 단 한 번도 없다"로는 재지 않습니다. 등급이 6단계로 거칠어서 드물게 동점이
+        // 나고, 그때는 다른 스타일이 최고로 잡힐 수 있습니다. 그 정도 예외는 오히려 발견의
+        // 재미에 해당하므로, 여기서는 <b>압도적 우세</b>를 봅니다.
+        var counts = new Dictionary<WeaponStyle, int>();
+        const int trials = 500;
 
-        for (int i = 0; i < 500; i++)
+        for (int i = 0; i < trials; i++)
         {
-            bestCounts.Add(WeaponAptitudes.Roll(MageStats, new DeterministicRandom(Seed).Fork($"m:{i}")).Best);
+            var best = WeaponAptitudes.Roll(MageStats, new DeterministicRandom(Seed).Fork($"m:{i}")).Best;
+            counts[best] = counts.GetValueOrDefault(best) + 1;
         }
 
-        output.WriteLine($"마법형 능력치의 최고 적성 종류: {string.Join(", ", bestCounts.Select(s => s.ToKorean()))}");
+        foreach (var (style, count) in counts.OrderByDescending(kv => kv.Value))
+        {
+            output.WriteLine($"  {style.ToKorean(),-8} {count,3}회 ({(double)count / trials:P1})");
+        }
 
-        Assert.True(bestCounts.Count <= 2);
-        Assert.Contains(WeaponStyle.Staff, bestCounts);
+        Assert.True(counts.GetValueOrDefault(WeaponStyle.Staff) > trials * 0.9,
+            "지능이 압도적인 캐릭터인데 지팡이가 최고 적성이 아닌 경우가 10%를 넘습니다. " +
+            "이러면 '모순 캐릭터가 나오지 않는다'는 보장이 무너집니다.");
     }
 
     [Fact]
     public void 모든_캐릭터는_최소_하나의_무기에_재능이_있다()
     {
         // ★ 안전장치. 5년 키워서 알아낸 게 "얘는 못 쓴다"면 긴장이 아니라 처벌입니다.
-        var mediocre = StatBlock.Uniform(30);
+        var mediocre = PrimaryStats.Uniform(30);
 
         for (int i = 0; i < 1_000; i++)
         {
@@ -163,7 +170,7 @@ public class WeaponSystemTests(ITestOutputHelper output)
         int ProficiencyAfter(AptitudeGrade grade)
         {
             var adventurer = new Adventurer(
-                "P", "실험체", StatBlock.Uniform(30), 40, BasicGrowth(), 18,
+                "P", "실험체", PrimaryStats.Uniform(30), 40, BasicGrowth(), 18,
                 WeaponAptitudes.Uniform(grade), WeaponStyle.Bow, WeaponClass.Pierce);
 
             var rng = new DeterministicRandom(Seed);
@@ -341,22 +348,22 @@ public class WeaponSystemTests(ITestOutputHelper output)
     // 헬퍼
     // ---------------------------------------------------------------
 
-    private static GrowthProfile BasicGrowth(StatBlock? potential = null) => new()
+    private static GrowthProfile BasicGrowth(PrimaryStats? potential = null) => new()
     {
         PeakAge = 20,
         BloomWidth = 3.0,
         Temperament = Temperament.Balanced,
-        Potential = potential ?? StatBlock.Uniform(80),
+        Potential = potential ?? PrimaryStats.Uniform(80),
         DeclineAge = 40
     };
 
-    private static Adventurer Recruit(StatBlock potential, WeaponStyle style)
+    private static Adventurer Recruit(PrimaryStats potential, WeaponStyle style)
     {
         var growth = BasicGrowth(potential);
         var aptitudes = WeaponAptitudes.Roll(potential, new DeterministicRandom(Seed));
         var weaponClass = WeaponStyles.AllowedClasses(style)[0];
 
         return new Adventurer(
-            "W1", "무기실험체", StatBlock.Uniform(15), 40, growth, 18, aptitudes, style, weaponClass);
+            "W1", "무기실험체", PrimaryStats.Uniform(15), 40, growth, 18, aptitudes, style, weaponClass);
     }
 }

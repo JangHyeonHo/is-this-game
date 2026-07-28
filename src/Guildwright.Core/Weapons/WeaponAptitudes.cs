@@ -70,9 +70,9 @@ public sealed class WeaponAptitudes
     /// <summary>
     /// 능력치 잠재력과 상관관계를 갖는 적성을 굴립니다.
     /// </summary>
-    public static WeaponAptitudes Roll(StatBlock potential, IRandomSource rng)
+    public static WeaponAptitudes Roll(PrimaryStats potential, IRandomSource rng)
     {
-        double average = potential.Total / (double)StatBlock.AllKinds.Count;
+        double average = potential.Total / (double)PrimaryStats.AllStats.Count;
         if (average <= 0.0) return Uniform(AptitudeGrade.C);
 
         var grades = new Dictionary<WeaponStyle, AptitudeGrade>();

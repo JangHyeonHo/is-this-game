@@ -17,7 +17,7 @@ namespace Guildwright.Core.Adventurers;
 public sealed record ScoutingReport(
     BloomTiming TimingHint,
     Temperament TemperamentHint,
-    StatBlock EstimatedPotential,
+    PrimaryStats EstimatedPotential,
     double Confidence,
     IReadOnlyDictionary<WeaponStyle, AptitudeGrade> AptitudeHints)
 {
@@ -90,8 +90,8 @@ public static class Appraiser
 
         // 잠재력 추정에는 확신도에 반비례하는 오차가 붙습니다.
         double noiseScale = (1.0 - confidence) * 0.45;
-        var estimated = StatBlock.Zero;
-        foreach (var kind in StatBlock.AllKinds)
+        var estimated = PrimaryStats.Zero;
+        foreach (var kind in PrimaryStats.AllStats)
         {
             double noisy = truth.Potential[kind] * (1.0 + rng.NextGaussian() * noiseScale);
             estimated = estimated.With(kind, Math.Max(1, (int)Math.Round(noisy)));

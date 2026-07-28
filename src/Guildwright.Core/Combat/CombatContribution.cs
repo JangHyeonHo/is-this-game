@@ -26,6 +26,12 @@ public sealed class CombatContribution
     /// <summary>쓰러뜨린 적 수.</summary>
     public int Kills { get; private set; }
 
+    /// <summary>터뜨린 치명타 수. 급소를 노리다 보면 손에 익습니다.</summary>
+    public int CriticalHits { get; private set; }
+
+    /// <summary>피한 공격 수. 계속 피하다 보면 몸이 반응합니다.</summary>
+    public int Evasions { get; private set; }
+
     /// <summary>총 행동 횟수.</summary>
     public int Actions { get; private set; }
 
@@ -49,6 +55,8 @@ public sealed class CombatContribution
     internal void RecordReposition() => Repositions++;
     internal void RecordKill() => Kills++;
     internal void RecordAction() => Actions++;
+    internal void RecordCritical() => CriticalHits++;
+    internal void RecordEvasion() => Evasions++;
 
     /// <summary>여러 전투의 기록을 합칩니다.</summary>
     public static CombatContribution Merge(IEnumerable<CombatContribution> parts)
@@ -65,6 +73,8 @@ public sealed class CombatContribution
             merged.Repositions += part.Repositions;
             merged.Kills += part.Kills;
             merged.Actions += part.Actions;
+            merged.CriticalHits += part.CriticalHits;
+            merged.Evasions += part.Evasions;
         }
         return merged;
     }

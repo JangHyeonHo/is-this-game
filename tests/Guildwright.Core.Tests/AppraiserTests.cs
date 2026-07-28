@@ -23,11 +23,11 @@ public class AppraiserTests(ITestOutputHelper output)
             PeakAge = 26,
             BloomWidth = 3.0,
             Temperament = Temperament.Battleborn,
-            Potential = StatBlock.Uniform(70),
+            Potential = PrimaryStats.Uniform(70),
             DeclineAge = 33
         };
 
-        var a = new Adventurer("A", "관찰대상", StatBlock.Uniform(12), 40, growth);
+        var a = new Adventurer("A", "관찰대상", PrimaryStats.Uniform(12), 40, growth);
         for (int i = 0; i < years; i++)
         {
             CareerSimulator.ResolveTrainingYear(a, rng.Fork($"year:{i}"));
@@ -128,12 +128,12 @@ public class AppraiserTests(ITestOutputHelper output)
     {
         // 실전을 오래 살아남은 멘토가 사람 보는 눈을 준다는 설계.
         var rng = new DeterministicRandom(5UL);
-        var mentor = new Adventurer("M", "노병", StatBlock.Uniform(80), 75, new GrowthProfile
+        var mentor = new Adventurer("M", "노병", PrimaryStats.Uniform(80), 75, new GrowthProfile
         {
             PeakAge = 22,
             BloomWidth = 3.0,
             Temperament = Temperament.Balanced,
-            Potential = StatBlock.Uniform(85),
+            Potential = PrimaryStats.Uniform(85),
             DeclineAge = 30
         }, age: 24);
 

@@ -43,7 +43,7 @@ public enum DeploymentOutcome
 public sealed record YearRecord(
     int Age,
     YearActivity Activity,
-    StatBlock StatChange,
+    PrimaryStats StatChange,
     DeploymentOutcome? Outcome,
     int Income,
     string Note,
@@ -66,7 +66,7 @@ public sealed class Adventurer
     public Adventurer(
         string id,
         string name,
-        StatBlock startingStats,
+        PrimaryStats startingStats,
         int judgement,
         GrowthProfile growth,
         int age = RecruitAge,
@@ -88,7 +88,7 @@ public sealed class Adventurer
     public string Id { get; }
     public string Name { get; }
     public int Age { get; private set; }
-    public StatBlock Stats { get; private set; }
+    public PrimaryStats Stats { get; private set; }
     public int Judgement { get; private set; }
     public AdventurerStatus Status { get; private set; } = AdventurerStatus.Active;
 
@@ -110,6 +110,26 @@ public sealed class Adventurer
 
     /// <summary>스타일별 숙련도. 숨기지 않습니다 — 본인이 뭘 얼마나 했는지는 알 수 있어야 합니다.</summary>
     public WeaponProficiency Proficiency { get; } = new();
+
+    /// <summary>
+    /// 파생 보정. <b>원천 능력치와 무관하게 겪은 것으로 직접 붙는 값</b>입니다.
+    /// <para>
+    /// 계속 맞다 보면 몸이 단단해지고(물리 방어), 급소를 노리다 보면 손에 익습니다(치명타율).
+    /// 원천 능력치가 같아도 이력이 다르면 다른 캐릭터가 되는 이유입니다.
+    /// </para>
+    /// </summary>
+    public DerivedBonuses Bonuses { get; } = new();
+
+    /// <summary>실제 전투에 쓰일 수치를 조회합니다. 원천 + 보정이 합쳐진 값입니다.</summary>
+    public int MaxHp => DerivedStats.MaxHp(Stats, Bonuses);
+    public int PhysicalPower => DerivedStats.PhysicalPower(Stats, Bonuses);
+    public int PhysicalGuard => DerivedStats.PhysicalGuard(Stats, Bonuses);
+    public int MagicPower => DerivedStats.MagicPower(Stats, Bonuses);
+    public int MagicGuard => DerivedStats.MagicGuard(Stats, Bonuses);
+    public double CritChance => DerivedStats.CritChance(Stats, Bonuses);
+    public double EvasionChance => DerivedStats.EvasionChance(Stats, Bonuses);
+
+    internal void ApplyDerivedBonus(DerivedStat stat, double amount) => Bonuses.Add(stat, amount);
 
     /// <summary>
     /// 비전투 역량. 함정 감지·척후·운반·채집·감정.
@@ -244,8 +264,8 @@ public sealed class Adventurer
         var growth = GrowthProfile.Roll(rng.Fork($"growth:{id}"), potentialTier);
 
         // 시작 능력치는 잠재력의 일부만. 나머지는 육성으로 채웁니다.
-        var starting = StatBlock.Zero;
-        foreach (var kind in StatBlock.AllKinds)
+        var starting = PrimaryStats.Zero;
+        foreach (var kind in PrimaryStats.AllStats)
         {
             double ratio = 0.15 + rng.NextDouble() * 0.10;
             starting = starting.With(kind, Math.Max(1, (int)Math.Round(growth.Potential[kind] * ratio)));

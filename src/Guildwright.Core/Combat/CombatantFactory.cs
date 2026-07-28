@@ -32,6 +32,7 @@ public static class CombatantFactory
             judgement: adventurer.Judgement,
             style: adventurer.EquippedStyle,
             weaponEffectiveness: adventurer.WeaponEffectiveness,
+            bonuses: adventurer.Bonuses,
             row: row,
             tactics: tactics ?? DefaultTacticsFor(adventurer.EquippedStyle),
             potions: potions);
@@ -120,7 +121,7 @@ public static class CombatantFactory
 
         if (members.Count > 0 && rows.Values.All(r => r == Row.Back))
         {
-            var toughest = members.OrderByDescending(a => a.Stats.Vitality + a.Stats.Defense)
+            var toughest = members.OrderByDescending(a => a.Stats.Vitality + a.Stats.Strength)
                                   .ThenBy(a => a.Id, StringComparer.Ordinal)
                                   .First();
             rows[toughest.Id] = Row.Front;

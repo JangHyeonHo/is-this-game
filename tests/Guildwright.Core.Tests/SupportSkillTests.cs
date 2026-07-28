@@ -23,26 +23,26 @@ public class SupportSkillTests(ITestOutputHelper output)
 {
     private const ulong Seed = 9090UL;
 
-    private static GrowthProfile Profile(StatBlock? potential = null) => new()
+    private static GrowthProfile Profile(PrimaryStats? potential = null) => new()
     {
         PeakAge = 20,
         BloomWidth = 3.0,
         Temperament = Temperament.Balanced,
-        Potential = potential ?? StatBlock.Uniform(70),
+        Potential = potential ?? PrimaryStats.Uniform(70),
         DeclineAge = 45
     };
 
-    private static Adventurer Veteran(StatBlock? stats = null)
+    private static Adventurer Veteran(PrimaryStats? stats = null)
     {
         var a = new Adventurer(
-            "S", "보조병", stats ?? StatBlock.Uniform(40), 50, Profile(), 20,
+            "S", "보조병", stats ?? PrimaryStats.Uniform(40), 50, Profile(), 20,
             WeaponAptitudes.Uniform(AptitudeGrade.B), WeaponStyle.Bow, WeaponClass.Pierce);
 
         CareerSimulator.ResolveTrainingYear(a, new DeterministicRandom(1UL));
         return a;
     }
 
-    private static SupportSkillSet Skilled(SupportSkill skill, int years, StatBlock stats)
+    private static SupportSkillSet Skilled(SupportSkill skill, int years, PrimaryStats stats)
     {
         var set = new SupportSkillSet();
         for (int i = 0; i < years; i++) set.AdvanceYear(skill, stats);
@@ -91,10 +91,8 @@ public class SupportSkillTests(ITestOutputHelper output)
     {
         // 비전투 역량에 별도 적성 랜덤을 두지 않는 대신, 기존 능력치가 성장 속도를 좌우합니다.
         // 랜덤 축을 늘리지 않으면서 캐릭터마다 어울리는 역할이 생깁니다.
-        var nimble = new StatBlock(Vitality: 20, Mana: 20, Attack: 20, Defense: 20,
-                                   MagicAttack: 20, MagicDefense: 20, Speed: 95);
-        var sturdy = new StatBlock(Vitality: 95, Mana: 20, Attack: 20, Defense: 20,
-                                   MagicAttack: 20, MagicDefense: 20, Speed: 20);
+        var nimble = new PrimaryStats(Strength: 20, Agility: 95, Finesse: 20, Vitality: 20, Intellect: 20, Spirit: 20);
+        var sturdy = new PrimaryStats(Strength: 95, Agility: 20, Finesse: 20, Vitality: 95, Intellect: 20, Spirit: 20);
 
         int nimbleScouting = Skilled(SupportSkill.Scouting, 4, nimble)[SupportSkill.Scouting];
         int sturdyScouting = Skilled(SupportSkill.Scouting, 4, sturdy)[SupportSkill.Scouting];
@@ -119,7 +117,7 @@ public class SupportSkillTests(ITestOutputHelper output)
         var contract = new Contract("폐광 소탕", ContractKind.Combat, 5,
             new Dictionary<SupportSkill, double> { [SupportSkill.TrapSense] = 1.0 });
 
-        var stats = StatBlock.Uniform(50);
+        var stats = PrimaryStats.Uniform(50);
         var none = ContractResolver.Evaluate(contract, [new SupportSkillSet()]);
         var expert = ContractResolver.Evaluate(contract, [Skilled(SupportSkill.TrapSense, 12, stats)]);
 
@@ -137,7 +135,7 @@ public class SupportSkillTests(ITestOutputHelper output)
         var plainContract = new Contract("들판 순찰", ContractKind.Combat, 3,
             new Dictionary<SupportSkill, double>());
 
-        var stats = StatBlock.Uniform(50);
+        var stats = PrimaryStats.Uniform(50);
         var expert = ContractResolver.Evaluate(plainContract, [Skilled(SupportSkill.TrapSense, 12, stats)]);
 
         Assert.Equal(1.0, expert.RiskMultiplier, precision: 6);
@@ -153,7 +151,7 @@ public class SupportSkillTests(ITestOutputHelper output)
                 [SupportSkill.Portering] = 0.6
             });
 
-        var stats = StatBlock.Uniform(50);
+        var stats = PrimaryStats.Uniform(50);
         var none = ContractResolver.Evaluate(contract, [new SupportSkillSet()]);
         var crew = ContractResolver.Evaluate(contract,
         [
@@ -170,7 +168,7 @@ public class SupportSkillTests(ITestOutputHelper output)
     public void 운반_역량이_높으면_회복약을_더_들고_간다()
     {
         var contract = Contract.Combat("장거리 원정", 5);
-        var stats = StatBlock.Uniform(60);
+        var stats = PrimaryStats.Uniform(60);
 
         var solo = ContractResolver.Evaluate(contract, [new SupportSkillSet()]);
         var porters = ContractResolver.Evaluate(contract,
@@ -194,7 +192,7 @@ public class SupportSkillTests(ITestOutputHelper output)
         var haulContract = new Contract("대량 운송", ContractKind.Gathering, 4,
             new Dictionary<SupportSkill, double> { [SupportSkill.Portering] = 1.0 });
 
-        var stats = StatBlock.Uniform(50);
+        var stats = PrimaryStats.Uniform(50);
         var one = Skilled(SupportSkill.TrapSense, 12, stats);
         var oneHauler = Skilled(SupportSkill.Portering, 12, stats);
         var weakHauler = Skilled(SupportSkill.Portering, 3, stats);
@@ -225,7 +223,7 @@ public class SupportSkillTests(ITestOutputHelper output)
         {
             // 전투력이 형편없는 캐릭터.
             var weak = new Adventurer(
-                "W", "약골", StatBlock.Uniform(18), 45, Profile(), 20,
+                "W", "약골", PrimaryStats.Uniform(18), 45, Profile(), 20,
                 WeaponAptitudes.Uniform(AptitudeGrade.C), WeaponStyle.Bow, WeaponClass.Pierce);
             CareerSimulator.ResolveTrainingYear(weak, new DeterministicRandom(1UL));
 
@@ -256,7 +254,7 @@ public class SupportSkillTests(ITestOutputHelper output)
             for (int t = 0; t < trials; t++)
             {
                 var weak = new Adventurer(
-                    "W", "약골", StatBlock.Uniform(18), 30, Profile(), 20,
+                    "W", "약골", PrimaryStats.Uniform(18), 30, Profile(), 20,
                     WeaponAptitudes.Uniform(AptitudeGrade.C), WeaponStyle.Bow, WeaponClass.Pierce);
                 CareerSimulator.ResolveTrainingYear(weak, new DeterministicRandom(1UL));
 
@@ -287,7 +285,7 @@ public class SupportSkillTests(ITestOutputHelper output)
                 new Dictionary<SupportSkill, double> { [SupportSkill.TrapSense] = 1.0 });
 
             var party = withScout
-                ? new List<SupportSkillSet> { Skilled(SupportSkill.TrapSense, 15, StatBlock.Uniform(60)) }
+                ? new List<SupportSkillSet> { Skilled(SupportSkill.TrapSense, 15, PrimaryStats.Uniform(60)) }
                 : [new SupportSkillSet()];
 
             var support = ContractResolver.Evaluate(contract, party);
@@ -298,7 +296,7 @@ public class SupportSkillTests(ITestOutputHelper output)
             for (int t = 0; t < trials; t++)
             {
                 var fighter = new Adventurer(
-                    "F", "전사", StatBlock.Uniform(30), 40, Profile(), 22,
+                    "F", "전사", PrimaryStats.Uniform(30), 40, Profile(), 22,
                     WeaponAptitudes.Uniform(AptitudeGrade.B), WeaponStyle.TwoHanded, WeaponClass.Axe);
                 CareerSimulator.ResolveTrainingYear(fighter, new DeterministicRandom(1UL));
 

@@ -28,16 +28,16 @@ internal static class TestParty
         TacticRule.Always(TacticAction.AttackNearest)
     ];
 
-    internal static StatBlock BaseStats(int speed = 10) => new(
-        Vitality: 34, Mana: 20, Attack: 20, Defense: 10,
-        MagicAttack: 10, MagicDefense: 10, Speed: speed);
+    internal static PrimaryStats BaseStats(int agility = 10) => new(
+        Strength: 20, Agility: agility, Finesse: 15,
+        Vitality: 34, Intellect: 12, Spirit: 18);
 
     internal static Combatant Make(
         string id,
         Team team,
         int judgement,
         IReadOnlyList<TacticRule>? tactics = null,
-        StatBlock? stats = null,
+        PrimaryStats? stats = null,
         WeaponStyle style = WeaponStyle.SwordAndShield,
         Row row = Row.Front,
         double weaponEffectiveness = 1.0,
@@ -73,7 +73,7 @@ internal static class TestParty
         for (int i = 0; i < partySize; i++)
         {
             // 속도를 서로 다르게 주어 턴 순서 동점 상황을 줄입니다.
-            var stats = BaseStats(speed: 10 + i);
+            var stats = BaseStats(agility: 10 + i);
             combatants.Add(Make($"P{i}", Team.Player, playerJudgement, playerTactics, stats, style));
             combatants.Add(Make($"E{i}", Team.Enemy, enemyJudgement, enemyTactics, stats, style));
         }

@@ -25,7 +25,7 @@ public class JobRankTests(ITestOutputHelper output)
         PeakAge = 20,
         BloomWidth = 3.0,
         Temperament = Temperament.Balanced,
-        Potential = StatBlock.Uniform(80),
+        Potential = PrimaryStats.Uniform(80),
         DeclineAge = 45
     };
 
@@ -33,7 +33,7 @@ public class JobRankTests(ITestOutputHelper output)
     {
         var weaponClass = WeaponStyles.AllowedClasses(style)[0];
         return new Adventurer(
-            "J", "직업실험체", StatBlock.Uniform(20), 45, Profile(), 16,
+            "J", "직업실험체", PrimaryStats.Uniform(20), 45, Profile(), 16,
             WeaponAptitudes.Uniform(aptitude), style, weaponClass);
     }
 
@@ -201,7 +201,7 @@ public class JobRankTests(ITestOutputHelper output)
         int ProficiencyAfter(AptitudeGrade grade)
         {
             var a = new Adventurer(
-                "R", "전직자", StatBlock.Uniform(40), 60, Profile(), 22,
+                "R", "전직자", PrimaryStats.Uniform(40), 60, Profile(), 22,
                 WeaponAptitudes.Of(new Dictionary<WeaponStyle, AptitudeGrade>
                 {
                     [WeaponStyle.TwoHanded] = grade
@@ -237,7 +237,7 @@ public class JobRankTests(ITestOutputHelper output)
         int ProficiencyWith(WeaponStyle style)
         {
             var a = new Adventurer(
-                "M", "늦게 안 재능", StatBlock.Uniform(25), 50, Profile(), 17,
+                "M", "늦게 안 재능", PrimaryStats.Uniform(25), 50, Profile(), 17,
                 aptitudes, style, WeaponStyles.AllowedClasses(style)[0]);
 
             var rng = new DeterministicRandom(Seed);

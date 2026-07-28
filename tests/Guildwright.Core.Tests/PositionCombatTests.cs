@@ -333,15 +333,15 @@ public class PositionCombatTests(ITestOutputHelper output)
         var target = TestParty.Make("T", Team.Player, 60);
         target.ApplyEffect(new StatusEffect(StatusEffectKind.Empowered, 2, 0.3, "X"));
 
-        int boosted = target.EffectiveAttack;
-        Assert.True(boosted > target.Stats.Attack);
+        int boosted = target.EffectivePhysicalPower;
+        Assert.True(boosted > target.Stats.Strength);
 
         target.TickEffects();
         Assert.True(target.HasEffect(StatusEffectKind.Empowered));
 
         target.TickEffects();
         Assert.False(target.HasEffect(StatusEffectKind.Empowered));
-        Assert.Equal(target.Stats.Attack, target.EffectiveAttack);
+        Assert.Equal(target.BasePhysicalPower, target.EffectivePhysicalPower);
     }
 
     [Fact]

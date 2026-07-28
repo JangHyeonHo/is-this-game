@@ -159,7 +159,7 @@ public static class TacticalBrain
 
         if (self.Capability.UsesMagic && hasMana)
         {
-            var strongestAlly = allies.OrderByDescending(a => a.Stats.Attack).ThenBy(a => a.Id, StringComparer.Ordinal).First();
+            var strongestAlly = allies.OrderByDescending(a => a.EffectiveOffense).ThenBy(a => a.Id, StringComparer.Ordinal).First();
             if (!strongestAlly.HasEffect(StatusEffectKind.Empowered))
             {
                 actions.Add(new ChosenAction(TacticAction.BuffAlly, strongestAlly));
@@ -326,8 +326,8 @@ public static class TacticalBrain
         if (expected >= target.Hp) score += 0.6;
         else score += 0.25 * (1.0 - target.HpRatio);
 
-        int maxAttack = enemies.Max(e => e.Stats.Attack);
-        if (maxAttack > 0) score += 0.15 * ((double)target.Stats.Attack / maxAttack);
+        int maxAttack = enemies.Max(e => e.EffectiveOffense);
+        if (maxAttack > 0) score += 0.15 * ((double)target.EffectiveOffense / maxAttack);
 
         return score;
     }
@@ -357,5 +357,5 @@ public static class TacticalBrain
         targets.OrderBy(e => e.Hp).ThenBy(e => e.Id, StringComparer.Ordinal).First();
 
     private static Combatant PickStrongest(IReadOnlyList<Combatant> targets) =>
-        targets.OrderByDescending(e => e.Stats.Attack).ThenBy(e => e.Id, StringComparer.Ordinal).First();
+        targets.OrderByDescending(e => e.EffectiveOffense).ThenBy(e => e.Id, StringComparer.Ordinal).First();
 }

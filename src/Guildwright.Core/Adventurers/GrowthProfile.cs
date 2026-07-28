@@ -51,7 +51,7 @@ public sealed record GrowthProfile
     public required Temperament Temperament { get; init; }
 
     /// <summary>도달 가능한 능력치 상한. 훈련으로도 여기를 넘지 못합니다.</summary>
-    public required StatBlock Potential { get; init; }
+    public required PrimaryStats Potential { get; init; }
 
     /// <summary>노화가 시작되는 나이. 이후 매년 능력치가 조금씩 깎입니다.</summary>
     public required int DeclineAge { get; init; }
@@ -130,8 +130,8 @@ public sealed record GrowthProfile
 
         // 잠재력은 능력치마다 다릅니다 — 이게 캐릭터별 특화를 만듭니다.
         int baseline = 30 + potentialTier * 10;
-        var potential = StatBlock.Zero;
-        foreach (var kind in StatBlock.AllKinds)
+        var potential = PrimaryStats.Zero;
+        foreach (var kind in PrimaryStats.AllStats)
         {
             double variance = 0.65 + rng.NextDouble() * 0.7;   // 0.65 ~ 1.35배
             potential = potential.With(kind, Math.Max(10, (int)Math.Round(baseline * variance)));

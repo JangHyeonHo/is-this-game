@@ -28,12 +28,12 @@ public class TrainingSessionTests(ITestOutputHelper output)
             PeakAge = peakAge,
             BloomWidth = 3.0,
             Temperament = temperament,
-            Potential = StatBlock.Uniform(potential),
+            Potential = PrimaryStats.Uniform(potential),
             DeclineAge = 40
         };
 
     private static Adventurer Rookie(int age = 18, int potential = 80)
-        => new("T1", "훈련생", StatBlock.Uniform(15), 40, Profile(potential: potential), age: age);
+        => new("T1", "훈련생", PrimaryStats.Uniform(15), 40, Profile(potential: potential), age: age);
 
     // ---------------------------------------------------------------
     // 기본 진행
@@ -59,7 +59,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
     public void 열두달을_마치기_전에는_결과를_확정할_수_없다()
     {
         var session = new TrainingYearSession(Rookie(), new DeterministicRandom(Seed));
-        session.AdvanceMonth(TrainingFocus.Attack);
+        session.AdvanceMonth(TrainingFocus.Strength);
 
         Assert.Throws<InvalidOperationException>(() => session.Complete());
     }
@@ -70,12 +70,12 @@ public class TrainingSessionTests(ITestOutputHelper output)
         var adventurer = Rookie(age: 18);
         var session = new TrainingYearSession(adventurer, new DeterministicRandom(Seed));
 
-        for (int i = 0; i < 12; i++) session.AdvanceMonth(TrainingFocus.Attack);
+        for (int i = 0; i < 12; i++) session.AdvanceMonth(TrainingFocus.Strength);
         session.Complete();
 
         Assert.Equal(19, adventurer.Age);
         Assert.Equal(1, adventurer.CompletedYears);
-        Assert.True(adventurer.Stats.Attack > 15);
+        Assert.True(adventurer.Stats.Strength > 15);
     }
 
     // ---------------------------------------------------------------
@@ -91,13 +91,13 @@ public class TrainingSessionTests(ITestOutputHelper output)
 
         for (int i = 0; i < 12; i++)
         {
-            session.AdvanceMonth(session.Fatigue >= 48 ? TrainingFocus.Rest : TrainingFocus.Attack);
+            session.AdvanceMonth(session.Fatigue >= 48 ? TrainingFocus.Rest : TrainingFocus.Strength);
         }
         session.Complete();
 
         output.WriteLine($"공격 집중 1년: {adventurer.Stats}");
 
-        Assert.True(adventurer.Stats.Attack > adventurer.Stats.Defense * 2,
+        Assert.True(adventurer.Stats.Strength > adventurer.Stats.Vitality * 2,
             "집중한 능력치가 뚜렷하게 앞서지 않으면, 매달 무엇을 훈련할지 고르는 의미가 없습니다.");
     }
 
@@ -110,11 +110,11 @@ public class TrainingSessionTests(ITestOutputHelper output)
 
         for (int i = 0; i < 12; i++)
         {
-            session.AdvanceMonth(session.Fatigue >= 48 ? TrainingFocus.Rest : TrainingFocus.Attack);
+            session.AdvanceMonth(session.Fatigue >= 48 ? TrainingFocus.Rest : TrainingFocus.Strength);
         }
         session.Complete();
 
-        Assert.True(adventurer.Stats.Defense > 15);
+        Assert.True(adventurer.Stats.Vitality > 15);
     }
 
     // ---------------------------------------------------------------
@@ -126,7 +126,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
     {
         var session = new TrainingYearSession(Rookie(), new DeterministicRandom(Seed));
 
-        session.AdvanceMonth(TrainingFocus.Attack);
+        session.AdvanceMonth(TrainingFocus.Strength);
         int afterTraining = session.Fatigue;
         Assert.True(afterTraining > 0);
 
@@ -150,7 +150,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
 
                 while (!session.IsComplete)
                 {
-                    session.AdvanceMonth(session.Fatigue >= restThreshold ? TrainingFocus.Rest : TrainingFocus.Attack);
+                    session.AdvanceMonth(session.Fatigue >= restThreshold ? TrainingFocus.Rest : TrainingFocus.Strength);
                 }
                 session.Complete();
 
@@ -180,7 +180,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
             var rng = new DeterministicRandom(Seed).Fork($"inj:{t}");
             var session = new TrainingYearSession(adventurer, rng);
 
-            while (!session.IsComplete) session.AdvanceMonth(TrainingFocus.Attack);
+            while (!session.IsComplete) session.AdvanceMonth(TrainingFocus.Strength);
 
             var injury = session.Months.FirstOrDefault(m => m.GotInjured);
             if (injury is null) continue;
@@ -206,8 +206,8 @@ public class TrainingSessionTests(ITestOutputHelper output)
         {
             var adventurer = Rookie();
             var session = new TrainingYearSession(adventurer, new DeterministicRandom(Seed), startingFatigue: startingFatigue);
-            var outcome = session.AdvanceMonth(TrainingFocus.Attack);
-            return outcome.StatGain.Attack;
+            var outcome = session.AdvanceMonth(TrainingFocus.Strength);
+            return outcome.StatGain.Strength;
         }
 
         int fresh = GainAtFatigue(0);
@@ -232,14 +232,14 @@ public class TrainingSessionTests(ITestOutputHelper output)
         output.WriteLine($"마법 방침 1년: {adventurer.Stats}");
 
         Assert.Equal(1, adventurer.CompletedYears);
-        Assert.True(adventurer.Stats.MagicAttack > adventurer.Stats.Attack,
+        Assert.True(adventurer.Stats.Intellect > adventurer.Stats.Strength,
             "마법 방침을 맡겼는데 물리 능력치가 더 자라면 방침이 무의미합니다.");
     }
 
     [Fact]
     public void 방침에_따라_다른_캐릭터가_만들어진다()
     {
-        StatBlock Run(TrainingPolicy policy)
+        PrimaryStats Run(TrainingPolicy policy)
         {
             var a = Rookie();
             for (int y = 0; y < 3; y++)
@@ -255,8 +255,8 @@ public class TrainingSessionTests(ITestOutputHelper output)
         output.WriteLine($"전위 3년: {vanguard}");
         output.WriteLine($"마법 3년: {mage}");
 
-        Assert.True(vanguard.Attack > mage.Attack);
-        Assert.True(mage.MagicAttack > vanguard.MagicAttack);
+        Assert.True(vanguard.Strength > mage.Strength);
+        Assert.True(mage.Intellect > vanguard.Intellect);
     }
 
     private int[] Distribution(TrainingPolicy policy, int trials = 300)
@@ -346,7 +346,7 @@ public class TrainingSessionTests(ITestOutputHelper output)
             var session = new TrainingYearSession(a, new DeterministicRandom(Seed));
             for (int i = 0; i < 12; i++)
             {
-                session.AdvanceMonth(i % 4 == 3 ? TrainingFocus.Rest : TrainingFocus.Speed);
+                session.AdvanceMonth(i % 4 == 3 ? TrainingFocus.Rest : TrainingFocus.Agility);
             }
             session.Complete();
             return $"{a.Stats}|{a.Age}";

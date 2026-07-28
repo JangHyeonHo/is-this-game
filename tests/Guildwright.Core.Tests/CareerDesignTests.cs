@@ -29,12 +29,12 @@ public class CareerDesignTests(ITestOutputHelper output)
             PeakAge = peakAge,
             BloomWidth = bloomWidth,
             Temperament = temperament,
-            Potential = StatBlock.Uniform(potential),
+            Potential = PrimaryStats.Uniform(potential),
             DeclineAge = declineAge
         };
 
     private static Adventurer Rookie(GrowthProfile growth, int judgement = 40)
-        => new("A1", "테스트", StatBlock.Uniform(12), judgement, growth);
+        => new("A1", "테스트", PrimaryStats.Uniform(12), judgement, growth);
 
     // ---------------------------------------------------------------
     // 성장 곡선
@@ -52,8 +52,8 @@ public class CareerDesignTests(ITestOutputHelper output)
         }
 
         Assert.True(
-            adventurer.Stats.Attack <= 60,
-            $"잠재력 60을 넘었습니다 ({adventurer.Stats.Attack}). 훈련만으로 상한을 넘으면 안 됩니다.");
+            adventurer.Stats.Strength <= 60,
+            $"잠재력 60을 넘었습니다 ({adventurer.Stats.Strength}). 훈련만으로 상한을 넘으면 안 됩니다.");
     }
 
     [Fact]
@@ -62,8 +62,8 @@ public class CareerDesignTests(ITestOutputHelper output)
         var growth = Profile(peakAge: 25);
 
         // 같은 능력치에서 출발시켜 나이만 다르게 둡니다.
-        var young = new Adventurer("Y", "15세", StatBlock.Uniform(20), 40, growth, age: 15);
-        var peak = new Adventurer("P", "25세", StatBlock.Uniform(20), 40, growth, age: 25);
+        var young = new Adventurer("Y", "15세", PrimaryStats.Uniform(20), 40, growth, age: 15);
+        var peak = new Adventurer("P", "25세", PrimaryStats.Uniform(20), 40, growth, age: 25);
 
         var beforeYoung = young.Stats.Total;
         var beforePeak = peak.Stats.Total;
@@ -84,7 +84,7 @@ public class CareerDesignTests(ITestOutputHelper output)
     public void 비개화기에도_최소한은_자란다()
     {
         // 하한이 없으면 대기만성형을 데리고 있을 이유가 사라집니다.
-        var adventurer = new Adventurer("L", "대기만성", StatBlock.Uniform(12), 40, Profile(peakAge: 26), age: 15);
+        var adventurer = new Adventurer("L", "대기만성", PrimaryStats.Uniform(12), 40, Profile(peakAge: 26), age: 15);
         var before = adventurer.Stats.Total;
 
         CareerSimulator.ResolveTrainingYear(adventurer, new DeterministicRandom(Seed));
@@ -97,7 +97,7 @@ public class CareerDesignTests(ITestOutputHelper output)
     public void 노화가_시작되면_능력치가_깎인다()
     {
         var growth = Profile(peakAge: 20, declineAge: 28);
-        var veteran = new Adventurer("V", "노병", StatBlock.Uniform(65), 60, growth, age: 40);
+        var veteran = new Adventurer("V", "노병", PrimaryStats.Uniform(65), 60, growth, age: 40);
 
         var before = veteran.Stats.Total;
         CareerSimulator.ResolveTrainingYear(veteran, new DeterministicRandom(Seed));
@@ -118,7 +118,7 @@ public class CareerDesignTests(ITestOutputHelper output)
         int TrainGain(Temperament temperament, YearActivity activity)
         {
             var adventurer = new Adventurer(
-                "T", temperament.ToString(), StatBlock.Uniform(20), 60, Profile(20, temperament), age: 20);
+                "T", temperament.ToString(), PrimaryStats.Uniform(20), 60, Profile(20, temperament), age: 20);
 
             var rng = new DeterministicRandom(Seed);
             int before = adventurer.Stats.Total;
@@ -182,7 +182,7 @@ public class CareerDesignTests(ITestOutputHelper output)
 
             for (int i = 0; i < trials; i++)
             {
-                var a = new Adventurer("D", "실험체", StatBlock.Uniform(30), 40, Profile(20), age: 20);
+                var a = new Adventurer("D", "실험체", PrimaryStats.Uniform(30), 40, Profile(20), age: 20);
                 CareerSimulator.ResolveTrainingYear(a, new DeterministicRandom(Seed).Fork($"warm:{i}"));
                 CareerSimulator.ResolveDeploymentYear(a, difficulty, new DeterministicRandom(Seed).Fork($"run:{i}"));
                 if (a.Status == AdventurerStatus.Dead) deaths++;
@@ -210,7 +210,7 @@ public class CareerDesignTests(ITestOutputHelper output)
 
             for (int i = 0; i < trials; i++)
             {
-                var a = new Adventurer("S", "실험체", StatBlock.Uniform(25), judgement, Profile(20), age: 20);
+                var a = new Adventurer("S", "실험체", PrimaryStats.Uniform(25), judgement, Profile(20), age: 20);
                 CareerSimulator.ResolveTrainingYear(a, new DeterministicRandom(Seed).Fork($"warm:{i}"));
                 CareerSimulator.ResolveDeploymentYear(a, 7, new DeterministicRandom(Seed).Fork($"run:{i}"));
                 if (a.Status != AdventurerStatus.Dead) survived++;
@@ -233,7 +233,7 @@ public class CareerDesignTests(ITestOutputHelper output)
     {
         for (int i = 0; i < attempts; i++)
         {
-            var a = new Adventurer($"X{i}", "희생자", StatBlock.Uniform(5), 0, Profile(20), age: 20);
+            var a = new Adventurer($"X{i}", "희생자", PrimaryStats.Uniform(5), 0, Profile(20), age: 20);
             var rng = new DeterministicRandom(Seed).Fork($"doom:{i}");
 
             CareerSimulator.ResolveTrainingYear(a, rng);
@@ -283,7 +283,7 @@ public class CareerDesignTests(ITestOutputHelper output)
         // 모든 캐릭터에게 같은 전략이 통하면 매년의 선택은 그냥 버튼 누르기가 됩니다.
         int PowerAfterTraining(GrowthProfile growth, int untilAge)
         {
-            var a = new Adventurer("C", "실험체", StatBlock.Uniform(12), 40, growth, age: 15);
+            var a = new Adventurer("C", "실험체", PrimaryStats.Uniform(12), 40, growth, age: 15);
             var rng = new DeterministicRandom(Seed);
             while (a.Age < untilAge)
             {
@@ -317,7 +317,7 @@ public class CareerDesignTests(ITestOutputHelper output)
     [Fact]
     public void 멘토가_있으면_훈련_성장이_커진다()
     {
-        var veteran = new Adventurer("M", "노병", StatBlock.Uniform(90), 80, Profile(20), age: 34);
+        var veteran = new Adventurer("M", "노병", PrimaryStats.Uniform(90), 80, Profile(20), age: 34);
         for (int i = 0; i < 8; i++)
         {
             CareerSimulator.ResolveTrainingYear(veteran, new DeterministicRandom(Seed).Fork($"v:{i}"));
@@ -329,7 +329,7 @@ public class CareerDesignTests(ITestOutputHelper output)
 
         int GainWith(Mentorship? m)
         {
-            var a = new Adventurer("R", "신입", StatBlock.Uniform(15), 40, Profile(20), age: 18);
+            var a = new Adventurer("R", "신입", PrimaryStats.Uniform(15), 40, Profile(20), age: 18);
             int before = a.Stats.Total;
             CareerSimulator.ResolveTrainingYear(a, new DeterministicRandom(Seed), m);
             return a.Stats.Total - before;

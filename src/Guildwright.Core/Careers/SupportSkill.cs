@@ -50,14 +50,19 @@ public static class SupportSkills
     /// 대신 기존 능력치가 성장 속도를 좌우하므로, 캐릭터마다 자연스럽게 잘 맞는 역할이 갈립니다.
     /// </para>
     /// </summary>
-    public static StatKind GoverningStat(this SupportSkill skill) => skill switch
+    public static PrimaryStat GoverningStat(this SupportSkill skill) => skill switch
     {
-        SupportSkill.TrapSense => StatKind.MagicDefense,
-        SupportSkill.Scouting => StatKind.Speed,
-        SupportSkill.Portering => StatKind.Vitality,
-        SupportSkill.Gathering => StatKind.Attack,
-        SupportSkill.Appraisal => StatKind.Mana,
-        _ => StatKind.Vitality
+        // 함정을 알아보는 것은 지식입니다.
+        SupportSkill.TrapSense => PrimaryStat.Intellect,
+        // 척후는 발이 빨라야 합니다.
+        SupportSkill.Scouting => PrimaryStat.Agility,
+        // 짐은 힘으로 집니다.
+        SupportSkill.Portering => PrimaryStat.Strength,
+        // 채굴과 채집은 손끝의 정밀함입니다.
+        SupportSkill.Gathering => PrimaryStat.Finesse,
+        // 사람과 물건을 알아보는 것도 지식입니다.
+        SupportSkill.Appraisal => PrimaryStat.Intellect,
+        _ => PrimaryStat.Vitality
     };
 
     public static string ToKorean(this SupportSkill skill) => skill switch
@@ -89,7 +94,7 @@ public sealed class SupportSkillSet
     /// </summary>
     /// <param name="assigned">그 해에 맡은 역할. 없으면 전 역량이 조금씩만 늡니다.</param>
     /// <param name="stats">성장 속도를 좌우하는 현재 능력치.</param>
-    internal void AdvanceYear(SupportSkill? assigned, StatBlock stats)
+    internal void AdvanceYear(SupportSkill? assigned, PrimaryStats stats)
     {
         foreach (var skill in SupportSkills.All)
         {

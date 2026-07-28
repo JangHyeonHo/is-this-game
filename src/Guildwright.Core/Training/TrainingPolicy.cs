@@ -32,26 +32,26 @@ public sealed record TrainingPolicy(
     string Name,
     int OpportunisticBonus = 0)
 {
-    /// <summary>7 능력치를 골고루. 특화가 없는 대신 안전합니다.</summary>
+    /// <summary>6 능력치를 골고루. 특화가 없는 대신 안전합니다.</summary>
     public static TrainingPolicy Balanced { get; } = new(
     [
-        TrainingFocus.Vitality, TrainingFocus.Attack, TrainingFocus.Defense, TrainingFocus.Speed,
-        TrainingFocus.Mana, TrainingFocus.MagicAttack, TrainingFocus.MagicDefense
+        TrainingFocus.Strength, TrainingFocus.Agility, TrainingFocus.Finesse,
+        TrainingFocus.Vitality, TrainingFocus.Intellect, TrainingFocus.Spirit
     ], RestFatigueThreshold: 48, "균형");
 
-    /// <summary>전위형. 체력·공격·방어 중심.</summary>
+    /// <summary>전위형. 힘·활력 중심.</summary>
     public static TrainingPolicy Vanguard { get; } = new(
-        [TrainingFocus.Attack, TrainingFocus.Vitality, TrainingFocus.Defense],
+        [TrainingFocus.Strength, TrainingFocus.Vitality, TrainingFocus.Spirit],
         RestFatigueThreshold: 48, "전위");
 
-    /// <summary>마법사형. 마력·마공 중심.</summary>
+    /// <summary>마법사형. 지능·정신 중심.</summary>
     public static TrainingPolicy Mage { get; } = new(
-        [TrainingFocus.MagicAttack, TrainingFocus.Mana, TrainingFocus.MagicDefense],
+        [TrainingFocus.Intellect, TrainingFocus.Spirit, TrainingFocus.Vitality],
         RestFatigueThreshold: 48, "마법");
 
-    /// <summary>유격형. 속도·공격 중심.</summary>
+    /// <summary>유격형. 민첩·기교 중심.</summary>
     public static TrainingPolicy Skirmisher { get; } = new(
-        [TrainingFocus.Speed, TrainingFocus.Attack, TrainingFocus.Vitality],
+        [TrainingFocus.Agility, TrainingFocus.Finesse, TrainingFocus.Strength],
         RestFatigueThreshold: 48, "유격");
 
     /// <summary>무리하지 않는 방침. 성장은 느리지만 부상 위험이 사실상 0입니다.</summary>

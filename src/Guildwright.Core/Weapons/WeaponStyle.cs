@@ -69,6 +69,13 @@ public enum Row
 /// <param name="UsesMagic">마법 능력치를 쓰는가.</param>
 /// <param name="SpeedModifier">행동 순서 보정.</param>
 /// <param name="DamageModifier">기본 위력 보정.</param>
+/// <param name="CritChanceModifier">
+/// 치명타 확률 배율. 쌍수처럼 자잘하게 자주 터지는 무기가 높습니다.
+/// </param>
+/// <param name="CritMultiplier">
+/// 치명타 배율. 양손무기처럼 한 방이 큰 무기가 높습니다.
+/// <para>확률과 배율을 반대로 배치해 스타일 성격이 갈리게 합니다.</para>
+/// </param>
 public sealed record StyleCapability(
     bool CanStrikeBackRow,
     bool CanActFromBackRow,
@@ -77,7 +84,9 @@ public sealed record StyleCapability(
     bool HitsMultipleTargets,
     bool UsesMagic,
     double SpeedModifier,
-    double DamageModifier);
+    double DamageModifier,
+    double CritChanceModifier,
+    double CritMultiplier);
 
 public static class WeaponStyles
 {
@@ -87,31 +96,41 @@ public static class WeaponStyles
     {
         [WeaponStyle.SwordAndShield] = new(
             CanStrikeBackRow: false, CanActFromBackRow: false, CanHeal: false, CanTaunt: true,
-            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 0.95, DamageModifier: 0.85),
+            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 0.95, DamageModifier: 0.85,
+            CritChanceModifier: 0.9, CritMultiplier: 1.5),
 
+        // 자잘하게 자주 터집니다.
         [WeaponStyle.DualWield] = new(
             CanStrikeBackRow: false, CanActFromBackRow: false, CanHeal: false, CanTaunt: false,
-            HitsMultipleTargets: true, UsesMagic: false, SpeedModifier: 1.20, DamageModifier: 0.95),
+            HitsMultipleTargets: true, UsesMagic: false, SpeedModifier: 1.20, DamageModifier: 0.95,
+            CritChanceModifier: 1.9, CritMultiplier: 1.4),
 
+        // 잘 안 터지지만 터지면 한 방입니다.
         [WeaponStyle.TwoHanded] = new(
             CanStrikeBackRow: false, CanActFromBackRow: false, CanHeal: false, CanTaunt: false,
-            HitsMultipleTargets: true, UsesMagic: false, SpeedModifier: 0.80, DamageModifier: 1.35),
+            HitsMultipleTargets: true, UsesMagic: false, SpeedModifier: 0.80, DamageModifier: 1.35,
+            CritChanceModifier: 0.55, CritMultiplier: 2.1),
 
         [WeaponStyle.Bow] = new(
             CanStrikeBackRow: true, CanActFromBackRow: true, CanHeal: false, CanTaunt: false,
-            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 1.05, DamageModifier: 0.95),
+            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 1.05, DamageModifier: 0.95,
+            CritChanceModifier: 1.3, CritMultiplier: 1.7),
 
+        // 관통. 확률은 보통이고 한 발이 무겁습니다.
         [WeaponStyle.Crossbow] = new(
             CanStrikeBackRow: true, CanActFromBackRow: true, CanHeal: false, CanTaunt: false,
-            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 0.75, DamageModifier: 1.25),
+            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 0.75, DamageModifier: 1.25,
+            CritChanceModifier: 1.0, CritMultiplier: 2.0),
 
         [WeaponStyle.Staff] = new(
             CanStrikeBackRow: true, CanActFromBackRow: true, CanHeal: true, CanTaunt: false,
-            HitsMultipleTargets: true, UsesMagic: true, SpeedModifier: 0.90, DamageModifier: 1.00),
+            HitsMultipleTargets: true, UsesMagic: true, SpeedModifier: 0.90, DamageModifier: 1.00,
+            CritChanceModifier: 0.8, CritMultiplier: 1.8),
 
         [WeaponStyle.Polearm] = new(
             CanStrikeBackRow: false, CanActFromBackRow: true, CanHeal: false, CanTaunt: false,
-            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 1.00, DamageModifier: 1.10)
+            HitsMultipleTargets: false, UsesMagic: false, SpeedModifier: 1.00, DamageModifier: 1.10,
+            CritChanceModifier: 1.1, CritMultiplier: 1.6)
     };
 
     public static StyleCapability CapabilityOf(WeaponStyle style) => Capabilities[style];
@@ -123,30 +142,37 @@ public static class WeaponStyles
     /// 다만 굴림에 노이즈가 있어서 가끔은 나오고, <b>그게 발견의 재미</b>가 됩니다.
     /// </para>
     /// </summary>
-    public static IReadOnlyDictionary<StatKind, double> AffinityOf(WeaponStyle style) => style switch
+    public static IReadOnlyDictionary<PrimaryStat, double> AffinityOf(WeaponStyle style) => style switch
     {
-        WeaponStyle.SwordAndShield => new Dictionary<StatKind, double>
-            { [StatKind.Defense] = 2.0, [StatKind.Vitality] = 1.5, [StatKind.Attack] = 0.8 },
+        // 방패를 들고 버티려면 몸과 힘이 필요합니다.
+        WeaponStyle.SwordAndShield => new Dictionary<PrimaryStat, double>
+            { [PrimaryStat.Vitality] = 2.0, [PrimaryStat.Strength] = 1.5, [PrimaryStat.Spirit] = 0.6 },
 
-        WeaponStyle.DualWield => new Dictionary<StatKind, double>
-            { [StatKind.Speed] = 2.0, [StatKind.Attack] = 1.5 },
+        // 두 자루를 동시에 다루는 건 민첩과 손재주입니다.
+        WeaponStyle.DualWield => new Dictionary<PrimaryStat, double>
+            { [PrimaryStat.Agility] = 2.0, [PrimaryStat.Finesse] = 1.7, [PrimaryStat.Strength] = 1.0 },
 
-        WeaponStyle.TwoHanded => new Dictionary<StatKind, double>
-            { [StatKind.Attack] = 2.2, [StatKind.Vitality] = 1.3 },
+        // 대검과 배틀액스는 순수한 완력입니다.
+        WeaponStyle.TwoHanded => new Dictionary<PrimaryStat, double>
+            { [PrimaryStat.Strength] = 2.4, [PrimaryStat.Vitality] = 1.3 },
 
-        WeaponStyle.Bow => new Dictionary<StatKind, double>
-            { [StatKind.Speed] = 1.8, [StatKind.Attack] = 1.4, [StatKind.MagicDefense] = 0.5 },
+        // 활은 조준과 자세, 그리고 시위를 당길 힘.
+        WeaponStyle.Bow => new Dictionary<PrimaryStat, double>
+            { [PrimaryStat.Finesse] = 2.0, [PrimaryStat.Agility] = 1.5, [PrimaryStat.Strength] = 1.0 },
 
-        WeaponStyle.Crossbow => new Dictionary<StatKind, double>
-            { [StatKind.Attack] = 1.9, [StatKind.Vitality] = 1.2, [StatKind.Defense] = 0.7 },
+        // 석궁은 힘보다 정확도와 침착함.
+        WeaponStyle.Crossbow => new Dictionary<PrimaryStat, double>
+            { [PrimaryStat.Finesse] = 2.0, [PrimaryStat.Strength] = 1.2, [PrimaryStat.Spirit] = 0.8 },
 
-        WeaponStyle.Staff => new Dictionary<StatKind, double>
-            { [StatKind.MagicAttack] = 2.2, [StatKind.Mana] = 1.8, [StatKind.MagicDefense] = 0.8 },
+        // 마법은 지식과 정신력.
+        WeaponStyle.Staff => new Dictionary<PrimaryStat, double>
+            { [PrimaryStat.Intellect] = 2.4, [PrimaryStat.Spirit] = 1.8 },
 
-        WeaponStyle.Polearm => new Dictionary<StatKind, double>
-            { [StatKind.Attack] = 1.6, [StatKind.Defense] = 1.2, [StatKind.Speed] = 1.0 },
+        // 긴 자루를 다루는 건 힘과 간격 감각.
+        WeaponStyle.Polearm => new Dictionary<PrimaryStat, double>
+            { [PrimaryStat.Strength] = 1.7, [PrimaryStat.Finesse] = 1.3, [PrimaryStat.Agility] = 1.0 },
 
-        _ => new Dictionary<StatKind, double>()
+        _ => new Dictionary<PrimaryStat, double>()
     };
 
     public static string ToKorean(this WeaponStyle style) => style switch

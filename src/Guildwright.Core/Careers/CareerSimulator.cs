@@ -135,6 +135,13 @@ public static class CareerSimulator
         if (outcome != DeploymentOutcome.Died)
         {
             adventurer.GainJudgement(CareerRules.JudgementFromDeployment);
+
+            // ★ 겪은 것이 파생 수치에 직접 붙습니다.
+            //   계속 맞다 보면 몸이 단단해지고, 급소를 노리다 보면 손에 익습니다.
+            foreach (var (stat, amount) in lived.Bonuses)
+            {
+                adventurer.ApplyDerivedBonus(stat, amount);
+            }
         }
 
         return record;
@@ -148,7 +155,7 @@ public static class CareerSimulator
     /// <b>훈련을 시켜도 거의 자라지 않습니다.</b>
     /// </para>
     /// </summary>
-    private static StatBlock ComputeStatChange(
+    private static PrimaryStats ComputeStatChange(
         Adventurer adventurer,
         double activityMultiplier,
         IRandomSource rng,
@@ -158,9 +165,9 @@ public static class CareerSimulator
         double bloom = growth.BloomFactorAt(adventurer.Age);
         double decline = growth.DeclineFactorAt(adventurer.Age);
 
-        var change = StatBlock.Zero;
+        var change = PrimaryStats.Zero;
 
-        foreach (var kind in StatBlock.AllKinds)
+        foreach (var kind in PrimaryStats.AllStats)
         {
             int current = adventurer.Stats[kind];
             int potential = growth.Potential[kind];
@@ -216,7 +223,7 @@ public static class CareerSimulator
     }
 
     /// <summary>사고로 잃는 능력치 (음수).</summary>
-    private static StatBlock ComputeMishapPenalty(Adventurer adventurer, DeploymentOutcome outcome, IRandomSource rng)
+    private static PrimaryStats ComputeMishapPenalty(Adventurer adventurer, DeploymentOutcome outcome, IRandomSource rng)
     {
         double lossRatio = outcome switch
         {
@@ -226,10 +233,10 @@ public static class CareerSimulator
             _ => 0.0
         };
 
-        if (lossRatio <= 0.0) return StatBlock.Zero;
+        if (lossRatio <= 0.0) return PrimaryStats.Zero;
 
-        var penalty = StatBlock.Zero;
-        foreach (var kind in StatBlock.AllKinds)
+        var penalty = PrimaryStats.Zero;
+        foreach (var kind in PrimaryStats.AllStats)
         {
             penalty = penalty.With(kind, -(int)Math.Round(adventurer.Stats[kind] * lossRatio));
         }

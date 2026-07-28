@@ -11,6 +11,9 @@ public enum Team
 
 /// <summary>
 /// 전투에 참여하는 한 명. 전투 중에만 존재하며, 영속 데이터(모험가 본체)와 분리되어 있습니다.
+/// <para>
+/// 원천 능력치와 파생 보정을 받아, 전투에 실제로 쓰이는 수치를 스스로 계산합니다.
+/// </para>
 /// </summary>
 public sealed class Combatant
 {
@@ -20,18 +23,20 @@ public sealed class Combatant
         string id,
         string name,
         Team team,
-        StatBlock stats,
+        PrimaryStats stats,
         int judgement,
         WeaponStyle style,
         double weaponEffectiveness,
         Row row,
         IReadOnlyList<TacticRule> tactics,
-        int potions = 2)
+        int potions = 2,
+        DerivedBonuses? bonuses = null)
     {
         Id = id;
         Name = name;
         Team = team;
         Stats = stats;
+        Bonuses = bonuses;
         Judgement = Math.Clamp(judgement, 0, 100);
         Style = style;
         WeaponEffectiveness = weaponEffectiveness;
@@ -39,16 +44,28 @@ public sealed class Combatant
         Tactics = tactics;
         Potions = potions;
 
-        MaxHp = Math.Max(1, stats.Vitality * 3);
+        MaxHp = DerivedStats.MaxHp(stats, bonuses);
         Hp = MaxHp;
-        MaxMana = Math.Max(0, stats.Mana);
+        MaxMana = DerivedStats.MaxMana(stats, bonuses);
         Mana = MaxMana;
+
+        BasePhysicalPower = DerivedStats.PhysicalPower(stats, bonuses);
+        BasePhysicalGuard = DerivedStats.PhysicalGuard(stats, bonuses);
+        BaseMagicPower = DerivedStats.MagicPower(stats, bonuses);
+        BaseMagicGuard = DerivedStats.MagicGuard(stats, bonuses);
+        BaseActionSpeed = DerivedStats.ActionSpeed(stats, bonuses);
+        BaseCritChance = DerivedStats.CritChance(stats, bonuses);
+        BaseEvasionChance = DerivedStats.EvasionChance(stats, bonuses);
     }
 
     public string Id { get; }
     public string Name { get; }
     public Team Team { get; }
-    public StatBlock Stats { get; }
+
+    /// <summary>원천 능력치. 전투 계산은 아래 파생 수치를 씁니다.</summary>
+    public PrimaryStats Stats { get; }
+
+    public DerivedBonuses? Bonuses { get; }
 
     /// <summary>
     /// 판단력. 전투 중 AI 결정 품질을 좌우합니다.
@@ -65,10 +82,7 @@ public sealed class Combatant
 
     /// <summary>
     /// 현재 위치. <b>전투 중에 바뀝니다.</b>
-    /// <para>
-    /// 전열/후열은 고정된 역할이 아니라 매 순간의 선택입니다.
-    /// 다친 전사를 뒤로 물릴 것인가, 각오하고 남길 것인가.
-    /// </para>
+    /// <para>전열/후열은 고정된 역할이 아니라 매 순간의 선택입니다.</para>
     /// </summary>
     public Row Row { get; private set; }
 
@@ -78,31 +92,57 @@ public sealed class Combatant
     public int Mana { get; private set; }
     public int Potions { get; private set; }
 
+    // ---- 파생 기본값 (상태 효과 적용 전) ----
+
+    public int BasePhysicalPower { get; }
+    public int BasePhysicalGuard { get; }
+    public int BaseMagicPower { get; }
+    public int BaseMagicGuard { get; }
+    public double BaseActionSpeed { get; }
+    public double BaseCritChance { get; }
+    public double BaseEvasionChance { get; }
+
     public IReadOnlyList<TacticRule> Tactics { get; }
     public IReadOnlyList<StatusEffect> Effects => _effects;
 
-    /// <summary>
-    /// 이 전투에서 실제로 무엇을 했는지. <b>전투가 끝나면 성장 데이터가 됩니다.</b>
-    /// </summary>
+    /// <summary>이 전투에서 실제로 무엇을 했는지. 전투가 끝나면 성장 데이터가 됩니다.</summary>
     public CombatContribution Contribution { get; } = new();
 
     public bool IsDefending { get; private set; }
     public bool IsAlive => Hp > 0;
     public double HpRatio => (double)Hp / MaxHp;
 
-    // ---- 상태 효과가 반영된 실효 능력치 ----
+    // ---- 상태 효과가 반영된 실효 수치 ----
 
-    public int EffectiveAttack => ApplyModifiers(Stats.Attack, StatusEffectKind.Empowered, StatusEffectKind.Weakened);
-    public int EffectiveMagicAttack => ApplyModifiers(Stats.MagicAttack, StatusEffectKind.Empowered, StatusEffectKind.Weakened);
-    public int EffectiveDefense => ApplyModifiers(Stats.Defense, StatusEffectKind.Warded, StatusEffectKind.Sundered);
-    public int EffectiveMagicDefense => ApplyModifiers(Stats.MagicDefense, StatusEffectKind.Warded, StatusEffectKind.Sundered);
+    public int EffectivePhysicalPower =>
+        ApplyModifiers(BasePhysicalPower, StatusEffectKind.Empowered, StatusEffectKind.Weakened);
+
+    public int EffectiveMagicPower =>
+        ApplyModifiers(BaseMagicPower, StatusEffectKind.Empowered, StatusEffectKind.Weakened);
+
+    public int EffectivePhysicalGuard =>
+        ApplyModifiers(BasePhysicalGuard, StatusEffectKind.Warded, StatusEffectKind.Sundered);
+
+    public int EffectiveMagicGuard =>
+        ApplyModifiers(BaseMagicGuard, StatusEffectKind.Warded, StatusEffectKind.Sundered);
+
+    /// <summary>공격 위력. 마법 무기면 마법 위력을 씁니다.</summary>
+    public int EffectiveOffense =>
+        Capability.UsesMagic ? EffectiveMagicPower : EffectivePhysicalPower;
+
+    /// <summary>치명타 확률. 무기 스타일이 크게 좌우합니다.</summary>
+    public double CritChance =>
+        Math.Clamp(BaseCritChance * Capability.CritChanceModifier, 0.0, 0.45);
+
+    /// <summary>회피 확률.</summary>
+    public double EvasionChance => BaseEvasionChance;
 
     /// <summary>행동 순서에 쓰이는 실효 속도. 무기 무게와 둔화가 반영됩니다.</summary>
     public double EffectiveSpeed
     {
         get
         {
-            double speed = Stats.Speed * Capability.SpeedModifier;
+            double speed = BaseActionSpeed * Capability.SpeedModifier;
             foreach (var effect in _effects)
             {
                 if (effect.Kind == StatusEffectKind.Slowed) speed *= 1.0 - effect.Magnitude;
