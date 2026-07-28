@@ -15,7 +15,14 @@
 ```bash
 dotnet build
 dotnet test
-dotnet run --project src/Guildwright.Console     # 텍스트로 플레이
+dotnet run --project src/Guildwright.Console              # 텍스트로 플레이
+dotnet run --project src/Guildwright.Console -- sim 400 5 # 배치 시뮬레이션 (시행수 · 연차)
+```
+
+`.NET`을 설치하지 않고 돌려보려면 Docker를 씁니다. `-it`가 없으면 입력을 못 받습니다.
+
+```bash
+docker build -t guildwright . && docker run -it --rm guildwright
 ```
 
 ## 절대 규칙
