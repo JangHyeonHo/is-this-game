@@ -13,6 +13,16 @@ using Guildwright.Core.Weapons;
 // 그래픽만 없을 뿐, 게임 흐름은 실제 설계 그대로입니다.
 // ─────────────────────────────────────────────────────────────
 
+// 배치 시뮬레이션 모드. 밸런스 수치를 감으로 바꾸지 않기 위한 도구입니다.
+//   dotnet run --project src/Guildwright.Console -- sim [시행수] [연차]
+if (args.Length > 0 && args[0] == "sim")
+{
+    int trials = args.Length > 1 && int.TryParse(args[1], out int t) ? t : 400;
+    int years = args.Length > 2 && int.TryParse(args[2], out int y) ? y : 5;
+    BalanceReport.TrainingPolicies(trials, years);
+    return;
+}
+
 ulong seed = args.Length > 0 && ulong.TryParse(args[0], out ulong s) ? s : 20260728UL;
 var rng = new DeterministicRandom(seed);
 
