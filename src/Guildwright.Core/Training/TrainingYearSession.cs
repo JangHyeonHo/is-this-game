@@ -5,6 +5,37 @@ using Guildwright.Core.Rng;
 namespace Guildwright.Core.Training;
 
 /// <summary>한 달에 무엇을 할지.</summary>
+/// <summary>
+/// 한 달의 성과 등급.
+/// <para>
+/// 새 규칙이 아니라 <b>이미 나온 결과에 이름을 붙이는 것</b>입니다.
+/// 컨디션 배율과 변동값이 만든 차이를 이산 등급으로 보여줄 뿐인데,
+/// "대성공!"이 뜨는 순간이 육성 게임 체감의 큰 부분을 차지합니다.
+/// </para>
+/// </summary>
+public enum MonthGrade
+{
+    /// <summary>부상. 그 달을 잃습니다.</summary>
+    Failure,
+    /// <summary>부진. 피로가 쌓였거나 컨디션이 나빴습니다.</summary>
+    Poor,
+    Success,
+    /// <summary>대성공. 절호조와 좋은 변동이 겹쳤습니다.</summary>
+    GreatSuccess
+}
+
+public static class MonthGrades
+{
+    public static string ToKorean(this MonthGrade grade) => grade switch
+    {
+        MonthGrade.Failure => "실패",
+        MonthGrade.Poor => "부진",
+        MonthGrade.Success => "성공",
+        MonthGrade.GreatSuccess => "대성공!",
+        _ => "?"
+    };
+}
+
 public enum TrainingFocus
 {
     Strength,
@@ -25,6 +56,7 @@ public enum TrainingFocus
 /// <param name="GotInjured">이번 달에 부상을 입었는지.</param>
 /// <param name="WasRecovering">요양 때문에 선택이 무시되었는지.</param>
 /// <param name="Note">표시용 설명.</param>
+/// <param name="Grade">그 달의 성과 등급. 연출용이지만 플레이어 체감의 큰 부분입니다.</param>
 public sealed record MonthOutcome(
     int Month,
     TrainingFocus Focus,
@@ -33,7 +65,8 @@ public sealed record MonthOutcome(
     Condition ConditionAfter,
     bool GotInjured,
     bool WasRecovering,
-    string Note);
+    string Note,
+    MonthGrade Grade = MonthGrade.Success);
 
 /// <summary>
 /// 훈련 1년을 월 단위로 진행하는 세션.
@@ -152,6 +185,13 @@ public sealed class TrainingYearSession
 
         var focusedKind = ToStatKind(focus);
 
+        // 등급 판정용: 컨디션과 피로가 만든 배율이 평상시 대비 얼마나 좋은가.
+        double qualityRatio = Condition.Multiplier() * FatiguePenalty();
+
+        // 이번 달 훈련이 실제로 이루어진 컨디션. 아래에서 컨디션이 변동하므로 미리 잡아둡니다.
+        // (표시에 변동 후 컨디션을 쓰면 "대성공인데 컨디션 저조" 같은 모순이 화면에 나옵니다.)
+        var trainedUnder = Condition;
+
         // 부상 판정 전이므로 아직 확정하지 않고 후보만 계산합니다.
         var pending = new double[_accumulated.Length];
 
@@ -172,6 +212,7 @@ public sealed class TrainingYearSession
         bool injured = RollInjury();
         var gain = PrimaryStats.Zero;
         string note;
+        MonthGrade grade;
 
         if (injured)
         {
@@ -189,6 +230,7 @@ public sealed class TrainingYearSession
             }
 
             note = $"{month}월: 무리한 훈련으로 부상 — {_recoveryMonthsRemaining}개월 요양";
+            grade = MonthGrade.Failure;
         }
         else
         {
@@ -198,10 +240,20 @@ public sealed class TrainingYearSession
                 gain = gain.With(kind, (int)Math.Round(pending[(int)kind]));
             }
 
-            note = $"{month}월: {ToKorean(focus)} 훈련 (피로 {Fatigue}, 컨디션 {Condition.ToKorean()})";
+            // 실제로 돌려보니 12개월 내내 "성공"만 떠서 화면이 단조로웠습니다.
+            // 양호(1.12) 이상이면 대성공, 저조(0.88) 이하면 부진으로 폭을 넓혔습니다.
+            grade = qualityRatio switch
+            {
+                >= 1.10 => MonthGrade.GreatSuccess,
+                <= 0.90 => MonthGrade.Poor,
+                _ => MonthGrade.Success
+            };
+
+            note = $"{month}월: {ToKorean(focus)} 훈련 · {grade.ToKorean()} " +
+                   $"(컨디션 {trainedUnder.ToKorean()} → {Condition.ToKorean()}, 피로 {Fatigue})";
         }
 
-        return new MonthOutcome(month, focus, gain, Fatigue, Condition, injured, false, note);
+        return new MonthOutcome(month, focus, gain, Fatigue, Condition, injured, false, note, grade);
     }
 
     /// <summary>피로가 임계치를 넘으면 성장이 떨어집니다.</summary>
@@ -222,17 +274,26 @@ public sealed class TrainingYearSession
         return _rng.Chance(chance);
     }
 
-    /// <summary>컨디션은 매달 흔들립니다. 피로가 높으면 나빠지는 쪽으로 치우칩니다.</summary>
+    /// <summary>
+    /// 컨디션은 매달 흔들립니다. 피로가 높으면 나빠지는 쪽으로 치우칩니다.
+    /// <para>
+    /// 문턱을 ±1.0으로 두었더니 실제 플레이에서 거의 언제나 "보통"이라
+    /// 컨디션을 보고 판단할 일이 생기지 않았습니다. ±0.6으로 낮춰 실제로 출렁이게 했습니다.
+    /// 컨디션이 움직이지 않으면 "좋은 달을 알아보는 것"이 실력 축이 될 수 없습니다.
+    /// </para>
+    /// </summary>
     private void DriftCondition(bool restBonus)
     {
-        double fatigueBias = -(double)Fatigue / TrainingRules.MaxFatigue * 1.2;
-        double restEffect = restBonus ? 0.8 : 0.0;
+        double fatigueBias = -(double)Fatigue / TrainingRules.MaxFatigue * 1.0;
+        double restEffect = restBonus ? 0.7 : 0.0;
         double roll = _rng.NextGaussian() + fatigueBias + restEffect;
 
         int step = roll switch
         {
-            < -1.0 => -1,
-            > 1.0 => +1,
+            < -1.5 => -2,
+            < -0.6 => -1,
+            > 1.5 => +2,
+            > 0.6 => +1,
             _ => 0
         };
 

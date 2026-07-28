@@ -28,9 +28,18 @@ public sealed record BattleResult(
 /// </summary>
 public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
 {
-    public BattleResult Resolve(BattleState state, IRandomSource rng)
+    /// <summary>
+    /// 전투를 진행합니다.
+    /// </summary>
+    /// <param name="state">전투 상태.</param>
+    /// <param name="rng">난수원.</param>
+    /// <param name="commander">
+    /// 플레이어 개입 통로. null이면 완전 자동으로 돌아갑니다(배치 시뮬레이션).
+    /// </param>
+    public BattleResult Resolve(BattleState state, IRandomSource rng, IBattleCommander? commander = null)
     {
         var log = recordLog ? new List<string>() : null;
+        int commandPoints = commander is null ? 0 : CommandRules.BasePoints;
 
         for (int round = 1; round <= maxRounds; round++)
         {
@@ -43,6 +52,23 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
                 actor.ClearDefending();
 
                 var choice = TacticalBrain.Decide(actor, state, rng);
+
+                // 플레이어가 끼어들 기회. 지휘 포인트가 남아 있어야 합니다.
+                if (commander is not null && commander.Team == actor.Team && commandPoints > 0)
+                {
+                    var order = commander.Intervene(actor, choice, state, commandPoints);
+                    if (order is { } given)
+                    {
+                        int cost = CommandRules.CostOf(given.Action);
+                        if (cost <= commandPoints)
+                        {
+                            commandPoints -= cost;
+                            choice = new ChosenAction(given.Action, given.Target);
+                            log?.Add($"[지휘] {actor.Name}에게 지시 (남은 지휘 {commandPoints})");
+                        }
+                    }
+                }
+
                 actor.Contribution.RecordAction();
                 Execute(actor, choice, state, rng, log);
 

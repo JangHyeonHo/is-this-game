@@ -187,7 +187,9 @@ public class CombatExperienceTests(ITestOutputHelper output)
         {
             var a = Adventurer.Recruit($"P_{name}", name, rng.Fork($"r:{name}"));
             a.Equip(style, WeaponStyles.AllowedClasses(style)[0]);
-            for (int y = 0; y < 3; y++) CareerSimulator.ResolveTrainingYear(a, rng.Fork($"t:{name}:{y}"));
+            // 전열이 중간에 무너지면 후열이 노출되어 "전열이 더 맞는다"를 잴 수 없습니다.
+            // 파티를 충분히 강하게 만들어 전열이 버티게 합니다.
+            for (int y = 0; y < 7; y++) CareerSimulator.ResolveTrainingYear(a, rng.Fork($"t:{name}:{y}"));
             party.Add(a);
         }
 
@@ -204,7 +206,12 @@ public class CombatExperienceTests(ITestOutputHelper output)
             .ToList();
 
         var state = CombatantFactory.FormParty(party, enemies);
-        new BattleResolver().Resolve(state, rng.Fork("battle"));
+
+        // 짧게 끊어 전열이 살아있는 동안만 측정합니다.
+        new BattleResolver(maxRounds: 6).Resolve(state, rng.Fork("battle"));
+
+        Assert.True(state.LivingIn(Team.Player, Row.Front).Count > 0,
+            "전열이 무너진 뒤의 피해 분포는 이 테스트의 관심사가 아닙니다.");
 
         foreach (var c in state.All.Where(c => c.Team == Team.Player))
         {

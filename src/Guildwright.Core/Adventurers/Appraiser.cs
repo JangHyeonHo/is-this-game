@@ -89,12 +89,18 @@ public static class Appraiser
             : PickWrong(truth.Temperament, rng);
 
         // 잠재력 추정에는 확신도에 반비례하는 오차가 붙습니다.
-        double noiseScale = (1.0 - confidence) * 0.45;
+        //
+        // ⚠️ 오차에 상한을 둡니다. 정규분포를 그대로 쓰면 실제 80인 능력치가 163으로 추정되는
+        //    일이 생기는데, 그건 "정보가 부족한 것"이 아니라 "거짓말"입니다.
+        //    계획 화면이 헛소리가 되면 플레이어는 아예 안 보게 됩니다.
+        double noiseScale = (1.0 - confidence) * 0.30;
+        double bound = noiseScale * 1.5;
+
         var estimated = PrimaryStats.Zero;
         foreach (var kind in PrimaryStats.AllStats)
         {
-            double noisy = truth.Potential[kind] * (1.0 + rng.NextGaussian() * noiseScale);
-            estimated = estimated.With(kind, Math.Max(1, (int)Math.Round(noisy)));
+            double factor = Math.Clamp(1.0 + rng.NextGaussian() * noiseScale, 1.0 - bound, 1.0 + bound);
+            estimated = estimated.With(kind, Math.Max(1, (int)Math.Round(truth.Potential[kind] * factor)));
         }
 
         // 무기 적성도 같은 확신도를 따릅니다. 등급이 인접 등급으로 흔들립니다.
