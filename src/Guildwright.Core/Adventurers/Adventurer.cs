@@ -1,3 +1,4 @@
+using Guildwright.Core.Careers;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Weapons;
 
@@ -134,6 +135,37 @@ public sealed class Adventurer
     /// <summary>현재 장비의 전투 효율. 숙련도에서 나옵니다.</summary>
     public double WeaponEffectiveness => Proficiency.EffectivenessOf(EquippedStyle);
 
+    /// <summary>
+    /// 현재 직업 등급. <b>지금 든 무기의 숙련도</b>에서 나옵니다.
+    /// <para>
+    /// 무기를 바꾸면 등급이 떨어집니다 — 대마법사가 대검을 잡으면 견습 전사입니다.
+    /// 전직의 대가가 여기서 나옵니다. 다만 예전 숙련도는 남아 있으므로 돌아갈 수는 있습니다.
+    /// </para>
+    /// </summary>
+    public JobRank Rank => JobRanks.FromProficiency(Proficiency[EquippedStyle]);
+
+    /// <summary>현재 칭호. 예: "대마법사", "견습 창병".</summary>
+    public string Title => JobRanks.TitleOf(EquippedStyle, Rank);
+
+    /// <summary>
+    /// 여태 도달한 최고 등급 (스타일 무관).
+    /// <para>
+    /// 전직해서 견습으로 돌아가도 "한때 대마법사였던" 사실은 남습니다.
+    /// 이력이 곧 이 게임의 서사이므로, 잃어버린 것도 기록해 둡니다.
+    /// </para>
+    /// </summary>
+    public JobRank PeakRank =>
+        WeaponStyles.All.Select(s => JobRanks.FromProficiency(Proficiency[s])).Max();
+
+    /// <summary>연간 급여. 등급이 오르면 유지비도 오릅니다.</summary>
+    public int AnnualWage => JobRanks.AnnualWage(Rank);
+
+    /// <summary>수주할 수 있는 의뢰 난이도 상한.</summary>
+    public int MaxContractDifficulty => JobRanks.MaxContractDifficulty(Rank);
+
+    /// <summary>길드 평판에 기여하는 정도.</summary>
+    public int ReputationValue => JobRanks.ReputationValue(Rank);
+
     public IReadOnlyList<YearRecord> History => _history;
 
     /// <summary>지금까지 보낸 총 연차.</summary>
@@ -213,6 +245,6 @@ public sealed class Adventurer
     }
 
     public override string ToString() =>
-        $"{Name} ({Age}세, {Status}) {Stats} 판단력 {Judgement} " +
-        $"[{EquippedStyle.ToKorean()}·{EquippedClass.ToKorean()} 숙련 {Proficiency[EquippedStyle]}]";
+        $"{Name} · {Title} ({Age}세, {Status}) {Stats} 판단력 {Judgement} " +
+        $"[{EquippedClass.ToKorean()} 숙련 {Proficiency[EquippedStyle]}, 연봉 {AnnualWage}]";
 }
