@@ -39,6 +39,7 @@ public static class MonthGrades
 /// <param name="Activity">그 달에 한 활동.</param>
 /// <param name="StatGain">그 달의 능력치 변화.</param>
 /// <param name="ProficiencyGain">그 달에 오른 장착 무기 숙련도.</param>
+/// <param name="JudgementGain">그 달에 오른 판단력.</param>
 /// <param name="FatigueAfter">행동 후 피로도.</param>
 /// <param name="ConditionAfter">행동 후 컨디션.</param>
 /// <param name="Note">표시용 설명.</param>
@@ -48,6 +49,7 @@ public sealed record MonthOutcome(
     TrainingActivity Activity,
     PrimaryStats StatGain,
     double ProficiencyGain,
+    double JudgementGain,
     int FatigueAfter,
     Condition ConditionAfter,
     string Note,
@@ -87,6 +89,7 @@ public sealed class TrainingYearSession
     private readonly double[] _accumulated = new double[7];
 
     private double _proficiency;
+    private double _judgement;
     private int _failedMonths;
 
     public TrainingYearSession(Adventurer adventurer, IRandomSource rng, Mentorship? mentorship = null, int startingFatigue = 0)
@@ -167,7 +170,9 @@ public sealed class TrainingYearSession
     private MonthOutcome DoRest(int month)
     {
         int before = Fatigue;
-        Fatigue = Math.Max(0, Fatigue - TrainingRules.FatigueRecoveryOnRest);
+        Fatigue = Math.Clamp(
+            Fatigue + TrainingActivities.Of(TrainingActivity.Rest).FatigueCost,
+            0, TrainingRules.MaxFatigue);
 
         var previous = Condition;
         int steps = DriftCondition(restBonus: true);
@@ -183,7 +188,7 @@ public sealed class TrainingYearSession
         string note = $"{month}월: 휴식 · {grade.ToKorean()} " +
                       $"(피로 {before} → {Fatigue}, 컨디션 {previous.ToKorean()} → {Condition.ToKorean()})";
 
-        return new MonthOutcome(month, TrainingActivity.Rest, PrimaryStats.Zero, 0.0, Fatigue, Condition, note, grade);
+        return new MonthOutcome(month, TrainingActivity.Rest, PrimaryStats.Zero, 0.0, 0.0, Fatigue, Condition, note, grade);
     }
 
     private MonthOutcome DoTraining(int month, TrainingActivityProfile profile)
@@ -227,15 +232,18 @@ public sealed class TrainingYearSession
             gain = gain.With(kind, (int)Math.Round(amount));
         }
 
-        // 무기 숙련도는 기술 훈련에서만 오릅니다. 실패한 달에는 거의 안 오릅니다.
-        double proficiency = profile.ProficiencyPerMonth
-            * (failed ? TrainingRules.FailureGrowthRatio : 1.0)
-            * _mentorship.TrainingMultiplier;
+        // 무기 숙련도와 판단력. 실패한 달에는 거의 안 오릅니다.
+        double yield = failed ? TrainingRules.FailureGrowthRatio : 1.0;
+
+        double proficiency = profile.ProficiencyPerMonth * yield * _mentorship.TrainingMultiplier;
         _proficiency += proficiency;
 
-        Fatigue = Math.Min(
-            TrainingRules.MaxFatigue,
-            Fatigue + (failed ? TrainingRules.FatigueOnFailure : TrainingRules.FatiguePerTraining));
+        double judgement = profile.JudgementPerMonth * yield;
+        _judgement += judgement;
+
+        Fatigue = Math.Clamp(
+            Fatigue + profile.FatigueCost + (failed ? TrainingRules.ExtraFatigueOnFailure : 0),
+            0, TrainingRules.MaxFatigue);
 
         DriftCondition(restBonus: false);
 
@@ -259,7 +267,7 @@ public sealed class TrainingYearSession
         string note = $"{month}월: {profile.Name} · {grade.ToKorean()} " +
                       $"(컨디션 {trainedUnder.ToKorean()} → {Condition.ToKorean()}, 피로 {Fatigue})";
 
-        return new MonthOutcome(month, profile.Activity, gain, proficiency, Fatigue, Condition, note, grade);
+        return new MonthOutcome(month, profile.Activity, gain, proficiency, judgement, Fatigue, Condition, note, grade);
     }
 
     /// <summary>피로가 임계치를 넘으면 성장이 떨어집니다.</summary>
@@ -332,7 +340,9 @@ public sealed class TrainingYearSession
             _adventurer.Age, YearActivity.Training, change, null, 0, note, ProficiencyGain: _proficiency);
 
         _adventurer.ApplyYear(record);
-        _adventurer.GainJudgement(CareerRules.JudgementFromTraining);
+
+        // 훈련 연도의 기본 판단력 + 모의전으로 따로 쌓은 만큼.
+        _adventurer.GainJudgement(CareerRules.JudgementFromTraining + (int)Math.Round(_judgement));
         return record;
     }
 }

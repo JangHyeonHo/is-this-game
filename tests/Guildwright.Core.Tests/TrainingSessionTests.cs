@@ -219,9 +219,12 @@ public class TrainingSessionTests(ITestOutputHelper output)
             output.WriteLine($"{failure.Note} (직전 피로 {fatigueBefore})");
 
             // 피로 상한(100)에 걸리면 증가폭이 줄어드므로 그 경우는 제외합니다.
+            int expected = TrainingActivities.Of(TrainingActivity.Strength).FatigueCost
+                         + TrainingRules.ExtraFatigueOnFailure;
+
             if (failure.FatigueAfter < TrainingRules.MaxFatigue)
             {
-                Assert.Equal(TrainingRules.FatigueOnFailure, failure.FatigueAfter - fatigueBefore);
+                Assert.Equal(expected, failure.FatigueAfter - fatigueBefore);
             }
             Assert.True(failure.StatGain.Total >= 0, "실패해도 능력치를 잃지는 않습니다.");
             return;

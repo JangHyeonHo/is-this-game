@@ -32,11 +32,11 @@ public sealed record TrainingPolicy(
     string Name,
     int OpportunisticBonus = 0)
 {
-    /// <summary>다섯 활동을 골고루. 특화가 없는 대신 어디도 비지 않습니다.</summary>
+    /// <summary>여섯 활동을 골고루. 특화가 없는 대신 어디도 비지 않습니다.</summary>
     public static TrainingPolicy Balanced { get; } = new(
     [
         TrainingActivity.Strength, TrainingActivity.Endurance, TrainingActivity.Technique,
-        TrainingActivity.Study, TrainingActivity.Meditation
+        TrainingActivity.Study, TrainingActivity.Meditation, TrainingActivity.Sparring
     ], RestFatigueThreshold: 42, "균형");
 
     /// <summary>전위형. 근력과 지구력 중심.</summary>
@@ -49,9 +49,9 @@ public sealed record TrainingPolicy(
         [TrainingActivity.Study, TrainingActivity.Meditation, TrainingActivity.Endurance],
         RestFatigueThreshold: 42, "마법");
 
-    /// <summary>유격형. 기술과 지구력 중심.</summary>
+    /// <summary>유격형. 기술·지구력·모의전 중심. 회피에 필요한 것을 모읍니다.</summary>
     public static TrainingPolicy Skirmisher { get; } = new(
-        [TrainingActivity.Technique, TrainingActivity.Endurance, TrainingActivity.Strength],
+        [TrainingActivity.Technique, TrainingActivity.Endurance, TrainingActivity.Sparring],
         RestFatigueThreshold: 42, "유격");
 
     /// <summary>무기 숙련에 집중. 기술 훈련만이 숙련도를 올립니다.</summary>

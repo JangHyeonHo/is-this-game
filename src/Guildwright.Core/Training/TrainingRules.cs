@@ -24,18 +24,15 @@ public static class TrainingRules
     /// </summary>
     public const double MonthlyLearnRate = 0.09;
 
-    /// <summary>훈련 한 번의 피로 누적.</summary>
-    public const int FatiguePerTraining = 17;
-
     /// <summary>
-    /// 훈련에 <b>실패</b>했을 때의 피로 누적.
+    /// 훈련에 <b>실패</b>했을 때 활동 비용에 더 얹히는 피로.
     /// <para>
     /// 성장도 없는데 피로만 더 쌓이므로 실패는 휴식보다 확실히 나쁩니다.
     /// 그리고 <b>실패가 연쇄를 부릅니다</b> — 피로가 더 쌓이니 다음 달 실패 확률이 올라갑니다.
     /// 부상 없이도 "무리하면 무너진다"가 성립합니다.
     /// </para>
     /// </summary>
-    public const int FatigueOnFailure = 25;
+    public const int ExtraFatigueOnFailure = 8;
 
     /// <summary>휴식 한 번의 피로 회복.</summary>
     public const int FatigueRecoveryOnRest = 38;

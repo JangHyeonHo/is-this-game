@@ -109,7 +109,7 @@ public static class Display
 
         // 실패 판정은 "그 달을 시작할 때"의 피로로 합니다. 그래서 훈련을 마친 뒤 피로가
         // 실패선을 넘어도 그 달은 위험이 아닙니다. 안 적어두면 화면이 모순처럼 보입니다.
-        Ui.Line($"   예상 피로 (훈련 +{TrainingRules.FatiguePerTraining} · 휴식 −{TrainingRules.FatigueRecoveryOnRest} " +
+        Ui.Line($"   예상 피로 (활동마다 다름 · 휴식 −{TrainingRules.FatigueRecoveryOnRest} " +
                 $"· {TrainingRules.FatigueSoftCap} 넘으면 성장 저하 " +
                 $"· 달을 시작할 때 {TrainingRules.FailureThreshold} 넘으면 실패 위험)");
 
@@ -131,11 +131,11 @@ public static class Display
             : $"⚠ 실패 위험 {forecast.MonthsAtRisk}개월 · 최대 {forecast.WorstFailureChance:P0} " +
               $"· 기대 실패 {forecast.ExpectedFailedMonths:F1}개월";
 
-        string weapon = forecast.ProficiencyGain > 0
-            ? $" · 무기 숙련 +{forecast.ProficiencyGain:F0}"
-            : "";
+        string extra = "";
+        if (forecast.ProficiencyGain > 0) extra += $" · 무기 숙련 +{forecast.ProficiencyGain:F0}";
+        if (forecast.JudgementGain > 0) extra += $" · 판단력 +{forecast.JudgementGain:F0}";
 
-        Ui.Note($"최고 피로 {forecast.PeakFatigue} · {risk}{weapon}" +
+        Ui.Note($"최고 피로 {forecast.PeakFatigue} · {risk}{extra}" +
                 (decided < count ? $" · {decided + 1}월부터는 아직 미정" : ""));
     }
 
@@ -147,6 +147,7 @@ public static class Display
         TrainingActivity.Technique => "기술",
         TrainingActivity.Study => "학술",
         TrainingActivity.Meditation => "명상",
+        TrainingActivity.Sparring => "모의전",
         _ => "휴식"
     };
 
@@ -171,9 +172,16 @@ public static class Display
                 .OrderByDescending(p.WeightOf)
                 .Select(s => $"{s.ToKorean()}{Dots(p.WeightOf(s))}"));
 
-            string weapon = p.ProficiencyPerMonth > 0 ? $" 무기숙련+{p.ProficiencyPerMonth:0.#}" : "";
+            string extra = "";
+            if (p.ProficiencyPerMonth > 0) extra += $" 무기숙련+{p.ProficiencyPerMonth:0.#}";
+            if (p.JudgementPerMonth > 0) extra += $" 판단력+{p.JudgementPerMonth:0.##}";
 
-            menu.Add($"{p.Name} ({p.Flavor}) — {stats}{weapon} · 피로 +{TrainingRules.FatiguePerTraining}");
+            // 피로가 음수인 활동(명상)은 "회복"으로 읽히게 적습니다.
+            string fatigue = p.FatigueCost >= 0
+                ? $"피로 +{p.FatigueCost}"
+                : $"피로 −{-p.FatigueCost} (회복)";
+
+            menu.Add($"{p.Name} ({p.Flavor}) — {stats}{extra} · {fatigue}");
         }
 
         menu.Add($"휴식 — 피로 −{TrainingRules.FatigueRecoveryOnRest}, 컨디션 회복");

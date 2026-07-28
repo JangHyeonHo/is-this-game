@@ -47,12 +47,14 @@ public readonly record struct DerivedForecast(DerivedStat Stat, double Min, doub
 /// </param>
 /// <param name="FailureChanceByMonth">각 달의 실패 확률. 휴식인 달은 0.</param>
 /// <param name="ProficiencyGain">계획대로 했을 때 오르는 장착 무기 숙련도.</param>
+/// <param name="JudgementGain">계획대로 했을 때 오르는 판단력 (모의전에서만).</param>
 public sealed record YearForecast(
     IReadOnlyList<StatForecast> Stats,
     IReadOnlyList<DerivedForecast> Derived,
     IReadOnlyList<int> FatigueByMonth,
     IReadOnlyList<double> FailureChanceByMonth,
-    double ProficiencyGain)
+    double ProficiencyGain,
+    double JudgementGain)
 {
     public int PeakFatigue => FatigueByMonth.Count == 0 ? 0 : FatigueByMonth.Max();
 
@@ -150,13 +152,16 @@ public static class TrainingForecaster
         var fatigueByMonth = new List<int>(plan.Count);
         var failureByMonth = new List<double>(plan.Count);
         double proficiency = 0.0;
+        double judgement = 0.0;
         int fatigue = 0;
 
         foreach (var activity in plan)
         {
             if (activity == TrainingActivity.Rest)
             {
-                fatigue = Math.Max(0, fatigue - TrainingRules.FatigueRecoveryOnRest);
+                fatigue = Math.Clamp(
+                    fatigue + TrainingActivities.Of(TrainingActivity.Rest).FatigueCost,
+                    0, TrainingRules.MaxFatigue);
                 fatigueByMonth.Add(fatigue);
                 failureByMonth.Add(0.0);
                 continue;
@@ -172,6 +177,7 @@ public static class TrainingForecaster
 
             var profile = TrainingActivities.Of(activity);
             proficiency += profile.ProficiencyPerMonth * mentor.TrainingMultiplier;
+            judgement += profile.JudgementPerMonth;
 
             foreach (var stat in PrimaryStats.AllStats)
             {
@@ -186,7 +192,7 @@ public static class TrainingForecaster
                     (potential - current) * TrainingRules.MonthlyLearnRate * multiplier * fatiguePenalty * weight;
             }
 
-            fatigue = Math.Min(TrainingRules.MaxFatigue, fatigue + TrainingRules.FatiguePerTraining);
+            fatigue = Math.Clamp(fatigue + profile.FatigueCost, 0, TrainingRules.MaxFatigue);
             fatigueByMonth.Add(fatigue);
         }
 
@@ -204,7 +210,7 @@ public static class TrainingForecaster
             .ToList();
 
         return new YearForecast(
-            stats, ForecastDerived(adventurer, stats), fatigueByMonth, failureByMonth, proficiency);
+            stats, ForecastDerived(adventurer, stats), fatigueByMonth, failureByMonth, proficiency, judgement);
     }
 
     /// <summary>
