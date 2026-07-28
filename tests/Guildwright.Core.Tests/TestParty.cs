@@ -1,4 +1,6 @@
+using Guildwright.Core.Adventurers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Tests;
 
@@ -19,49 +21,61 @@ internal static class TestParty
         TacticRule.Always(TacticAction.AttackNearest)
     ];
 
+    /// <summary>후퇴를 아는 전술.</summary>
+    internal static readonly TacticRule[] RetreatingTactics =
+    [
+        TacticRule.SelfHpBelow(0.35, TacticAction.MoveBack),
+        TacticRule.Always(TacticAction.AttackNearest)
+    ];
+
+    internal static StatBlock BaseStats(int speed = 10) => new(
+        Vitality: 34, Mana: 20, Attack: 20, Defense: 10,
+        MagicAttack: 10, MagicDefense: 10, Speed: speed);
+
     internal static Combatant Make(
         string id,
         Team team,
         int judgement,
         IReadOnlyList<TacticRule>? tactics = null,
-        int maxHp = 100,
-        int attack = 20,
-        int defense = 10,
-        int agility = 10,
+        StatBlock? stats = null,
+        WeaponStyle style = WeaponStyle.SwordAndShield,
+        Row row = Row.Front,
+        double weaponEffectiveness = 1.0,
         int potions = 2)
     {
         return new Combatant(
             id: id,
             name: id,
             team: team,
-            maxHp: maxHp,
-            attack: attack,
-            defense: defense,
-            agility: agility,
+            stats: stats ?? BaseStats(),
             judgement: judgement,
-            potions: potions,
-            tactics: tactics ?? SensibleTactics);
+            style: style,
+            weaponEffectiveness: weaponEffectiveness,
+            row: row,
+            tactics: tactics ?? SensibleTactics,
+            potions: potions);
     }
 
     /// <summary>
-    /// 판단력과 전술만 다르고 나머지 능력치는 완전히 동일한 3 대 3 전투를 만듭니다.
-    /// 능력치가 같으므로, 승률 차이는 오직 의사결정 품질에서만 나옵니다.
+    /// 판단력과 전술만 다르고 나머지는 완전히 동일한 3 대 3 전투.
+    /// 능력치가 같으므로 승률 차이는 오직 의사결정 품질에서만 나옵니다.
     /// </summary>
     internal static BattleState MirrorMatch(
         int playerJudgement,
         int enemyJudgement,
         IReadOnlyList<TacticRule>? playerTactics = null,
         IReadOnlyList<TacticRule>? enemyTactics = null,
-        int partySize = 3)
+        int partySize = 3,
+        WeaponStyle style = WeaponStyle.SwordAndShield)
     {
         var combatants = new List<Combatant>(partySize * 2);
 
         for (int i = 0; i < partySize; i++)
         {
-            // 민첩을 서로 다르게 주어 턴 순서 동점 상황을 줄입니다.
-            int agility = 10 + i;
-            combatants.Add(Make($"P{i}", Team.Player, playerJudgement, playerTactics, agility: agility));
-            combatants.Add(Make($"E{i}", Team.Enemy, enemyJudgement, enemyTactics, agility: agility));
+            // 속도를 서로 다르게 주어 턴 순서 동점 상황을 줄입니다.
+            var stats = BaseStats(speed: 10 + i);
+            combatants.Add(Make($"P{i}", Team.Player, playerJudgement, playerTactics, stats, style));
+            combatants.Add(Make($"E{i}", Team.Enemy, enemyJudgement, enemyTactics, stats, style));
         }
 
         return new BattleState(combatants);

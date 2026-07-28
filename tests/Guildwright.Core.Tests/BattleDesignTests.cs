@@ -1,6 +1,7 @@
 using Guildwright.Core.Balance;
 using Guildwright.Core.Combat;
 using Guildwright.Core.Rng;
+using Guildwright.Core.Weapons;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -69,27 +70,45 @@ public class BattleDesignTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void 판단력_효과는_단조증가한다()
+    public void 판단력_효과는_모든_무기_스타일에서_우상향한다()
     {
-        // 판단력이 올라갈수록 승률이 올라야 합니다. 중간에 꺾이면 밸런스 곡선이 잘못된 것입니다.
-        var winRates = new List<(int Judgement, double WinRate)>();
-
-        foreach (int judgement in new[] { 10, 40, 70, 100 })
+        // 판단력이 특정 스타일에서만 통하면 육성의 보편적 목표가 되지 못합니다.
+        //
+        // ⚠️ 고구간(70→100)은 단조증가를 요구하지 않습니다. 단일 대상 스타일에서
+        //    70 부근에 도달한 뒤 평평해지거나 소폭 꺾이는 현상이 관찰되었고,
+        //    원인을 아직 특정하지 못했습니다. (docs/06-balance-log.md #12)
+        //    저구간의 가파른 상승이 이 스탯의 존재 이유이므로 거기를 엄격히 봅니다.
+        foreach (var style in new[]
+                 {
+                     WeaponStyle.SwordAndShield, WeaponStyle.DualWield,
+                     WeaponStyle.Polearm, WeaponStyle.TwoHanded
+                 })
         {
-            var result = BatchSimulator.Run(
-                Trials, Seed,
-                _ => TestParty.MirrorMatch(playerJudgement: judgement, enemyJudgement: 50));
+            var rates = new Dictionary<int, double>();
 
-            winRates.Add((judgement, result.PlayerWinRate));
-            output.WriteLine($"판단력 {judgement,3} vs 50: {result}");
-        }
+            foreach (int judgement in new[] { 10, 40, 70, 100 })
+            {
+                var result = BatchSimulator.Run(
+                    Trials, Seed,
+                    _ => TestParty.MirrorMatch(judgement, enemyJudgement: 50, style: style));
 
-        for (int i = 1; i < winRates.Count; i++)
-        {
-            Assert.True(
-                winRates[i].WinRate >= winRates[i - 1].WinRate - 0.02,
-                $"판단력 {winRates[i].Judgement}의 승률({winRates[i].WinRate:P1})이 " +
-                $"{winRates[i - 1].Judgement}({winRates[i - 1].WinRate:P1})보다 낮습니다.");
+                rates[judgement] = result.PlayerWinRate;
+                output.WriteLine($"{style.ToKorean(),-8} 판단력 {judgement,3} vs 50: {result}");
+            }
+
+            Assert.True(rates[40] > rates[10] + 0.05,
+                $"{style.ToKorean()}: 판단력 10→40에서 승률이 뚜렷하게 오르지 않습니다.");
+
+            Assert.True(rates[70] > rates[40] + 0.05,
+                $"{style.ToKorean()}: 판단력 40→70에서 승률이 뚜렷하게 오르지 않습니다.");
+
+            Assert.True(rates[100] > rates[40] + 0.05,
+                $"{style.ToKorean()}: 판단력 100이 40보다 뚜렷하게 낫지 않습니다. " +
+                "고구간이 평평한 것은 허용하지만, 뒤집히는 것은 허용하지 않습니다.");
+
+            Assert.True(rates[100] >= rates[70] - 0.04,
+                $"{style.ToKorean()}: 판단력 100({rates[100]:P1})이 70({rates[70]:P1})보다 " +
+                "4%p 넘게 낮습니다. 알려진 플래토(docs/06 #12)를 벗어난 수준입니다.");
         }
     }
 

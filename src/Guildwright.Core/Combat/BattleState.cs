@@ -1,4 +1,5 @@
 using Guildwright.Core.Rng;
+using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Combat;
 
@@ -19,7 +20,7 @@ public sealed class BattleState
 
         if (_combatants.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count() != _combatants.Count)
         {
-            throw new ArgumentException("전투원 Id가 중복되었습니다. Id는 타이브레이크에 쓰이므로 고유해야 합니다.", nameof(combatants));
+            throw new ArgumentException("전투원 Id가 중복되었습니다. Id는 대상 선택에 쓰이므로 고유해야 합니다.", nameof(combatants));
         }
     }
 
@@ -31,27 +32,53 @@ public sealed class BattleState
     public IReadOnlyList<Combatant> LivingOpponentsOf(Team team) =>
         _combatants.Where(c => c.Team != team && c.IsAlive).ToList();
 
+    public IReadOnlyList<Combatant> LivingIn(Team team, Row row) =>
+        _combatants.Where(c => c.Team == team && c.IsAlive && c.Row == row).ToList();
+
     public bool IsTeamWipedOut(Team team) => !_combatants.Any(c => c.Team == team && c.IsAlive);
 
+    /// <summary>해당 팀의 전열이 비었는가. 비면 후열이 그대로 노출됩니다.</summary>
+    public bool IsFrontRowEmpty(Team team) => LivingIn(team, Row.Front).Count == 0;
+
     /// <summary>
-    /// 이번 라운드의 행동 순서. 민첩 내림차순으로 정하되, <b>동점은 무작위로</b> 가릅니다.
+    /// <paramref name="attacker"/>가 지금 실제로 때릴 수 있는 적들.
     /// <para>
-    /// 동점을 Id 사전순으로 고정하면 안 됩니다. 팀 접두사가 순서를 결정해버려
-    /// 한쪽이 항상 선공을 잡는 구조적 편향이 생깁니다.
-    /// (실제로 이 버그가 있었고, "능력치가 같으면 승률 5할" 테스트가 36%로 잡아냈습니다.)
+    /// <b>여기가 포지션 시스템의 핵심 규칙입니다.</b>
+    /// 근접 무기는 적 전열까지만 닿습니다. 다만 <b>적 전열이 비면 후열이 그대로 노출됩니다</b> —
+    /// 그래서 전열을 유지하는 것이 방어 행위가 되고, 후퇴가 공짜가 아니게 됩니다.
     /// </para>
+    /// </summary>
+    public IReadOnlyList<Combatant> ReachableTargets(Combatant attacker)
+    {
+        var enemies = LivingOpponentsOf(attacker.Team);
+        if (enemies.Count == 0) return enemies;
+
+        // 도발당했으면 도발한 대상만 노립니다.
+        if (attacker.TauntedBy is { } tauntSource)
+        {
+            var taunter = enemies.FirstOrDefault(e => e.Id == tauntSource);
+            if (taunter is not null) return [taunter];
+        }
+
+        if (attacker.Capability.CanStrikeBackRow) return enemies;
+
+        var front = enemies.Where(e => e.Row == Row.Front).ToList();
+        return front.Count > 0 ? front : enemies;
+    }
+
+    /// <summary>
+    /// 이번 라운드의 행동 순서. 실효 속도 내림차순, 동점은 무작위로 가릅니다.
     /// <para>
-    /// 민첩 자체는 여전히 절대적으로 우선하므로, 민첩 스탯의 의미는 그대로 보존됩니다.
-    /// 나중에 밸런스 조정이 필요하면 여기에 이니셔티브 변동폭을 도입할 수 있습니다.
+    /// 동점을 Id 사전순으로 고정하면 팀 접두사가 순서를 결정해 한쪽이 항상 선공을 잡습니다.
+    /// (실제로 그 버그가 있었고, "능력치가 같으면 승률 5할" 테스트가 36%로 잡아냈습니다.)
     /// </para>
     /// </summary>
     public IReadOnlyList<Combatant> TurnOrder(IRandomSource rng)
     {
-        // _combatants의 순서가 고정되어 있으므로 난수 배정도 결정론적입니다.
         return _combatants
             .Where(c => c.IsAlive)
             .Select(c => (Combatant: c, TieBreak: rng.NextDouble()))
-            .OrderByDescending(x => x.Combatant.Agility)
+            .OrderByDescending(x => x.Combatant.EffectiveSpeed)
             .ThenByDescending(x => x.TieBreak)
             .Select(x => x.Combatant)
             .ToList();

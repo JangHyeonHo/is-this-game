@@ -1,4 +1,5 @@
 using Guildwright.Core.Rng;
+using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Combat;
 
@@ -6,7 +7,7 @@ public enum BattleOutcome
 {
     PlayerVictory,
     EnemyVictory,
-    /// <summary>라운드 제한에 걸림. 양쪽 다 결판을 못 낸 경우입니다.</summary>
+    /// <summary>라운드 제한에 걸림.</summary>
     Draw
 }
 
@@ -21,64 +22,87 @@ public sealed record BattleResult(
 /// <summary>
 /// 전투를 끝까지 진행시킵니다.
 /// <para>
-/// 순수 함수에 가깝게 유지하세요 — 파일 I/O, 시간, 전역 상태 없이
-/// (전투원 구성 + 시드)만으로 결과가 완전히 결정되어야 합니다.
-/// 이 성질이 있어야 밸런싱을 배치 시뮬레이션으로 할 수 있습니다.
+/// 순수 함수에 가깝게 유지하세요 — (전투원 구성 + 시드)만으로 결과가 완전히 결정되어야
+/// 밸런싱을 배치 시뮬레이션으로 할 수 있습니다.
 /// </para>
 /// </summary>
-public sealed class BattleResolver
+public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false)
 {
-    private readonly int _maxRounds;
-    private readonly bool _recordLog;
-
-    public BattleResolver(int maxRounds = 50, bool recordLog = false)
-    {
-        _maxRounds = maxRounds;
-        _recordLog = recordLog;
-    }
-
     public BattleResult Resolve(BattleState state, IRandomSource rng)
     {
-        var log = _recordLog ? new List<string>() : null;
+        var log = recordLog ? new List<string>() : null;
 
-        for (int round = 1; round <= _maxRounds; round++)
+        for (int round = 1; round <= maxRounds; round++)
         {
+            log?.Add($"--- {round}라운드 ---");
+
             foreach (var actor in state.TurnOrder(rng))
             {
-                // 순서를 계산한 뒤 죽었을 수 있습니다.
                 if (!actor.IsAlive) continue;
 
                 actor.ClearDefending();
 
                 var choice = TacticalBrain.Decide(actor, state, rng);
-                Execute(actor, choice, rng, log);
+                Execute(actor, choice, state, rng, log);
 
                 if (state.IsTeamWipedOut(Team.Enemy))
-                {
                     return new BattleResult(BattleOutcome.PlayerVictory, round, ReadOnly(log));
-                }
 
                 if (state.IsTeamWipedOut(Team.Player))
-                {
                     return new BattleResult(BattleOutcome.EnemyVictory, round, ReadOnly(log));
-                }
             }
+
+            EndOfRound(state, log);
+
+            if (state.IsTeamWipedOut(Team.Enemy))
+                return new BattleResult(BattleOutcome.PlayerVictory, round, ReadOnly(log));
+
+            if (state.IsTeamWipedOut(Team.Player))
+                return new BattleResult(BattleOutcome.EnemyVictory, round, ReadOnly(log));
         }
 
-        return new BattleResult(BattleOutcome.Draw, _maxRounds, ReadOnly(log));
+        return new BattleResult(BattleOutcome.Draw, maxRounds, ReadOnly(log));
+    }
+
+    /// <summary>라운드 종료 처리 — 지속 피해와 효과 만료.</summary>
+    private static void EndOfRound(BattleState state, List<string>? log)
+    {
+        foreach (var combatant in state.All)
+        {
+            if (!combatant.IsAlive) continue;
+
+            if (combatant.HasEffect(StatusEffectKind.Poisoned))
+            {
+                int damage = DamageModel.PoisonDamage(combatant);
+                combatant.TakeDamage(damage);
+                log?.Add($"{combatant.Name}: 중독 피해 {damage}");
+            }
+
+            combatant.TickEffects();
+        }
     }
 
     private static void Execute(
         Combatant actor,
         ChosenAction choice,
+        BattleState state,
         IRandomSource rng,
         List<string>? log)
     {
         switch (choice.Action)
         {
+            case TacticAction.MoveBack:
+                actor.MoveTo(Row.Back);
+                log?.Add($"{actor.Name}: 후열로 물러남 (HP {actor.Hp}/{actor.MaxHp})");
+                return;
+
+            case TacticAction.MoveFront:
+                actor.MoveTo(Row.Front);
+                log?.Add($"{actor.Name}: 전열로 나섬");
+                return;
+
             case TacticAction.UsePotion:
             {
-                // 규칙과 노이즈가 겹쳐 회복약 없이 이 행동이 선택될 수 있으므로 방어적으로 확인합니다.
                 if (actor.Potions <= 0)
                 {
                     actor.BeginDefending();
@@ -93,14 +117,83 @@ public sealed class BattleResolver
                 return;
             }
 
+            case TacticAction.HealAlly:
+            {
+                var target = choice.Target;
+                if (target is null || !target.IsAlive || actor.Mana < DamageModel.ManaPerSpell)
+                {
+                    actor.BeginDefending();
+                    return;
+                }
+
+                int healed = DamageModel.MagicHealAmount(actor);
+                actor.SpendMana(DamageModel.ManaPerSpell);
+                target.Heal(healed);
+                log?.Add($"{actor.Name} → {target.Name}: 회복 +{healed}");
+                return;
+            }
+
+            case TacticAction.BuffAlly:
+            {
+                var target = choice.Target;
+                if (target is null || !target.IsAlive || actor.Mana < DamageModel.ManaPerSpell) return;
+
+                actor.SpendMana(DamageModel.ManaPerSpell);
+                target.ApplyEffect(new StatusEffect(
+                    StatusEffectKind.Empowered, DamageModel.BuffDuration, DamageModel.BuffMagnitude, actor.Id));
+                log?.Add($"{actor.Name} → {target.Name}: 공격 강화");
+                return;
+            }
+
+            case TacticAction.DebuffEnemy:
+            {
+                var target = choice.Target;
+                if (target is null || !target.IsAlive || actor.Mana < DamageModel.ManaPerSpell) return;
+
+                actor.SpendMana(DamageModel.ManaPerSpell);
+                target.ApplyEffect(new StatusEffect(
+                    StatusEffectKind.Weakened, DamageModel.BuffDuration, DamageModel.BuffMagnitude, actor.Id));
+                log?.Add($"{actor.Name} → {target.Name}: 공격 약화");
+                return;
+            }
+
+            case TacticAction.Taunt:
+            {
+                var enemies = state.LivingOpponentsOf(actor.Team);
+                foreach (var enemy in enemies)
+                {
+                    enemy.ApplyEffect(new StatusEffect(
+                        StatusEffectKind.Taunted, DamageModel.TauntDuration, 0.0, actor.Id));
+                }
+                actor.BeginDefending();
+                log?.Add($"{actor.Name}: 도발 — 적의 공격을 끌어들임");
+                return;
+            }
+
             case TacticAction.Defend:
                 actor.BeginDefending();
                 log?.Add($"{actor.Name}: 방어 태세");
                 return;
 
+            case TacticAction.AttackAll:
+            {
+                var targets = state.ReachableTargets(actor);
+                if (targets.Count == 0) return;
+
+                foreach (var target in targets.ToList())
+                {
+                    if (!target.IsAlive) continue;
+                    int damage = DamageModel.RollDamage(actor, target, rng, area: true);
+                    target.TakeDamage(damage);
+                    log?.Add($"{actor.Name} ⇒ {target.Name}: 광역 {damage} 피해{(target.IsAlive ? "" : ", 쓰러뜨림")}");
+                }
+                return;
+            }
+
             case TacticAction.AttackNearest:
             case TacticAction.AttackWeakest:
             case TacticAction.AttackStrongest:
+            case TacticAction.AttackBackRow:
             {
                 var target = choice.Target;
                 if (target is null || !target.IsAlive)
