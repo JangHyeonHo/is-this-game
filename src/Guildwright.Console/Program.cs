@@ -438,26 +438,12 @@ internal sealed class Guild(IRandomSource rng)
         Ui.Line();
         Ui.Line("   ── 전투 ──");
 
-        var enemies = new List<Adventurer>();
-        int enemyCount = Math.Clamp(contract.Difficulty / 2 + 1, 1, 4);
+        // 적 생성 규칙은 코어에 있습니다 (EncounterGenerator).
+        // 예전에는 여기서 `난이도/2 + 1`로 정했는데 파티 인원을 전혀 보지 않았습니다.
+        var enemies = EncounterGenerator.Generate(
+            contract.Difficulty, party.Count, rng.Fork($"encounter:{_year}"), Names.Monster);
 
-        for (int i = 0; i < enemyCount; i++)
-        {
-            var foe = Adventurer.Recruit($"X{_year}_{i}", Names.Monster(rng), rng.Fork($"foe:{_year}:{i}"),
-                potentialTier: Math.Clamp(contract.Difficulty / 2, 1, 6));
-
-            // 난이도만큼 굴려서 강하게 만듭니다.
-            CareerSimulator.ResolveTrainingYear(foe, rng.Fork($"foetrain:{_year}:{i}:0"));
-            for (int y = 1; y < contract.Difficulty; y++)
-            {
-                if (foe.Status != AdventurerStatus.Active) break;
-                CareerSimulator.ResolveTrainingYear(foe, rng.Fork($"foetrain:{_year}:{i}:{y}"));
-            }
-
-            enemies.Add(foe);
-        }
-
-        var state = CombatantFactory.FormParty(party, enemies);
+        var state = CombatantFactory.FormParty(party, enemies.ToList());
 
         bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
         var commander = manual ? new ConsoleCommander() : null;
