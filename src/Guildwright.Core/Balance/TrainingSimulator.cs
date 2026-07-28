@@ -18,6 +18,10 @@ namespace Guildwright.Core.Balance;
 /// <param name="MeanFailedMonths">평균 실패 개월 수.</param>
 /// <param name="MeanRestMonths">평균 휴식 개월 수.</param>
 /// <param name="MeanFatigue">평균 피로도 (매달 측정).</param>
+/// <param name="ConditionShare">
+/// 컨디션 단계별로 보낸 개월 비율. <b>합이 1.0</b>입니다.
+/// 인덱스는 <see cref="Condition"/> 순서 (최악 · 저조 · 보통 · 양호 · 절호조).
+/// </param>
 public sealed record TrainingTrial(
     string PolicyName,
     int Trials,
@@ -29,7 +33,8 @@ public sealed record TrainingTrial(
     double MeanJudgement,
     double MeanFailedMonths,
     double MeanRestMonths,
-    double MeanFatigue);
+    double MeanFatigue,
+    IReadOnlyList<double> ConditionShare);
 
 /// <summary>
 /// 훈련 방침을 배치로 돌려 성장 분포를 냅니다.
@@ -62,6 +67,7 @@ public static class TrainingSimulator
         var totalStats = new double[PrimaryStats.AllStats.Count];
         double totalGain = 0, totalProf = 0, totalJudge = 0;
         double totalFailed = 0, totalRest = 0, totalFatigue = 0;
+        var conditionMonths = new double[5];
         int fatigueSamples = 0;
         int completed = 0;
 
@@ -87,6 +93,7 @@ public static class TrainingSimulator
                     var outcome = session.AdvanceMonth(chosen);
 
                     totalFatigue += outcome.FatigueAfter;
+                    conditionMonths[(int)outcome.ConditionAfter]++;
                     fatigueSamples++;
                     if (outcome.Failed) totalFailed++;
                     if (outcome.Activity == TrainingActivity.Rest) totalRest++;
@@ -123,7 +130,8 @@ public static class TrainingSimulator
             totalJudge / completed,
             totalFailed / completed,
             totalRest / completed,
-            totalFatigue / fatigueSamples);
+            totalFatigue / fatigueSamples,
+            conditionMonths.Select(m => m / fatigueSamples).ToArray());
     }
 
     /// <summary>

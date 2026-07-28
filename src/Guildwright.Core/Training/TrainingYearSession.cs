@@ -281,18 +281,41 @@ public sealed class TrainingYearSession
     }
 
     /// <summary>
-    /// 컨디션은 매달 흔들립니다. 피로가 높으면 나빠지는 쪽으로 치우칩니다.
+    /// 컨디션은 매달 흔들립니다.
+    ///
     /// <para>
     /// 문턱을 ±1.0으로 두었더니 실제 플레이에서 거의 언제나 "보통"이라
     /// 컨디션을 보고 판단할 일이 생기지 않았습니다. ±0.6으로 낮췄습니다. (docs/06 #19)
     /// </para>
+    ///
+    /// <para>
+    /// <b>피로압은 무리했을 때만 걸립니다.</b> 예전에는 피로에 정비례해서
+    /// (<c>−피로/100</c>) 평범하게 훈련하는 것만으로도 컨디션이 계속 깎였습니다.
+    /// 지금은 <see cref="TrainingRules.FatigueSoftCap"/>을 넘긴 만큼만 반영합니다 —
+    /// <b>그 선 하나가 성장 저하와 컨디션 하락을 동시에 가릅니다.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// <b>평균 회귀가 없으면 최악에 갇힙니다.</b> 예전에는 컨디션이 낮다고 해서
+    /// 올라갈 확률이 높아지지 않아서, 한 번 최악에 빠지면 휴식 말고는 나올 길이 없었습니다.
+    /// 실제 플레이에서 6개월 내내 최악이었던 적이 있습니다.
+    /// 이제 보통 쪽으로 당기는 힘이 있어 <b>최악도 절호조도 오래 못 갑니다.</b>
+    /// </para>
+    ///
+    /// 근거: docs/06-balance-log.md #32
     /// </summary>
     /// <returns>실제로 이동한 단계 수. 휴식 등급 판정에 씁니다.</returns>
     private int DriftCondition(bool restBonus)
     {
-        double fatigueBias = -(double)Fatigue / TrainingRules.MaxFatigue * 1.0;
-        double restEffect = restBonus ? 0.7 : 0.0;
-        double roll = _rng.NextGaussian() + fatigueBias + restEffect;
+        // 무리한 만큼만 깎입니다. 피로 45 이하에서는 순수하게 운입니다.
+        int overwork = Math.Max(0, Fatigue - TrainingRules.FatigueSoftCap);
+        double fatigueBias = -(double)overwork / (TrainingRules.MaxFatigue - TrainingRules.FatigueSoftCap);
+
+        // 보통(Normal)으로 당기는 힘. 최악이면 +0.5, 절호조면 −0.5.
+        double pullToNormal = ((int)Condition.Normal - (int)Condition) * TrainingRules.ConditionMeanReversion;
+
+        double restEffect = restBonus ? TrainingRules.ConditionRestBonus : 0.0;
+        double roll = _rng.NextGaussian() + fatigueBias + pullToNormal + restEffect;
 
         int step = roll switch
         {

@@ -63,6 +63,17 @@ public static class BalanceReport
                 $"{r.MeanRestMonths,5:F1} {r.MeanFatigue,9:F0}");
         }
 
+        Ui.Line();
+        Ui.Line("   컨디션 분포 (그 단계에서 보낸 개월 비율)");
+        Ui.Line("   방침          최악  저조  보통  양호 절호조");
+        Ui.Line("   " + new string('─', 46));
+
+        foreach (var r in results)
+        {
+            Ui.Line("   " + PadWide(r.PolicyName, 14) +
+                    string.Join("", r.ConditionShare.Select(v => $"{v,5:P0} ")));
+        }
+
         // 가장 총합이 높은 방침을 기준으로 상대 비교를 보여줍니다.
         var best = results.MaxBy(r => r.MeanTotal)!;
         Ui.Line();
