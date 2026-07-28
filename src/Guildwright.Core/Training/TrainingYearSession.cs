@@ -162,12 +162,15 @@ public sealed class TrainingYearSession
 
     private MonthOutcome DoRest(int month, bool recovering)
     {
+        // 휴식이 얼마나 회복시켰는지 보여줍니다. 이게 안 보이면 "휴식 한 달"의 값어치를
+        // 플레이어가 계산할 수 없어서, 쉬는 선택이 그냥 버리는 달처럼 느껴집니다.
+        int before = Fatigue;
         Fatigue = Math.Max(0, Fatigue - TrainingRules.FatigueRecoveryOnRest);
         DriftCondition(restBonus: true);
 
         string note = recovering
-            ? $"{month}월: 요양 (남은 {_recoveryMonthsRemaining}개월)"
-            : $"{month}월: 휴식";
+            ? $"{month}월: 요양 (남은 {_recoveryMonthsRemaining}개월, 피로 {before} → {Fatigue})"
+            : $"{month}월: 휴식 (피로 {before} → {Fatigue}, 컨디션 {Condition.ToKorean()})";
 
         return new MonthOutcome(month, TrainingFocus.Rest, PrimaryStats.Zero, Fatigue, Condition, false, recovering, note);
     }

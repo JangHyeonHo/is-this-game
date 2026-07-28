@@ -12,6 +12,48 @@ public readonly record struct StatForecast(PrimaryStat Stat, int Min, int Max)
 }
 
 /// <summary>
+/// 원천 능력치가 그만큼 오르면 <b>전투 수치가 얼마나 달라지는지</b>.
+/// <para>
+/// 원천만 보여주면 "힘 +12"가 실제로 뭘 의미하는지 알 수 없습니다.
+/// 육성의 목적은 전투이므로, 계획 화면에서 전투 수치의 변화를 봐야 판단이 됩니다.
+/// </para>
+/// </summary>
+/// <param name="Stat">파생 수치.</param>
+/// <param name="Min">예상 하한 증가분.</param>
+/// <param name="Max">예상 상한 증가분.</param>
+public readonly record struct DerivedForecast(DerivedStat Stat, double Min, double Max)
+{
+    /// <summary>비율로 표시해야 하는 수치인지 (치명타율·회피율).</summary>
+    public bool IsRate => Stat is DerivedStat.CritChance or DerivedStat.EvasionChance;
+
+    /// <summary>눈에 띄게 움직이는지. 0에 가까운 항목까지 늘어놓으면 화면이 잡음이 됩니다.</summary>
+    public bool Moves => Math.Abs(Max) >= (IsRate ? 0.005 : 0.5);
+}
+
+/// <summary>
+/// 1년 계획의 예상 결과 전체.
+/// <para>
+/// 성장만 보여주고 <b>피로를 안 보여주면</b> 계획 화면이 반쪽입니다.
+/// 피로는 이 게임에서 매달 선택의 대가 그 자체인데, 실행에 들어가서야 알게 되면
+/// 미리 짜는 의미가 없습니다. 피로는 계획만으로 정확히 계산되므로
+/// (부상이 나지 않는 한) <b>숨길 이유도 없습니다.</b>
+/// </para>
+/// </summary>
+/// <param name="Stats">원천 능력치 예상 증가 범위.</param>
+/// <param name="Derived">그에 따른 전투 수치 변화 범위.</param>
+/// <param name="FatigueByMonth">각 달의 행동을 마친 시점의 피로도 (12개).</param>
+public sealed record YearForecast(
+    IReadOnlyList<StatForecast> Stats,
+    IReadOnlyList<DerivedForecast> Derived,
+    IReadOnlyList<int> FatigueByMonth)
+{
+    public int PeakFatigue => FatigueByMonth.Count == 0 ? 0 : FatigueByMonth.Max();
+
+    /// <summary>부상 위험선을 넘긴 채 훈련하는 달 수. 0이 아니면 계획을 다시 볼 이유가 됩니다.</summary>
+    public int MonthsAtInjuryRisk => FatigueByMonth.Count(f => f > TrainingRules.InjuryThreshold);
+}
+
+/// <summary>
 /// 1년 계획의 예상 성장을 계산합니다.
 /// <para>
 /// <b>정확한 예상치를 보여주면 숨겨둔 성장 곡선이 새어나갑니다.</b>
@@ -56,6 +98,20 @@ public static class TrainingForecaster
         ScoutingReport report,
         IReadOnlyList<TrainingFocus> plan,
         Mentorship? mentorship = null)
+        => Forecast(adventurer, report, plan, mentorship).Stats;
+
+    /// <summary>
+    /// 12개월 계획의 예상 결과를 전부 냅니다 — 원천 성장, 전투 수치 변화, 달마다의 피로.
+    /// </summary>
+    /// <param name="adventurer">대상.</param>
+    /// <param name="report">플레이어가 가진 평가서. 성장 예상은 이것만 근거로 씁니다.</param>
+    /// <param name="plan">12개월 계획.</param>
+    /// <param name="mentorship">멘토.</param>
+    public static YearForecast Forecast(
+        Adventurer adventurer,
+        ScoutingReport report,
+        IReadOnlyList<TrainingFocus> plan,
+        Mentorship? mentorship = null)
     {
         var mentor = mentorship ?? Mentorship.None;
 
@@ -74,6 +130,7 @@ public static class TrainingForecaster
 
         // 계획을 그대로 훑으며 평균적인 피로/컨디션을 가정해 누적합니다.
         var accumulated = new double[PrimaryStats.AllStats.Count];
+        var fatigueByMonth = new List<int>(plan.Count);
         int fatigue = 0;
 
         foreach (var focus in plan)
@@ -81,6 +138,7 @@ public static class TrainingForecaster
             if (focus == TrainingFocus.Rest)
             {
                 fatigue = Math.Max(0, fatigue - TrainingRules.FatigueRecoveryOnRest);
+                fatigueByMonth.Add(fatigue);
                 continue;
             }
 
@@ -103,12 +161,13 @@ public static class TrainingForecaster
             }
 
             fatigue = Math.Min(TrainingRules.MaxFatigue, fatigue + TrainingRules.FatiguePerTraining);
+            fatigueByMonth.Add(fatigue);
         }
 
         // 확신도가 낮을수록 범위가 넓어집니다.
         double spread = IrreducibleSpread + (1.0 - report.Confidence) * UncertaintySpread;
 
-        return PrimaryStats.AllStats
+        var stats = PrimaryStats.AllStats
             .Select(stat =>
             {
                 double center = accumulated[(int)stat];
@@ -117,7 +176,58 @@ public static class TrainingForecaster
                 return new StatForecast(stat, min, max);
             })
             .ToList();
+
+        return new YearForecast(stats, ForecastDerived(adventurer, stats), fatigueByMonth);
     }
+
+    /// <summary>
+    /// 원천 예상치를 전투 수치로 옮깁니다.
+    /// <para>
+    /// 새 불확실성을 더하지 않습니다 — 파생은 원천의 순수 함수이므로,
+    /// 원천 예상의 하한·상한을 그대로 통과시킨 값이 곧 파생의 하한·상한입니다.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<DerivedForecast> ForecastDerived(
+        Adventurer adventurer,
+        IReadOnlyList<StatForecast> stats)
+    {
+        var now = adventurer.Stats;
+        var atMin = now;
+        var atMax = now;
+
+        foreach (var f in stats)
+        {
+            atMin = atMin.With(f.Stat, now[f.Stat] + f.Min);
+            atMax = atMax.With(f.Stat, now[f.Stat] + f.Max);
+        }
+
+        var bonuses = adventurer.Bonuses;
+
+        return Enum.GetValues<DerivedStat>()
+            .Select(kind =>
+            {
+                double baseline = ValueOf(kind, now, bonuses);
+                return new DerivedForecast(
+                    kind,
+                    ValueOf(kind, atMin, bonuses) - baseline,
+                    ValueOf(kind, atMax, bonuses) - baseline);
+            })
+            .ToList();
+    }
+
+    private static double ValueOf(DerivedStat kind, PrimaryStats p, DerivedBonuses b) => kind switch
+    {
+        DerivedStat.MaxHp => DerivedStats.MaxHp(p, b),
+        DerivedStat.MaxMana => DerivedStats.MaxMana(p, b),
+        DerivedStat.PhysicalPower => DerivedStats.PhysicalPower(p, b),
+        DerivedStat.PhysicalGuard => DerivedStats.PhysicalGuard(p, b),
+        DerivedStat.MagicPower => DerivedStats.MagicPower(p, b),
+        DerivedStat.MagicGuard => DerivedStats.MagicGuard(p, b),
+        DerivedStat.ActionSpeed => DerivedStats.ActionSpeed(p, b),
+        DerivedStat.CritChance => DerivedStats.CritChance(p, b),
+        DerivedStat.EvasionChance => DerivedStats.EvasionChance(p, b),
+        _ => 0.0
+    };
 
     private static PrimaryStat ToStat(TrainingFocus focus) => focus switch
     {

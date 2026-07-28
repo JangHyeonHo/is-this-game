@@ -218,9 +218,9 @@ internal sealed class Guild(IRandomSource rng)
         {
             if (plan.Count > 0)
             {
-                var preview = TrainingForecaster.ForecastYear(member, report, PadPlan(plan), mentorship);
+                var preview = TrainingForecaster.Forecast(member, report, PadPlan(plan), mentorship);
                 Ui.Line();
-                Display.Forecast(preview, report.Confidence);
+                Display.Forecast(preview, report.Confidence, decidedMonths: plan.Count);
             }
 
             int pick = Ui.Choose($"   {month}월", menu);
@@ -237,7 +237,7 @@ internal sealed class Guild(IRandomSource rng)
         Ui.Line();
         Ui.Line("   확정된 계획: " + string.Join(" ", plan.Select(Display.FocusName)));
 
-        var final = TrainingForecaster.ForecastYear(member, report, plan, mentorship);
+        var final = TrainingForecaster.Forecast(member, report, plan, mentorship);
         Display.Forecast(final, report.Confidence);
 
         return plan;
@@ -272,7 +272,7 @@ internal sealed class Guild(IRandomSource rng)
                 Ui.Line();
                 Ui.Note($"{month}월 · 컨디션 {session.Condition.ToKorean()} · 피로 {session.Fatigue}" +
                         (session.RecoveryMonthsRemaining > 0 ? $" · 요양 {session.RecoveryMonthsRemaining}개월 남음" : ""));
-                Ui.Note($"계획은 [{Display.FocusName(planned)}] 입니다.");
+                Ui.Note($"계획은 [{Display.FocusLabel(planned)}] 입니다.");
 
                 if (Ui.Confirm("   계획을 바꾸시겠습니까?"))
                 {
