@@ -1,5 +1,6 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Rng;
+using Guildwright.Core.Training;
 
 namespace Guildwright.Core.Careers;
 
@@ -20,27 +21,26 @@ namespace Guildwright.Core.Careers;
 /// </summary>
 public static class CareerSimulator
 {
-    /// <summary>훈련으로 한 해를 보냅니다. 위험은 없습니다.</summary>
+    /// <summary>
+    /// 훈련으로 한 해를 보냅니다. 위험은 없지만 <b>훈련 중 부상</b>은 있을 수 있습니다.
+    /// <para>
+    /// 내부적으로 월 단위 <see cref="TrainingYearSession"/>을 방침에 따라 자동 진행합니다.
+    /// <b>플레이어가 손으로 하는 경로와 완전히 같은 모델</b>이라, 배치 시뮬레이션으로 맞춘 밸런스가
+    /// 실제 플레이와 어긋나지 않습니다. (별도 모델을 두었다가 결과가 크게 벌어지는 버그를 겪었습니다.)
+    /// </para>
+    /// </summary>
+    /// <param name="adventurer">대상 모험가.</param>
+    /// <param name="rng">난수원.</param>
+    /// <param name="mentorship">멘토. 없으면 보너스 없음.</param>
+    /// <param name="policy">훈련 방침. 생략하면 균형 방침.</param>
     public static YearRecord ResolveTrainingYear(
         Adventurer adventurer,
         IRandomSource rng,
-        Mentorship? mentorship = null)
+        Mentorship? mentorship = null,
+        TrainingPolicy? policy = null)
     {
         EnsureActive(adventurer);
-
-        var mentor = mentorship ?? Mentorship.None;
-        double multiplier = adventurer.Growth.TrainingMultiplier * mentor.TrainingMultiplier;
-
-        var change = ComputeStatChange(adventurer, multiplier, rng);
-
-        string note = mentor.TrainingMultiplier > 1.0
-            ? $"{adventurer.Age}세: {mentor.MentorName}의 지도 아래 훈련"
-            : $"{adventurer.Age}세: 훈련";
-
-        var record = new YearRecord(adventurer.Age, YearActivity.Training, change, null, 0, note);
-        adventurer.ApplyYear(record);
-        adventurer.GainJudgement(CareerRules.JudgementFromTraining);
-        return record;
+        return AutoTrainer.RunYear(adventurer, policy ?? TrainingPolicy.Balanced, rng, mentorship);
     }
 
     /// <summary>
