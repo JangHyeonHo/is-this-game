@@ -39,13 +39,15 @@ public enum DeploymentOutcome
 /// <param name="Outcome">실전이었을 때의 결과.</param>
 /// <param name="Income">벌어들인 금액.</param>
 /// <param name="Note">이력에 남길 서술.</param>
+/// <param name="SupportRole">그 해에 맡은 비전투 역할. 없으면 전투원으로만 굴렀다는 뜻입니다.</param>
 public sealed record YearRecord(
     int Age,
     YearActivity Activity,
     StatBlock StatChange,
     DeploymentOutcome? Outcome,
     int Income,
-    string Note);
+    string Note,
+    SupportSkill? SupportRole = null);
 
 /// <summary>
 /// 모험가 한 명.
@@ -108,6 +110,15 @@ public sealed class Adventurer
 
     /// <summary>스타일별 숙련도. 숨기지 않습니다 — 본인이 뭘 얼마나 했는지는 알 수 있어야 합니다.</summary>
     public WeaponProficiency Proficiency { get; } = new();
+
+    /// <summary>
+    /// 비전투 역량. 함정 감지·척후·운반·채집·감정.
+    /// <para>
+    /// 전투력이 낮아도 여기가 뛰어나면 파티에 자리가 있습니다.
+    /// 무기 숙련도와 같은 원리로, 맡은 역할의 이력입니다.
+    /// </para>
+    /// </summary>
+    public SupportSkillSet Support { get; } = new();
 
     public WeaponStyle EquippedStyle { get; private set; }
 
@@ -201,6 +212,12 @@ public sealed class Adventurer
                 : WeaponProficiency.PerTrainingYear;
 
             Proficiency.Advance(EquippedStyle, Aptitudes[EquippedStyle], baseGain);
+
+            // 비전투 역량은 실전에서만 늡니다. 훈련장에서는 함정을 만날 일이 없습니다.
+            if (record.Activity == YearActivity.Deployment)
+            {
+                Support.AdvanceYear(record.SupportRole, Stats);
+            }
         }
 
         switch (record.Outcome)

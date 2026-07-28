@@ -58,11 +58,26 @@ public static class CareerSimulator
     /// 그래야 <b>파티 편성과 전술 편성이 육성에 반영</b>됩니다.
     /// </para>
     /// </param>
+    /// <param name="supportRole">
+    /// 그 해에 맡은 비전투 역할 (함정 감지·척후·운반·채집·감정).
+    /// 맡은 역할은 크게 늘고 나머지는 어깨너머로 조금 늡니다.
+    /// </param>
+    /// <param name="contract">
+    /// 수행한 의뢰. 성격에 따라 전투 비중과 위험이 달라집니다.
+    /// 생략하면 순수 전투 의뢰로 봅니다.
+    /// </param>
+    /// <param name="support">
+    /// 파티의 비전투 역량이 이 의뢰에 미치는 효과.
+    /// <see cref="ContractResolver.Evaluate"/>로 계산합니다.
+    /// </param>
     public static YearRecord ResolveDeploymentYear(
         Adventurer adventurer,
         int difficulty,
         IRandomSource rng,
-        CombatExperience? experience = null)
+        CombatExperience? experience = null,
+        SupportSkill? supportRole = null,
+        Contract? contract = null,
+        ContractSupport? support = null)
     {
         EnsureActive(adventurer);
 
@@ -83,7 +98,13 @@ public static class CareerSimulator
 
         var growth = ComputeStatChange(adventurer, multiplier, rng, lived);
 
-        var outcome = RollOutcome(adventurer, difficulty, rng);
+        // 채집 의뢰는 전투 비중이 낮아 덜 위험합니다 — 전투력이 낮은 캐릭터의 자리입니다.
+        double combatWeight = contract?.CombatWeight ?? 1.0;
+
+        // 함정 감지와 척후가 사고 위험을 줄입니다.
+        double riskMultiplier = (support?.RiskMultiplier ?? 1.0) * combatWeight;
+
+        var outcome = RollOutcome(adventurer, difficulty, riskMultiplier, rng);
         var penalty = ComputeMishapPenalty(adventurer, outcome, rng);
 
         // 사망한 해에는 성장이 없습니다.
@@ -91,17 +112,24 @@ public static class CareerSimulator
 
         int income = outcome == DeploymentOutcome.Died
             ? 0
-            : (int)Math.Round(difficulty * CareerRules.IncomePerDifficulty * SuccessRatio(adventurer, difficulty));
+            : (int)Math.Round(
+                difficulty * CareerRules.IncomePerDifficulty
+                * SuccessRatio(adventurer, difficulty, combatWeight)
+                * (support?.IncomeMultiplier ?? 1.0));
+
+        string what = contract?.Name ?? $"난이도 {difficulty} 의뢰";
+        string role = supportRole is { } r ? $" ({r.ToKorean()} 담당)" : "";
 
         string note = outcome switch
         {
-            DeploymentOutcome.Died => $"{adventurer.Age}세: 난이도 {difficulty} 의뢰에서 전사",
-            DeploymentOutcome.Crippled => $"{adventurer.Age}세: 난이도 {difficulty} 의뢰에서 재기 불능의 부상",
-            DeploymentOutcome.Injured => $"{adventurer.Age}세: 난이도 {difficulty} 의뢰에서 부상",
-            _ => $"{adventurer.Age}세: 난이도 {difficulty} 의뢰 수행"
+            DeploymentOutcome.Died => $"{adventurer.Age}세: {what}에서 전사",
+            DeploymentOutcome.Crippled => $"{adventurer.Age}세: {what}에서 재기 불능의 부상",
+            DeploymentOutcome.Injured => $"{adventurer.Age}세: {what}에서 부상{role}",
+            _ => $"{adventurer.Age}세: {what} 수행{role}"
         };
 
-        var record = new YearRecord(adventurer.Age, YearActivity.Deployment, change, outcome, income, note);
+        var record = new YearRecord(
+            adventurer.Age, YearActivity.Deployment, change, outcome, income, note, supportRole);
         adventurer.ApplyYear(record);
 
         if (outcome != DeploymentOutcome.Died)
@@ -165,13 +193,18 @@ public static class CareerSimulator
     /// 판단력이 높으면 위험을 줄입니다 — 똑똑한 모험가는 물러설 때를 압니다.
     /// </para>
     /// </summary>
-    private static DeploymentOutcome RollOutcome(Adventurer adventurer, int difficulty, IRandomSource rng)
+    private static DeploymentOutcome RollOutcome(
+        Adventurer adventurer,
+        int difficulty,
+        double riskMultiplier,
+        IRandomSource rng)
     {
         double required = difficulty * CareerRules.RequiredPowerPerDifficulty;
         double power = Math.Max(1.0, adventurer.Stats.Total);
 
         double risk = CareerRules.BaseRisk * Math.Pow(required / power, 2.2);
         risk *= 1.0 - adventurer.Judgement / 100.0 * CareerRules.JudgementRiskReduction;
+        risk *= riskMultiplier;
         risk = Math.Clamp(risk, 0.002, 0.80);
 
         if (!rng.Chance(risk)) return DeploymentOutcome.Unharmed;
@@ -203,11 +236,20 @@ public static class CareerSimulator
         return penalty;
     }
 
-    /// <summary>난이도 대비 실력 비율. 보수 산정에 씁니다. 최대 1.2배.</summary>
-    private static double SuccessRatio(Adventurer adventurer, int difficulty)
+    /// <summary>
+    /// 난이도 대비 실력 비율. 보수 산정에 씁니다. 최대 1.2배.
+    /// <para>
+    /// 전투 비중이 낮은 의뢰(채집 등)에서는 전투력이 보수를 덜 좌우합니다.
+    /// 그래야 전투가 약한 캐릭터도 제 몫을 하는 자리가 생깁니다.
+    /// </para>
+    /// </summary>
+    private static double SuccessRatio(Adventurer adventurer, int difficulty, double combatWeight)
     {
         double required = difficulty * CareerRules.RequiredPowerPerDifficulty;
-        return Math.Clamp(adventurer.Stats.Total / Math.Max(1.0, required), 0.3, 1.2);
+        double byCombat = Math.Clamp(adventurer.Stats.Total / Math.Max(1.0, required), 0.3, 1.2);
+
+        // 전투 비중만큼만 전투력을 반영하고, 나머지는 평범한 수행으로 봅니다.
+        return byCombat * combatWeight + 1.0 * (1.0 - combatWeight);
     }
 
     private static void EnsureActive(Adventurer adventurer)

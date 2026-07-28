@@ -17,4 +17,12 @@
     Unity / Godot 타입을 참조하는 순간 이 프로젝트의 존재 이유가 사라집니다.
   -->
 
+  <!--
+    상태 변경 메서드는 internal로 막아 규칙 클래스(CareerSimulator 등)만 거치도록 합니다.
+    테스트는 그 내부 규칙을 직접 검증해야 하므로 예외적으로 열어줍니다.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Guildwright.Core.Tests" />
+  </ItemGroup>
+
 </Project>
