@@ -37,6 +37,27 @@ public static class TrainingRules
     /// <summary>휴식 한 번의 피로 회복.</summary>
     public const int FatigueRecoveryOnRest = 38;
 
+    /// <summary>
+    /// 컨디션이 <b>보통</b>으로 돌아오려는 힘. 한 단계당 이만큼 굴림에 더해집니다.
+    /// <para>
+    /// 최악이면 +0.5, 절호조면 −0.5. 이게 없으면 <b>한 번 최악에 빠졌을 때 나올 길이 없습니다</b> —
+    /// 실제 플레이에서 6개월 내내 최악이었던 적이 있습니다.
+    /// </para>
+    /// <para>
+    /// 대칭으로 걸어서 <b>절호조도 오래 못 갑니다.</b> 좋은 달이 귀해야
+    /// "이번 달은 절호조니까 밀어붙일까"가 판단이 됩니다.
+    /// </para>
+    /// </summary>
+    public const double ConditionMeanReversion = 0.25;
+
+    /// <summary>
+    /// 휴식이 컨디션 굴림에 더하는 값.
+    /// <para>
+    /// 휴식은 <b>두 번 이득</b>입니다 — 피로를 먼저 깎고, 그 낮아진 피로로 굴립니다.
+    /// </para>
+    /// </summary>
+    public const double ConditionRestBonus = 0.7;
+
     /// <summary>이 피로도를 넘으면 성장이 떨어지기 시작합니다.</summary>
     public const int FatigueSoftCap = 45;
 

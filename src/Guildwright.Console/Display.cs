@@ -198,6 +198,33 @@ public static class Display
 
     public static TrainingActivity FocusFromIndex(int index) => (TrainingActivity)index;
 
+    /// <summary>파견 중 현재 상태 — 진행도, 파티 HP, 회복약, 피로.</summary>
+    public static void FieldStatus(FieldYearSession session, IReadOnlyList<Adventurer> party)
+    {
+        Ui.Line();
+        Ui.Line($"   ── {session.CurrentMonth}월 · 처치 {session.Killed}/{session.Quota} · 피로 {session.Fatigue} ──");
+
+        foreach (var a in party)
+        {
+            int hp = session.Hp[a.Id];
+            string state = hp <= 0 ? "  전투 불능" : "";
+            Ui.Line($"     {a.Name,-16} {Ui.Bar((double)hp / a.MaxHp, 10)} {hp,4}/{a.MaxHp,-4} " +
+                    $"회복약 {session.Potions[a.Id]}{state}");
+        }
+    }
+
+    /// <summary>파견 월별 행동 메뉴. 조우 확률과 피로를 라벨에 적습니다.</summary>
+    public static IReadOnlyList<string> FieldMenu() =>
+        Enum.GetValues<FieldAction>()
+            .Select(a =>
+            {
+                int fatigue = FieldRules.FatigueOf(a);
+                string cost = fatigue >= 0 ? $"피로 +{fatigue}" : $"피로 −{-fatigue}, HP 회복";
+                return $"{FieldRules.NameOf(a)} ({FieldRules.FlavorOf(a)}) — " +
+                       $"조우 {FieldRules.EncounterChanceOf(a):P0} · {cost}";
+            })
+            .ToList();
+
     /// <summary>전투 한 라운드의 진영 상태.</summary>
     public static void Formation(BattleState state)
     {

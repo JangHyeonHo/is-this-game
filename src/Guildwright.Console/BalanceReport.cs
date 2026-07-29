@@ -1,4 +1,6 @@
+using Guildwright.Core.Adventurers;
 using Guildwright.Core.Balance;
+using Guildwright.Core.Rng;
 using Guildwright.Core.Training;
 
 namespace Guildwright.Cli;
@@ -41,8 +43,77 @@ public static class BalanceReport
 
         Section("활동별 효율 (한 활동만 계속)", singles);
 
+        // ★ 이 게임의 근본 질문 — "손으로 잘 키우는 게 얼마나 이득인가"
+        SkillCeiling(trials, years);
+
         Ui.Line();
         Ui.Note("⚠ 이 수치는 밸런스 판단 재료일 뿐입니다. 어느 쪽이 '재미있는가'는 사람이 정합니다.");
+    }
+
+    /// <summary>
+    /// <b>실력의 폭</b>을 잽니다 — 육성을 잘하는 것이 결과를 얼마나 바꾸는가.
+    /// <para>
+    /// 육성이 메인인 게임에서 이 폭이 좁으면 <b>육성 실력이 결과를 안 바꾼다</b>는 뜻이라
+    /// 훈련 설계를 다시 봐야 합니다. 위임(방침)이 어디에 있는지도 여기서 보입니다.
+    /// </para>
+    /// </summary>
+    private static void SkillCeiling(int trials, int years)
+    {
+        var results = new List<TrainingTrial>
+        {
+            TrainingSimulator.Run("전투 오라클", TrainingSimulator.CombatOracle, trials, years),
+            TrainingSimulator.Run("총합 오라클", TrainingSimulator.Oracle, trials, years),
+            TrainingSimulator.Run(TrainingPolicy.Balanced.Opportunistic(), trials, years),
+            TrainingSimulator.Run(TrainingPolicy.Balanced, trials, years),
+            TrainingSimulator.Run("무작위", TrainingSimulator.Random, trials, years)
+        };
+
+        Ui.Section("실력의 폭 — 잘 키우는 것이 얼마나 이득인가");
+        Ui.Note("오라클 = 숨겨진 성장 곡선을 다 알고 최선을 고름 (사람의 천장)");
+        Ui.Note("무작위 = 아무거나 고름 (바닥)");
+
+        Ui.Line();
+        Ui.Line("   방식          총합   증가 │ 휴식  평균피로   바닥 대비");
+        Ui.Line("   " + new string('─', 56));
+
+        double floor = results[^1].MeanTotal;
+
+        foreach (var r in results)
+        {
+            Ui.Line("   " + PadWide(r.PolicyName, 14) +
+                    $"{r.MeanTotal,5:F0} {r.MeanGain,6:F0} │ " +
+                    $"{r.MeanRestMonths,4:F1} {r.MeanFatigue,9:F0} " +
+                    $"{r.MeanTotal / floor,11:P0}");
+        }
+
+        double ceiling = results[0].MeanTotal;
+        double policy = results[2].MeanTotal;
+
+        Ui.Line();
+        Ui.Note($"능력치 총합 기준 — 실력의 폭 (오라클 ÷ 무작위) = {ceiling / floor:P0}");
+        Ui.Note($"위임이 천장의 {policy / ceiling:P0} 지점에 있습니다.");
+
+        // ★ 총합으로는 육성 실력을 잴 수 없습니다. 같은 사람을 다르게 키워서 붙여봅니다.
+        Ui.Line();
+        Ui.Line("   같은 사람을 두 방식으로 키워 1:1로 붙였을 때 승률");
+        Ui.Line("   " + new string('─', 46));
+
+        int duels = Math.Max(100, trials / 2);
+
+        Func<Adventurer, TrainingYearSession, IRandomSource, TrainingActivity> delegated =
+            (_, s, _) => TrainingPolicy.Balanced.ChooseFor(s);
+
+        Ui.Line($"     전투 오라클 vs 무작위   " +
+                $"{TrainingSimulator.HeadToHead(TrainingSimulator.CombatOracle, TrainingSimulator.Random, duels, years),6:P0}");
+        Ui.Line($"     전투 오라클 vs 위임     " +
+                $"{TrainingSimulator.HeadToHead(TrainingSimulator.CombatOracle, delegated, duels, years),6:P0}");
+        Ui.Line($"     전투 오라클 vs 총합오라클 " +
+                $"{TrainingSimulator.HeadToHead(TrainingSimulator.CombatOracle, TrainingSimulator.Oracle, duels, years),6:P0}");
+        Ui.Line($"     위임        vs 무작위   " +
+                $"{TrainingSimulator.HeadToHead(delegated, TrainingSimulator.Random, duels, years),6:P0}");
+
+        Ui.Line();
+        Ui.Note("50%에 가까울수록 그 차이가 전투에서 의미가 없다는 뜻입니다.");
     }
 
     private static void Section(string title, IReadOnlyList<TrainingTrial> results)
@@ -61,6 +132,17 @@ public static class BalanceReport
                 $"{r.MeanStats.Vitality,5} {r.MeanStats.Intellect,5} {r.MeanStats.Spirit,5} │ " +
                 $"{r.MeanProficiency,4:F0} {r.MeanJudgement,5:F0} {r.MeanFailedMonths,5:F1} " +
                 $"{r.MeanRestMonths,5:F1} {r.MeanFatigue,9:F0}");
+        }
+
+        Ui.Line();
+        Ui.Line("   컨디션 분포 (그 단계에서 보낸 개월 비율)");
+        Ui.Line("   방침          최악  저조  보통  양호 절호조");
+        Ui.Line("   " + new string('─', 46));
+
+        foreach (var r in results)
+        {
+            Ui.Line("   " + PadWide(r.PolicyName, 14) +
+                    string.Join("", r.ConditionShare.Select(v => $"{v,5:P0} ")));
         }
 
         // 가장 총합이 높은 방침을 기준으로 상대 비교를 보여줍니다.
