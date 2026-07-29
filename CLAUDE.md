@@ -3,10 +3,13 @@
 이 저장소에서 작업하기 전에 [docs/00-charter.md](docs/00-charter.md)와
 [docs/04-game-design.md](docs/04-game-design.md)를 먼저 읽으세요.
 
-**"그 기능 있나요?"에 답하기 전에는 [docs/09-systems.md](docs/09-systems.md)를 봅니다.**
-세션 시작 훅이 이 문서를 컨텍스트에 자동으로 넣으므로, 대화가 초기화돼도 남아 있습니다.
-기억으로 답하지 마세요 — 실제로 이미 구현된 전열/후열·전술 규칙·전투 개입을
-"없다"고 답한 사고가 있었습니다.
+**"그 기능 있나요?"는 [docs/09-systems.generated.md](docs/09-systems.generated.md)로 답합니다.**
+어셈블리에서 생성되므로 낡지 않습니다 — **목록에 없으면 없는 것입니다.**
+왜 없는지·무엇이 막고 있는지는 [docs/09-systems.md](docs/09-systems.md)에 있습니다.
+세션 시작 훅이 두 문서를 컨텍스트에 자동으로 넣으므로 대화가 초기화돼도 남습니다.
+
+기억으로 답하지 마세요 — 이미 구현된 전열/후열·전술 규칙·전투 개입을
+"없다"고 답한 사고가 실제로 있었습니다.
 
 ## 프로젝트 한 줄 요약
 
@@ -52,9 +55,13 @@ docker build -t guildwright . && docker run -it --rm guildwright
 
 5. **런타임 LLM을 추가하지 않는다.** 게임 내 AI는 GOAP / Utility AI / Behavior Tree로 구현합니다.
 
-6. **공개 시스템을 추가·삭제하면 [docs/09-systems.md](docs/09-systems.md)를 같은 커밋에서 고친다.**
-   새 `public` 타입·열거형·시스템이 생겼는데 인벤토리에 없으면,
-   다음 세션의 에이전트는 그게 없다고 답합니다. 그게 실제로 일어난 사고입니다.
+6. **공개 타입을 추가·삭제·개명하면 인벤토리를 같은 커밋에서 다시 만든다.**
+
+   ```bash
+   UPDATE_INVENTORY=1 dotnet test --filter SystemInventory
+   ```
+
+   잊어도 `dotnet test`가 깨지므로 놓칠 수 없습니다. 이 규칙은 기억이 아니라 테스트가 지킵니다.
 
 7. **헌장의 "하지 않는다" 목록을 확장하지 않는다.**
    스코프를 넓히는 제안을 하기 전에 [docs/00-charter.md](docs/00-charter.md) §4를 확인하세요.
