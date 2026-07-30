@@ -235,7 +235,9 @@ internal sealed class Guild(IRandomSource rng)
         }
 
         Ui.Line();
-        return Ui.Confirm("다음 달로 넘어가시겠습니까?");
+        // y/n으로 물으면 "n = 아직"으로 읽히는데 실제로는 게임이 끝나버립니다.
+        // 종료는 명시적으로 고른 사람만 하도록 선택지로 둡니다.
+        return Ui.Choose("이번 달을 마쳤습니다", ["다음 달로", "게임을 그만둔다 (연대기를 보고 종료)"]) == 0;
     }
 
     /// <summary>
