@@ -1,0 +1,152 @@
+/* Guildwright 화면 뼈대 — 기준 해상도 1920×1080 (docs/07 §21).
+   스테이지 내부의 모든 px는 1080p 기준이고, --stage-scale로 통째로 축소/확대된다.
+   색·폰트는 임시다 — 미적 방향은 사람이 정한다. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    background: #000;
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    color: #d8d2c8;
+    overflow: hidden;
+}
+
+.boot { display: grid; place-items: center; height: 100vh; color: #8a8378; font-size: 18px; }
+
+#blazor-error-ui {
+    background: #5a2c2c; color: #f0dede; display: none;
+    position: fixed; bottom: 0; left: 0; width: 100%;
+    padding: .6rem 1.25rem; z-index: 1000;
+}
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; top: .5rem; }
+
+/* ── 뷰포트: 검은 레터박스 가운데에 스테이지를 놓는다 ── */
+.viewport { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
+.stage {
+    width: 1920px; height: 1080px; position: relative; overflow: hidden;
+    background: #1c1916; font-size: 24px;
+    transform: scale(var(--stage-scale, 0.5));
+}
+
+/* ── 공통 부품 (1080p 기준 px) ── */
+.topbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 76px; z-index: 5;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(28,24,19,.92); border-bottom: 2px solid #3a352d;
+    padding: 0 36px; font-size: 26px;
+}
+.topbar .mid { color: #e8e0d0; font-weight: bold; }
+.topbar .back { cursor: pointer; }
+.res { display: flex; gap: 36px; }
+.res b { color: #d6b45a; }
+.badge {
+    display: inline-block; background: #3a352d; border-radius: 6px;
+    padding: 2px 14px; font-size: 22px; color: #c9b98a; margin-left: 12px; vertical-align: middle;
+}
+.footer {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 120px; z-index: 5;
+    display: flex; align-items: center; gap: 20px;
+    background: rgba(24,20,16,.95); border-top: 2px solid #3a352d; padding: 0 36px;
+}
+.nav {
+    width: 150px; height: 88px; border: 2px solid #4a4438; border-radius: 12px;
+    background: #2a251f; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 2px; font-size: 22px; color: #cfc8ba; cursor: pointer;
+}
+.nav:hover { border-color: #6a5f48; }
+.nav .ico { font-size: 34px; line-height: 1; }
+.gobtn {
+    margin-left: auto; height: 88px; padding: 0 60px; border-radius: 12px;
+    font-size: 34px; font-weight: bold; display: flex; align-items: center;
+    border: 2px solid #8a7434; background: linear-gradient(#5a4c28, #463a1e);
+    color: #f0e4be; cursor: pointer;
+}
+.gobtn.dis { opacity: .4; border-color: #4a4438; background: #2a251f; color: #8a8378; font-weight: normal; cursor: default; }
+.btn {
+    border: 2px solid #4a4438; background: #2e2922; color: #d8d2c8;
+    border-radius: 10px; padding: 12px 28px; font-size: 26px; cursor: pointer;
+    font-family: inherit;
+}
+.btn:hover:not(:disabled) { border-color: #6a5f48; }
+.btn:disabled { opacity: .45; cursor: default; }
+.art {
+    background: linear-gradient(160deg, #3a3226 0%, #241f18 60%, #1a1712 100%);
+    border: 2px dashed #55503f; color: #8a8378;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    border-radius: 10px; font-size: 22px;
+}
+.art.full { position: absolute; inset: 0; border-radius: 0; border: none; font-size: 30px; }
+.portrait {
+    background: linear-gradient(180deg, #4a4030, #2a241c);
+    border: 2px solid #55503f; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: #a89a7c; font-size: 52px; font-weight: bold; position: relative;
+}
+.portrait.sel { border-color: #d6b45a; box-shadow: 0 0 0 3px rgba(214,180,90,.5); }
+.bar { height: 14px; background: #2c2823; border-radius: 7px; overflow: hidden; margin: 4px 0 12px; }
+.bar i { display: block; height: 100%; background: #7a9a6a; }
+.panel { background: rgba(30,26,21,.94); border: 2px solid #3a352d; border-radius: 12px; }
+.panel h3 { font-size: 22px; color: #8a8378; letter-spacing: 2px; font-weight: normal; padding: 14px 20px 6px; }
+.card {
+    border: 2px solid #3a352d; border-radius: 10px; background: #242019;
+    padding: 14px 18px; font-size: 24px; cursor: pointer;
+}
+.card:hover { border-color: #6a5f48; }
+.card.sel { border-color: #d6b45a; box-shadow: 0 0 0 2px rgba(214,180,90,.4); }
+.card.dis { opacity: .5; cursor: default; }
+.card .t { color: #e8e0d0; font-weight: bold; }
+.card .m { color: #8a8378; font-size: 20px; margin-top: 4px; }
+.check {
+    position: absolute; top: -12px; right: -12px; width: 44px; height: 44px;
+    border-radius: 50%; background: #4a7a3a; color: #eaf4e0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; border: 2px solid #6a9a5a; z-index: 2;
+}
+.tag { font-size: 18px; color: #c9b98a; background: #3a352d; border-radius: 6px; padding: 1px 10px; }
+.tag.hot { background: #4a3f28; color: #eadfc0; }
+.tag.dim { background: #2a251f; color: #8a8378; }
+.tabs { display: flex; gap: 8px; padding: 14px 20px 0; }
+.tab {
+    padding: 8px 30px; border-radius: 10px 10px 0 0; background: #242019;
+    border: 2px solid #3a352d; border-bottom: none; font-size: 24px; color: #8a8378; cursor: pointer;
+}
+.tab.on { background: #332c22; color: #eadfc0; border-color: #5a5240; }
+
+/* 스탯 줄 — 전체 스탯을 항상 보여주고 오르는 곳만 ▲ (docs/07 §21) */
+.statrow { display: flex; justify-content: space-between; font-size: 24px; }
+.statrow .up { color: #9cc79c; font-weight: bold; }
+.statrow .none { color: #635c50; }
+
+/* 모달 */
+.dim-layer {
+    position: absolute; inset: 0; background: rgba(0,0,0,.55);
+    display: grid; place-items: center; z-index: 20;
+}
+.modal {
+    background: #26221c; border: 2px solid #4a4438; border-radius: 14px;
+    padding: 30px 40px; min-width: 560px; box-shadow: 0 12px 50px rgba(0,0,0,.7);
+}
+.modal h4 { font-size: 30px; color: #eadfc0; margin-bottom: 20px; }
+.modal .mrow { font-size: 25px; padding: 10px 4px; border-bottom: 1px solid #2c2823; color: #b8afa0; }
+
+/* 타이틀 */
+.tmenu { position: absolute; left: 120px; bottom: 160px; display: flex; flex-direction: column; gap: 18px; width: 360px; }
+.tmenu .btn { padding: 18px 0; font-size: 30px; background: rgba(46,41,34,.9); text-align: center; }
+.logo { position: absolute; top: 140px; width: 100%; text-align: center; z-index: 2; }
+.logo .name { font-size: 110px; letter-spacing: 20px; color: #eee2c0; font-weight: bold; text-shadow: 0 6px 24px rgba(0,0,0,.9); }
+.logo .tag-line { font-size: 26px; color: #a89a7c; margin-top: 8px; }
+.ver { position: absolute; right: 28px; bottom: 20px; font-size: 20px; color: #8a8378; z-index: 2; }
+
+/* 오프닝 */
+.opening-text {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+    padding: 60px 300px 80px;
+    background: linear-gradient(transparent, rgba(10,8,6,.95) 40%);
+}
+.name-input {
+    border: 2px solid #5a5240; background: #242019; border-radius: 10px;
+    padding: 16px 30px; font-size: 32px; color: #eadfc0; width: 560px;
+    font-family: inherit; outline: none;
+}
+.name-input:focus { border-color: #8a7434; }

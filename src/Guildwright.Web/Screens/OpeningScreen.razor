@@ -1,0 +1,58 @@
+@* 오프닝 — 정적 삽화 + 내레이션 끝에 길드명을 짓고, 튜토리얼 여부를 고른다 (docs/07 §21). *@
+
+<div class="art full">오프닝 삽화 자리 (정적 그림)</div>
+
+<div class="opening-text">
+    @if (!_named)
+    {
+        <div style="font-size:30px; line-height:1.8; margin-bottom:40px">
+            변경의 작은 길드를 물려받았다. 남은 것은 낡은 건물과 장부 한 권,<br />
+            그리고 문을 두드린 떠돌이 한 명 — 이제 이 길드에 이름을 붙일 차례다.
+        </div>
+        <div style="display:flex; gap:20px; align-items:center; justify-content:center">
+            <input class="name-input" @bind="_name" @bind:event="oninput" placeholder="길드의 이름" maxlength="16" />
+            <div style="font-size:30px; color:#8a8378">길드</div>
+            <button class="btn" style="font-size:30px; border-color:#8a7434; color:#f0e4be"
+                    disabled="@(string.IsNullOrWhiteSpace(_name))" @onclick="Confirm">정했다</button>
+        </div>
+    }
+    else
+    {
+        <div style="font-size:30px; line-height:1.8; margin-bottom:40px; text-align:center">
+            <b style="color:#eadfc0">@Session.GuildName 길드</b>의 문을 연다.<br />
+            첫 해를 어떻게 시작할까.
+        </div>
+        <div style="display:flex; gap:24px; justify-content:center">
+            <div class="card" style="width:420px" @onclick="() => Start(tutorial: true)">
+                <div class="t">첫 해를 함께 시작한다</div>
+                <div class="m">튜토리얼 — 신입 한 명을 1년 키우고 첫 의뢰까지</div>
+            </div>
+            <div class="card" style="width:420px" @onclick="() => Start(tutorial: false)">
+                <div class="t">바로 운영에 들어간다</div>
+                <div class="m">튜토리얼 건너뛰기</div>
+            </div>
+        </div>
+        <div style="margin-top:24px; text-align:center; font-size:20px; color:#8a8378">
+            ※ 튜토리얼 흐름은 코어 연결 단계에서 이어진다 — 지금은 두 선택 모두 메인으로 간다.
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] public required GameSession Session { get; set; }
+
+    private string _name = "";
+    private bool _named;
+
+    private void Confirm()
+    {
+        Session.GuildName = _name.Trim();
+        _named = true;
+    }
+
+    private void Start(bool tutorial)
+    {
+        Session.TutorialChosen = tutorial;
+        Session.Go(Screen.Main);
+    }
+}

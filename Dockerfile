@@ -18,6 +18,8 @@ WORKDIR /src
 COPY Guildwright.sln ./
 COPY src/Guildwright.Core/Guildwright.Core.csproj src/Guildwright.Core/
 COPY src/Guildwright.Console/Guildwright.Console.csproj src/Guildwright.Console/
+COPY src/Guildwright.Web/Guildwright.Web.csproj src/Guildwright.Web/
+COPY src/Guildwright.WebHost/Guildwright.WebHost.csproj src/Guildwright.WebHost/
 COPY tests/Guildwright.Core.Tests/Guildwright.Core.Tests.csproj tests/Guildwright.Core.Tests/
 RUN dotnet restore
 

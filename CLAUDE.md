@@ -1,6 +1,6 @@
 # Guildwright — 에이전트 작업 지침
 
-판타지 길드 경영 + 모험가 육성 + 전술 규칙 기반 자동 전투.
+판타지 길드 경영 + 모험가 육성 + 전투(주인공 동행 시 수동 조작 · 비동행은 규칙 기반 자동).
 1인 개발, Steam PC 상업 출시 목표.
 
 이 파일은 이 저장소에서 작업할 때 지켜야 하는 것만 담는다. 설계 내용은 담지 않는다 —
@@ -35,7 +35,10 @@
 dotnet build && dotnet test
 dotnet run --project src/Guildwright.Console              # 텍스트로 플레이
 dotnet run --project src/Guildwright.Console -- sim 400 5 # 배치 시뮬레이션
-docker build -t guildwright . && docker run -it --rm guildwright   # .NET 없이
+dotnet run --project src/Guildwright.Web                  # 웹 UI (브라우저로 열기)
+docker build -t guildwright . && docker run -it --rm guildwright   # .NET 없이 콘솔
+docker build -f Dockerfile.web -t guildwright-web . && \
+  docker run --rm -p 8080:8080 guildwright-web            # .NET 없이 웹 UI → http://localhost:8080
 ```
 
 `-it`가 없으면 입력을 못 받아 첫 질문에서 종료된다.
