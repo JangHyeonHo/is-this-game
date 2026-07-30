@@ -152,7 +152,7 @@
 - `enum Reach` — 사거리<br>　└ `Melee` · `Extended` · `Ranged`
 - `enum Row` — 전투에서의 위치<br>　└ `Front` · `Back`
 - `class WeaponAptitudes` — 스타일별 무기 적성
-- `enum WeaponKind` — 무기 종류<br>　└ `None` · `Sword` · `Axe` · `Mace` · `Greatsword` · `Spear` · `Shield` · `Bow` · `Crossbow` · `Staff` · `Pickaxe` · `Backpack`
+- `enum WeaponKind` — 무기 종류<br>　└ `None` · `WoodenSword` · `Sword` · `Axe` · `Mace` · `Greatsword` · `Spear` · `Shield` · `Bow` · `Crossbow` · `Staff` · `Pickaxe` · `Backpack`
 - `class WeaponProficiency` — 스타일별 숙련도
 - `enum WeaponSet` — 어느 세트인가<br>　└ `Primary` · `Secondary`
 - `record WeaponSpec` — 무기 하나의 명세

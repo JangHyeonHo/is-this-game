@@ -41,9 +41,16 @@ public static class Display
         Ui.Line($"   [평가서] 확신도 {r.Confidence:P0} ({r.ConfidenceLabel}) {Ui.Bar(r.Confidence)}");
         Ui.Line($"     · {r.TimingText}");
         Ui.Line($"     · {r.TemperamentText}");
-        Ui.Line($"     · 추정 잠재력: 힘{r.EstimatedPotential.Strength} 민{r.EstimatedPotential.Agility} " +
-                $"기{r.EstimatedPotential.Finesse} 활{r.EstimatedPotential.Vitality} " +
-                $"지{r.EstimatedPotential.Intellect} 정{r.EstimatedPotential.Spirit}");
+        // 확신이 낮은데 정밀한 숫자를 주면 가짜 정밀도입니다 — 흐릴수록 어림수로 보여줍니다.
+        Func<int, string> est = r.Confidence switch
+        {
+            < 0.25 => v => $"≈{(int)Math.Round(v / 20.0) * 20}",
+            < 0.60 => v => $"≈{(int)Math.Round(v / 10.0) * 10}",
+            _ => v => v.ToString()
+        };
+        Ui.Line($"     · 추정 잠재력(상한 999): 힘{est(r.EstimatedPotential.Strength)} 민{est(r.EstimatedPotential.Agility)} " +
+                $"기{est(r.EstimatedPotential.Finesse)} 활{est(r.EstimatedPotential.Vitality)} " +
+                $"지{est(r.EstimatedPotential.Intellect)} 정{est(r.EstimatedPotential.Spirit)}");
 
         var top = r.AptitudeHints.OrderByDescending(kv => kv.Value).Take(3)
                    .Select(kv => $"{kv.Key.ToKorean()} {kv.Value}");
@@ -205,14 +212,24 @@ public static class Display
 
     public static TrainingActivity FocusFromIndex(int index) => (TrainingActivity)index;
 
+    /// <summary>활동의 메뉴 번호 (Enter 반복 기본값용).</summary>
+    public static int? FocusIndexOf(TrainingActivity activity)
+    {
+        for (int i = 0; i < 7; i++) if (FocusFromIndex(i) == activity) return i;
+        return null;
+    }
+
     /// <summary>파견 중 현재 상태 — 진척, 파티 HP·마나·회복약.</summary>
     public static void FieldStatus(DeploymentSession session, IReadOnlyList<Adventurer> party)
     {
         var contract = session.Contract;
 
         Ui.Line();
+        // 진척은 목표에서 멈춰 보입니다 — 목표를 넘는 숫자는 "끝났는데 왜 안 오지"로 읽힙니다.
+        // 기간은 고정이므로 (§17.4) 목표를 채워도 남은 기간은 현장에 있습니다.
+        string done = session.Progress >= contract.Intensity ? " · 목표 달성, 기간까지 계속" : "";
         Ui.Line($"   ── {session.CurrentMonth}/{contract.Months}달 · " +
-                $"진척 {session.Progress}/{contract.Intensity}{contract.Form.IntensityLabel()} ──");
+                $"진척 {Math.Min(session.Progress, contract.Intensity)}/{contract.Intensity}{contract.Form.IntensityLabel()}{done} ──");
 
         foreach (var a in party)
         {
@@ -260,11 +277,18 @@ public static class Display
     }
 
     /// <summary>의뢰 한 줄. 게시판에 그대로 씁니다.</summary>
-    public static string ContractLine(Contract c) =>
-        $"[{c.Form.ToKorean()}] {c.Name} — 난이도 {c.Difficulty} · {c.Months}달 · " +
-        $"{c.Intensity}{c.Form.IntensityLabel()} · {c.Source.ToKorean()}" +
-        (c.PartyOnly ? " · 파티 전용" : "") +
-        (c.Persists ? " · 지속" : "");
+    public static string ContractLine(Contract c)
+    {
+        // 보수를 게시판에서 미리 봅니다 — 사전에 계산이 안 되면 의뢰 선택이 도박이 됩니다.
+        string pay = c.Reward == RewardKind.Renown
+            ? "보수 없음 (명성)"
+            : $"보수 ~{(int)(c.Difficulty * CareerRules.IncomePerDifficulty * c.Months / 12.0)}/인";
+
+        return $"[{c.Form.ToKorean()}] {c.Name} — 난이도 {c.Difficulty} · {c.Months}달 · " +
+               $"{c.Intensity}{c.Form.IntensityLabel()} · {pay} · 의뢰주: {c.Source.ToKorean()}" +
+               (c.PartyOnly ? " · 파티 전용" : "") +
+               (c.Persists ? " · 안 받아도 게시판에 남음" : "");
+    }
 
     /// <summary>전투 한 라운드의 진영 상태.</summary>
     public static void Formation(BattleState state)

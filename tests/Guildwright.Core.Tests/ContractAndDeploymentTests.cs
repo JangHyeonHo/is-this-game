@@ -510,4 +510,21 @@ public class ContractAndDeploymentTests(ITestOutputHelper output)
 
         Assert.Equal(Board(555), Board(555));
     }
+
+    [Fact]
+    public void 짐꾼은_적_머릿수_계산에_들어가지_않는다()
+    {
+        // §16.8b — 짐꾼은 비전투 요원입니다. 머릿수에 넣으면 짐꾼을 데려갈수록 적만 늘어나,
+        // "데려갈 이유"가 설계와 반대로 뒤집힙니다.
+        var rng = new DeterministicRandom(7);
+        var seed = Adventurer.Recruit("S", "씨앗", rng.Fork("s"));
+        var fighter = new Adventurer("F", "전사", PrimaryStats.Uniform(10), 10,
+            seed.Growth, job: JobId.SwordApprentice);
+        var porter = new Adventurer("P", "짐꾼", PrimaryStats.Uniform(10), 10,
+            seed.Growth, job: JobId.Porter);
+
+        Assert.Equal(1, DeploymentSession.Combatants([fighter, porter]));
+        Assert.Equal(2, DeploymentSession.Combatants([fighter, fighter]));
+        Assert.Equal(1, DeploymentSession.Combatants([porter])); // 최소 1 — 0으로 나누기 방지
+    }
 }
