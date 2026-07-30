@@ -150,6 +150,48 @@ public class WeaponAndJobTests(ITestOutputHelper output)
         Assert.True(Jobs.Of(JobId.Swordsman).Combat);
     }
 
+    [Fact]
+    public void 기본_장비는_직업에서_나온다()
+    {
+        // 예전 기본값은 직업과 무관하게 검+방패였습니다. 그러면 짐꾼이 가방 없이
+        // 태어나고, 가방을 요구하는 액티브가 조용히 사라집니다 —
+        // 터지지 않고 그냥 아무 일도 안 일어나므로 테스트로만 잡힙니다.
+        var porter = Make(job: JobId.Porter);
+
+        Assert.True(porter.Loadout.CarryingPack);
+        Assert.Contains(SkillId.HandPotion, porter.Actives);
+
+        // 검+방패로 태어났다면 짐 건네기를 쓸 수 없습니다.
+        var swordsman = Make(job: JobId.SwordApprentice);
+        Assert.False(swordsman.Loadout.CarryingPack);
+        Assert.DoesNotContain(SkillId.HandPotion, swordsman.Actives);
+    }
+
+    [Fact]
+    public void 방패병은_방패를_양손에_들지_않는다()
+    {
+        // 방패는 때리는 물건이 아니라서 양손에 들면 아무것도 못 합니다.
+        var shield = Make(job: JobId.ShieldApprentice);
+
+        Assert.True(shield.Loadout.Holding(WeaponKind.Shield));
+        Assert.False(shield.Loadout.Unarmed);
+
+        // 그래도 방패 숙련은 쌓입니다 — 든 것 전부가 오르므로 사다리가 막히지 않습니다.
+        Train(shield, 3);
+        Assert.True(shield.Proficiency[WeaponKind.Shield] > 0);
+    }
+
+    [Fact]
+    public void 요구_무기가_여러개면_기본_장비가_시드에_흔들리지_않는다()
+    {
+        // Dictionary 순회 순서에 기대면 같은 입력이 다른 손 배치를 낼 수 있습니다.
+        var first = Make(job: JobId.SpellArcher).Loadout;
+        var second = Make(job: JobId.SpellArcher).Loadout;
+
+        Assert.Equal(first.ToString(), second.ToString());
+        Assert.Equal(WeaponKind.Bow, first.MainWeapon);
+    }
+
     // ---- 숙련도와 적성 ----
 
     [Fact]

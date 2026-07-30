@@ -92,7 +92,9 @@ public sealed class Adventurer
         Growth = growth;
         Age = age;
         Aptitudes = aptitudes ?? WeaponAptitudes.Uniform(AptitudeGrade.C);
-        Loadout = loadout ?? Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield);
+        // 기본 장비는 직업에서 나옵니다. 검+방패로 고정하면 짐꾼이 가방 없이 태어나고,
+        // 가방을 요구하는 액티브(짐 건네기)가 조용히 죽습니다.
+        Loadout = loadout ?? StartingLoadoutFor(job);
         Job = job;
         Innate = innate ?? [];
     }
@@ -322,13 +324,20 @@ public sealed class Adventurer
         var requires = Jobs.Of(job).Requires;
 
         // 요구 숙련이 없는 시작 직업이므로, 그 계열의 무기를 찾아 들려줍니다.
+        // 여러 무기를 요구하는 히든 직업은 요구가 높은 쪽을 주무기로 봅니다 —
+        // Dictionary 순회 순서에 기대면 같은 시드가 다른 결과를 낼 수 있습니다.
         var kind = requires.Count > 0
-            ? requires.Keys.First()
+            ? requires.OrderByDescending(r => r.Value).ThenBy(r => r.Key).First().Key
             : StartingWeaponFor(job);
 
-        return Weaponry.Of(kind).Hands == Hands.Two
-            ? Loadout.Single(kind)
-            : Loadout.Pair(kind, WeaponKind.Shield);
+        var spec = Weaponry.Of(kind);
+        if (spec.Hands == Hands.Two) return Loadout.Single(kind);
+
+        // 방패처럼 때릴 수 없는 물건은 주손에 들 것이 아닙니다 — 반대 손에 검을 들려줍니다.
+        // (방패를 양손에 든 견습 방패병이 나오면 아무것도 때릴 수 없습니다.)
+        return spec.IsWeapon
+            ? Loadout.Pair(kind, WeaponKind.Shield)
+            : Loadout.Pair(WeaponKind.Sword, kind);
     }
 
     private static WeaponKind StartingWeaponFor(JobId job) => job switch
