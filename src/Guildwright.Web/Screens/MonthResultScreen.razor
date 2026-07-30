@@ -1,5 +1,6 @@
-@* 월 결과 — 상단 중앙에 전체 요약(골드·명성·획득)이 먼저, 아래에 멤버별 경과 (docs/07 §21).
-   실제 성장·정산 수치는 코어 연결 단계에서 코어 계산으로 바뀐다. *@
+@* 월 결과 — 상단 중앙에 전체 요약이 먼저, 아래에 멤버별 경과 (docs/07 §21).
+   훈련 결과는 코어(TrainingYearSession.AdvanceMonth)가 낸 실제 값이다.
+   정산·전리품·파견 경과는 아직 연결 전. *@
 
 <div class="topbar">
     <div>@Session.GuildName 길드</div>
@@ -10,7 +11,7 @@
 <div class="panel" style="position:absolute; top:100px; left:460px; right:460px; text-align:center; padding:18px 0 22px">
     <div style="font-size:34px; color:#eadfc0">이번 달 수확</div>
     <div style="font-size:28px; margin-top:10px">골드 <b style="color:#d6b45a">+0</b> · 명성 <b style="color:#d6b45a">+0</b></div>
-    <div style="font-size:22px; color:#635c50; margin-top:6px">획득 아이템 없음 — 정산·전리품은 코어 연결 단계에서 계산된다</div>
+    <div style="font-size:22px; color:#635c50; margin-top:6px">정산·전리품은 파견을 코어에 연결하는 단계에서 계산된다</div>
 </div>
 
 <div style="position:absolute; top:300px; left:200px; right:200px; display:flex; flex-direction:column; gap:20px">
@@ -19,28 +20,31 @@
         <div class="panel" style="display:flex; gap:24px; padding:20px; align-items:center">
             <div class="portrait" style="width:110px; height:140px; @(member.Free ? "" : "opacity:.7")">@member.Name</div>
             <div style="flex:1; font-size:25px">
-                @if (!member.Free)
+                @if (member.LastOutcome is { } outcome)
                 {
-                    <b style="color:#eadfc0">@member.Name</b> <text>— @member.DeploymentName (남은 @(member.DeployedMonthsLeft)달)</text><br />
-                    <span style="color:#8a8378">파견 경과는 코어 연결 단계에서 실제 교전 기록으로 채워진다</span>
+                    var gains = StatGains(outcome);
+                    <b style="color:#eadfc0">@member.Name</b>
+                    <text> — @TrainingActivities.NameOf(outcome.Activity) · @outcome.Grade.ToKorean()</text><br />
+                    @if (gains.Count > 0 || outcome.ProficiencyGain > 0 || outcome.JudgementGain > 0)
+                    {
+                        <span style="color:#9cc79c">
+                            @(string.Join(" · ", gains))@(outcome.ProficiencyGain > 0 ? $" · 무기 숙련 +{outcome.ProficiencyGain:F1}" : "")@(outcome.JudgementGain > 0 ? $" · 판단력 +{outcome.JudgementGain:F1}" : "")
+                        </span>
+                    }
+                    else
+                    {
+                        <span style="color:#8a8378">능력치 변화 없음</span>
+                    }
+                    <span style="color:#8a8378"> · 피로 @outcome.FatigueAfter · 컨디션 @outcome.ConditionAfter.ToKorean()</span>
                 }
-                else if (member.Assigned is { } activity)
+                else if (!member.Free)
                 {
-                    var profile = TrainingActivities.Of(activity);
-                    <b style="color:#eadfc0">@member.Name</b> <text>— @profile.Name (@profile.Flavor)</text><br />
-                    <span style="color:#9cc79c">@(string.Join(" · ", profile.AffectedStats.Select(s => s.ToKorean() + " ▲")))</span>
-                    @if (profile.ProficiencyPerMonth > 0)
-                    {
-                        <span style="color:#9cc79c"> · 무기 숙련 ▲</span>
-                    }
-                    @if (profile.JudgementPerMonth > 0)
-                    {
-                        <span style="color:#9cc79c"> · 판단력 ▲</span>
-                    }
+                    <b style="color:#eadfc0">@member.Name</b> <text> — @member.DeploymentName (남은 @(member.DeployedMonthsLeft)달)</text><br />
+                    <span style="color:#8a8378">파견 경과는 코어 연결 단계에서 실제 교전 기록으로 채워진다</span>
                 }
                 else
                 {
-                    <b style="color:#eadfc0">@member.Name</b> <text>— 이번 달 기록 없음</text>
+                    <b style="color:#eadfc0">@member.Name</b> <text> — 이번 달 기록 없음</text>
                 }
             </div>
         </div>
@@ -48,7 +52,7 @@
 </div>
 
 <div class="footer">
-    <div class="gobtn" style="margin:0 auto" @onclick="Confirm">확인 — @(NextMonthLabel())로 ▶</div>
+    <div class="gobtn" style="margin:0 auto" @onclick="Session.ConfirmMonth">확인 — @(NextMonthLabel())로 ▶</div>
 </div>
 
 @code {
@@ -60,11 +64,15 @@
         return month > 12 ? $"{Session.Year + 1}년 1월" : $"{month}월";
     }
 
-    private void Confirm()
+    /// <summary>이번 달 실제 상승분 — 정수 반영분이라 0인 스탯은 꼬리로 누적 중이다.</summary>
+    private static List<string> StatGains(MonthOutcome outcome)
     {
-        Session.AdvanceMonth();
-        Session.ClearAssignments();
-        Session.Selected = null;
-        Session.Go(Screen.Main);
+        var gains = new List<string>();
+        foreach (var stat in PrimaryStats.AllStats)
+        {
+            var delta = outcome.StatGain[stat];
+            if (delta != 0) gains.Add($"{stat.ToKorean()} +{delta}");
+        }
+        return gains;
     }
 }

@@ -36,7 +36,9 @@ dotnet build && dotnet test
 dotnet run --project src/Guildwright.Console              # 텍스트로 플레이
 dotnet run --project src/Guildwright.Console -- sim 400 5 # 배치 시뮬레이션
 dotnet run --project src/Guildwright.Web                  # 웹 UI (브라우저로 열기)
-docker build -t guildwright . && docker run -it --rm guildwright   # .NET 없이
+docker build -t guildwright . && docker run -it --rm guildwright   # .NET 없이 콘솔
+docker build -f Dockerfile.web -t guildwright-web . && \
+  docker run --rm -p 8080:8080 guildwright-web            # .NET 없이 웹 UI → http://localhost:8080
 ```
 
 `-it`가 없으면 입력을 못 받아 첫 질문에서 종료된다.

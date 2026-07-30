@@ -70,7 +70,7 @@
             }
         </div>
         <div style="padding:0 20px; font-size:21px; color:#8a8378">
-            활동에 올리면 오른쪽 전체 스탯에 오르는 곳이 ▲로 표시된다. 누르면 배정된다.
+            활동에 올리면 오른쪽 전체 스탯에 <b style="color:#c9b98a">이 아이의 예상 상승치</b>가 뜬다. 누르면 배정된다.
         </div>
     }
     else
@@ -84,18 +84,24 @@
     }
 </div>
 
-@* ── 우: 캐릭터 정보 — 전체 스탯 + 예보 ▲ ── *@
+@* ── 우: 캐릭터 정보 — 전체 스탯을 항상 보여주고, 고른 활동의 예상 수치를 그 위에 얹는다 ── *@
 <div class="panel" style="position:absolute; right:36px; top:100px; bottom:150px; width:580px">
     @if (Session.Selected is { } selected)
     {
-        var previewProfile = PreviewProfile(selected);
+        var preview = PreviewGains(selected);
+        var previewProfile = PreviewActivity is { } activity ? TrainingActivities.Of(activity) : null;
+        var trainingSession = Session.SessionFor(selected);
         <div style="display:flex; gap:20px; padding:20px">
             <div class="portrait" style="width:170px; height:220px">@selected.Name</div>
             <div style="font-size:25px">
                 <div style="color:#eadfc0; font-size:30px; font-weight:bold">@selected.Name</div>
-                @selected.Job · @(selected.Age)세<br />
-                컨디션 @selected.Condition · 피로 @selected.Fatigue<br />
-                @foreach (var proficiency in selected.Proficiencies)
+                @selected.JobLabel · @(selected.Age)세<br />
+                컨디션 @selected.ConditionLabel · 피로 @selected.Fatigue<br />
+                @if (trainingSession.FailureChance > 0)
+                {
+                    <span style="color:#c79c9c">훈련 실패 확률 @(trainingSession.FailureChance.ToString("P0"))</span><br />
+                }
+                @foreach (var proficiency in selected.ProficiencyTags)
                 {
                     <span class="tag">@proficiency</span>
                 }
@@ -104,30 +110,29 @@
         <div style="padding:0 24px">
             @foreach (var stat in PrimaryStats.AllStats)
             {
-                var weight = previewProfile?.WeightOf(stat) ?? 0.0;
                 <div class="statrow">
-                    <span>@stat.ToKorean() @selected.Stats[stat]</span>
-                    @if (weight > 0.0)
+                    <span>@stat.ToKorean() @selected.Adventurer.Stats[stat]</span>
+                    @if (preview.TryGetValue(stat, out var gain))
                     {
-                        <span class="up">@(weight >= 0.75 ? "▲▲" : "▲") 오른다</span>
+                        <span class="up">+@gain.ToString("F1")</span>
                     }
                     else
                     {
                         <span class="none">—</span>
                     }
                 </div>
-                <div class="bar"><i style="width:@(Math.Min(selected.Stats[stat], 100))%"></i></div>
+                <div class="bar"><i style="width:@(Math.Min(selected.Adventurer.Stats[stat], 100))%"></i></div>
             }
             @if (previewProfile is not null && (previewProfile.ProficiencyPerMonth > 0 || previewProfile.JudgementPerMonth > 0))
             {
                 <div style="font-size:22px; color:#9cc79c">
-                    @(previewProfile.ProficiencyPerMonth > 0 ? "무기 숙련 ▲ " : "")@(previewProfile.JudgementPerMonth > 0 ? "판단력 ▲" : "")
+                    @(previewProfile.ProficiencyPerMonth > 0 ? $"무기 숙련 +{previewProfile.ProficiencyPerMonth:F1} " : "")@(previewProfile.JudgementPerMonth > 0 ? $"판단력 +{previewProfile.JudgementPerMonth:F1}" : "")
                 </div>
             }
             <h3 style="padding-left:0">태생 패시브</h3>
             <div style="font-size:24px">
-                @(string.Join(" · ", selected.KnownPassives))
-                <span style="color:#635c50"> @(string.Concat(Enumerable.Repeat(" · ???", selected.HiddenPassiveSlots)))</span>
+                @(selected.InnateLabels.Any() ? string.Join(" · ", selected.InnateLabels) : "없음")
+                <span style="color:#635c50; font-size:20px"> (해금 시스템은 §20.6 구현 전)</span>
             </div>
         </div>
     }
@@ -172,12 +177,14 @@
         if (next is not null) Session.Selected = next;
     }
 
-    /// <summary>오른쪽 스탯 ▲의 근거 — 포커스 중인 활동이 우선, 없으면 배정된 활동.</summary>
-    private TrainingActivityProfile? PreviewProfile(MemberVm member)
-    {
-        var activity = Session.Focused ?? member.Assigned;
-        return activity is { } value ? TrainingActivities.Of(value) : null;
-    }
+    /// <summary>오른쪽 예상 수치의 근거 — 포커스 중인 활동이 우선, 없으면 배정된 활동.</summary>
+    private TrainingActivity? PreviewActivity => Session.Focused ?? Session.Selected?.Assigned;
+
+    /// <summary>코어가 계산한 "이 아이가 이 활동으로 얼마나 오르나" 기대값.</summary>
+    private IReadOnlyDictionary<PrimaryStat, double> PreviewGains(MemberVm member) =>
+        PreviewActivity is { } activity
+            ? Session.Preview(member, activity)
+            : new Dictionary<PrimaryStat, double>();
 
     private static string FatigueLabel(TrainingActivityProfile profile)
     {
@@ -196,6 +203,6 @@
 
     private void StartMonth()
     {
-        if (Session.AllAssigned) Session.Go(Screen.MonthResult);
+        if (Session.AllAssigned) Session.RunMonth();
     }
 }

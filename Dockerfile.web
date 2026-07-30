@@ -1,0 +1,36 @@
+# Guildwright — 웹 UI (Blazor WASM)
+#
+# .NET SDK를 설치하지 않고 브라우저로 플레이하기 위한 이미지입니다.
+#
+#   docker build -f Dockerfile.web -t guildwright-web .
+#   docker run --rm -p 8080:8080 guildwright-web
+#
+# 그다음 브라우저에서 http://localhost:8080 을 엽니다.
+
+# ── 빌드 ────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# 프로젝트 파일만 먼저 복사해서 restore 계층을 캐시합니다.
+COPY Guildwright.sln ./
+COPY src/Guildwright.Core/Guildwright.Core.csproj src/Guildwright.Core/
+COPY src/Guildwright.Console/Guildwright.Console.csproj src/Guildwright.Console/
+COPY src/Guildwright.Web/Guildwright.Web.csproj src/Guildwright.Web/
+COPY src/Guildwright.WebHost/Guildwright.WebHost.csproj src/Guildwright.WebHost/
+COPY tests/Guildwright.Core.Tests/Guildwright.Core.Tests.csproj tests/Guildwright.Core.Tests/
+RUN dotnet restore
+
+COPY . .
+
+# 코어 테스트를 빌드 단계에서 돌립니다. 깨진 채로 이미지가 나가지 않게 하려는 것입니다.
+RUN dotnet test --no-restore -v q
+
+RUN dotnet publish src/Guildwright.WebHost -c Release -o /app --no-restore
+
+# ── 실행 ────────────────────────────────────────────────────
+# WebHost는 발행된 WASM 정적 파일을 서빙하는 초소형 서버입니다 (기본 포트 8080).
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /app .
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "Guildwright.WebHost.dll"]

@@ -1,5 +1,8 @@
 using Guildwright.Core.Adventurers;
+using Guildwright.Core.Rng;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Training;
+using Guildwright.Core.Weapons;
 
 namespace Guildwright.Web;
 
@@ -14,41 +17,51 @@ public enum Screen
 }
 
 /// <summary>
-/// 화면 뼈대용 단원 표시 모델.
-/// <para>
-/// ⚠️ 코어 연결 전의 자리표시다. 코어 연결 단계에서 <c>Adventurer</c>로 교체되며,
-/// 여기 있는 수치는 어떤 규칙의 근거도 아니다.
-/// </para>
+/// 단원 하나 — 코어 <see cref="Adventurer"/>를 감싸고, 화면 상태(배정·파견 잠금)만 얹는다.
+/// 능력치·성장·예보는 전부 코어가 계산한다. 파견은 아직 코어와 연결 전이라
+/// 남은 달수만 표시용으로 든다.
 /// </summary>
 public sealed class MemberVm
 {
-    public required string Name { get; init; }
-    public required string Job { get; init; }
-    public required int Age { get; init; }
-    public required Dictionary<PrimaryStat, int> Stats { get; init; }
-    public int Fatigue { get; set; }
-    public string Condition { get; set; } = "보통";
+    public required Adventurer Adventurer { get; init; }
 
-    /// <summary>0이면 자유. 1 이상이면 파견 중(잠김)이고 남은 달수다.</summary>
+    /// <summary>진행 중인 훈련 세션. 12달을 채우면 결산하고 비운다.</summary>
+    public TrainingYearSession? Session { get; set; }
+
+    /// <summary>0이면 자유. 1 이상이면 파견 중(잠김)이고 남은 달수다. ⚠️ 표시용 자리표시.</summary>
     public int DeployedMonthsLeft { get; set; }
     public string? DeploymentName { get; set; }
 
     /// <summary>이번 달 배정된 훈련. null이면 미배정.</summary>
     public TrainingActivity? Assigned { get; set; }
 
-    public List<string> Proficiencies { get; init; } = [];
-    public List<string> KnownPassives { get; init; } = [];
-    public int HiddenPassiveSlots { get; init; }
+    /// <summary>직전에 실행된 달의 결과 — 월 결과 화면이 보여준다.</summary>
+    public MonthOutcome? LastOutcome { get; set; }
 
     public bool Free => DeployedMonthsLeft <= 0;
+    public string Name => Adventurer.Name;
+    public int Age => Adventurer.Age;
+    public string JobLabel => Jobs.Of(Adventurer.Job).Korean;
+    public int Fatigue => Session?.Fatigue ?? 0;
+    public string ConditionLabel => Session?.Condition.ToKorean() ?? Condition.Normal.ToKorean();
+
+    public IEnumerable<string> ProficiencyTags =>
+        Adventurer.Loadout.Held.Distinct()
+            .Select(kind => $"{kind.ToKorean()} {Adventurer.Proficiency[kind]}");
+
+    public IEnumerable<string> InnateLabels =>
+        Adventurer.Innate.Select(id => SkillBook.Of(id).Korean);
 }
 
 /// <summary>
-/// 화면 전환과 표시 상태. 게임 규칙은 들어 있지 않다 — 그건 코어의 일이고,
-/// 이 클래스는 코어 연결 단계에서 코어 세션의 겉면이 된다.
+/// 화면 전환과 월 루프의 겉면. 성장 계산은 전부 코어(<see cref="TrainingYearSession"/>)가 한다.
+/// 파견·정산·소식은 아직 연결 전이다.
 /// </summary>
 public sealed class GameSession
 {
+    // ⚠️ 자리표시 시드 — 본 게임에서는 새 게임마다 시드를 뽑고 저장 파일에 든다.
+    private readonly DeterministicRandom _rng = new("guildwright-web-prototype");
+
     public Screen Screen { get; private set; } = Screen.Title;
     public event Action? Changed;
 
@@ -61,11 +74,25 @@ public sealed class GameSession
     public int Fame { get; private set; } = 12;
     public int Capacity { get; } = 4;
 
-    public List<MemberVm> Members { get; } = SampleMembers();
+    public List<MemberVm> Members { get; }
     public MemberVm? Selected { get; set; }
 
-    /// <summary>훈련 카드 위에 포커스된 활동 — 오른쪽 전체 스탯에 ▲ 표시를 만든다.</summary>
+    /// <summary>훈련 카드 위에 포커스된 활동 — 오른쪽 전체 스탯에 예상 수치를 만든다.</summary>
     public TrainingActivity? Focused { get; set; }
+
+    public GameSession()
+    {
+        Members =
+        [
+            new() { Adventurer = Adventurer.Recruit("web-1", "세라", _rng.Fork("recruit:1")) },
+            new() { Adventurer = Adventurer.Recruit("web-2", "리안", _rng.Fork("recruit:2")) },
+            new()
+            {
+                Adventurer = Adventurer.Recruit("web-3", "브렌", _rng.Fork("recruit:3")),
+                DeployedMonthsLeft = 2, DeploymentName = "가도 호위"
+            }
+        ];
+    }
 
     public string Season => Month switch { <= 3 => "봄", <= 6 => "여름", <= 9 => "가을", _ => "겨울" };
     public IEnumerable<MemberVm> FreeMembers => Members.Where(m => m.Free);
@@ -82,66 +109,64 @@ public sealed class GameSession
     public void Raise() => Changed?.Invoke();
 
     /// <summary>
-    /// 한 달을 넘긴다 — 표시용 최소 동작만. 성장·정산·전투는 코어 연결 단계에서
-    /// 코어가 계산한 결과로 바뀐다.
+    /// 이 단원의 훈련 세션. 없으면 연다 — 콘솔과 같은 포크 라벨 방식이라 결정적이다.
     /// </summary>
-    public void AdvanceMonth()
+    public TrainingYearSession SessionFor(MemberVm member)
+    {
+        if (member.Session is { } existing) return existing;
+
+        var session = new TrainingYearSession(
+            member.Adventurer, _rng.Fork($"train:{Year}:{Month}:{member.Adventurer.Id}"));
+        member.Session = session;
+        return session;
+    }
+
+    /// <summary>
+    /// 예상 성장 — 코어의 기대값 계산을 그대로 쓴다. 성공/실패에 따라 실제 값은
+    /// 달라지지만, 얼마나 오르는 활동인지는 이 수치가 말해 준다.
+    /// </summary>
+    public IReadOnlyDictionary<PrimaryStat, double> Preview(MemberVm member, TrainingActivity activity) =>
+        SessionFor(member).PreviewMonth(activity).ToDictionary(p => p.Stat, p => p.Gain);
+
+    /// <summary>
+    /// 한 달을 실행한다 — 배정된 훈련을 코어 세션으로 돌리고 결과를 남긴다.
+    /// 파견 경과는 아직 표시용 감산만 한다.
+    /// </summary>
+    public void RunMonth()
     {
         foreach (var member in Members)
         {
-            if (member.Assigned is { } activity)
-                member.Fatigue = Math.Max(0, member.Fatigue + TrainingActivities.Of(activity).FatigueCost);
-            if (member.DeployedMonthsLeft > 0)
+            member.LastOutcome = null;
+
+            if (member.Free && member.Assigned is { } activity)
+            {
+                var session = SessionFor(member);
+                member.LastOutcome = session.AdvanceMonth(activity);
+
+                if (session.IsComplete)
+                {
+                    session.Settle();
+                    member.Session = null;
+                }
+            }
+            else if (!member.Free)
+            {
                 member.DeployedMonthsLeft--;
+            }
         }
+
+        Go(Screen.MonthResult);
+    }
+
+    /// <summary>월 결과 확인 — 달력을 넘기고 배정을 비운다.</summary>
+    public void ConfirmMonth()
+    {
+        foreach (var member in Members) member.Assigned = null;
+        Selected = null;
 
         Month++;
         if (Month > 12) { Month = 1; Year++; }
-    }
 
-    public void ClearAssignments()
-    {
-        foreach (var member in Members) member.Assigned = null;
+        Go(Screen.Main);
     }
-
-    private static List<MemberVm> SampleMembers() =>
-    [
-        new()
-        {
-            Name = "세라", Job = "견습 F", Age = 15,
-            Stats = new()
-            {
-                [PrimaryStat.Strength] = 22, [PrimaryStat.Agility] = 31, [PrimaryStat.Finesse] = 24,
-                [PrimaryStat.Vitality] = 26, [PrimaryStat.Intellect] = 18, [PrimaryStat.Spirit] = 20
-            },
-            Fatigue = 8, Condition = "좋음",
-            Proficiencies = ["한손검 6", "방패 2"],
-            KnownPassives = ["신중"], HiddenPassiveSlots = 2
-        },
-        new()
-        {
-            Name = "리안", Job = "전사 F", Age = 17,
-            Stats = new()
-            {
-                [PrimaryStat.Strength] = 38, [PrimaryStat.Agility] = 29, [PrimaryStat.Finesse] = 25,
-                [PrimaryStat.Vitality] = 41, [PrimaryStat.Intellect] = 15, [PrimaryStat.Spirit] = 17
-            },
-            Fatigue = 21, Condition = "좋음",
-            Proficiencies = ["한손검 14", "방패 9"],
-            KnownPassives = ["고집"], HiddenPassiveSlots = 1
-        },
-        new()
-        {
-            Name = "브렌", Job = "전사 F", Age = 16,
-            Stats = new()
-            {
-                [PrimaryStat.Strength] = 33, [PrimaryStat.Agility] = 27, [PrimaryStat.Finesse] = 22,
-                [PrimaryStat.Vitality] = 35, [PrimaryStat.Intellect] = 14, [PrimaryStat.Spirit] = 16
-            },
-            Fatigue = 30, Condition = "보통",
-            DeployedMonthsLeft = 2, DeploymentName = "가도 호위",
-            Proficiencies = ["한손검 11", "방패 7"],
-            KnownPassives = ["막무가내"], HiddenPassiveSlots = 1
-        }
-    ];
 }
