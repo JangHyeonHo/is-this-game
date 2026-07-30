@@ -204,10 +204,17 @@
 <!-- ═══════════════ 5. 월 결과 ═══════════════ -->
 <h2>화면 5 — 한 달의 결과</h2>
 <div class="note">업무 시작을 누르면 한 달이 진행되고(동행 파견에 전투가 있으면 수동 전투 화면 경유),
-끝나면 이 리포트가 뜬다. 확인하면 다음 달 메인으로.</div>
+끝나면 이 리포트가 뜬다. <b>상단 중앙에 전체 요약(골드·아이템 획득)이 먼저</b> 오고,
+그 아래에 멤버별 경과가 온다. 확인하면 다음 달 메인으로.</div>
 <div class="fit"><div class="stage">
   <div class="topbar"><div>은빛 부엉이 길드</div><div class="mid">1274년 5월의 결과</div><div class="res"><span>자금 <b>320 → 366</b></span></div></div>
-  <div style="position:absolute; top:110px; left:200px; right:200px; display:flex; flex-direction:column; gap:20px">
+  <!-- 상단 중앙 — 이번 달 전체 요약 (골드 · 획득 아이템) 먼저 -->
+  <div class="panel" style="position:absolute; top:100px; left:460px; right:460px; text-align:center; padding:18px 0 22px">
+    <div style="font-size:34px; color:#eadfc0">이번 달 수확</div>
+    <div style="font-size:28px; margin-top:10px">골드 <b style="color:#d6b45a">+46</b> · 명성 <b style="color:#d6b45a">+2</b></div>
+    <div style="font-size:24px; color:#b8afa0; margin-top:6px">획득: 고블린 가죽 ×2 · 체력 포션(소) ×1</div>
+  </div>
+  <div style="position:absolute; top:300px; left:200px; right:200px; display:flex; flex-direction:column; gap:20px">
     <div class="panel" style="display:flex; gap:24px; padding:20px; align-items:center">
       <div class="portrait" style="width:110px; height:140px">리안</div>
       <div style="flex:1; font-size:25px"><b style="color:#eadfc0">리안</b> — 근력 훈련<br><span style="color:#9cc79c">힘 +0.8 · 활력 +0.4</span> · 피로 21→28</div>
@@ -226,10 +233,10 @@
 
 <!-- ═══════════════ 6. 수동 전투 ═══════════════ -->
 <h2>화면 6 — 수동 전투 (동행 파견에서 전투가 나면)</h2>
-<div class="note">유닛은 일러스트 전제. 명령은 메인 푸터와 같은 4분류 — <b>공격 · 스킬 · 아이템 · 후퇴</b>.
-분류를 고르면 목록이 옆에 펼쳐진다(스킬 → 스킬 목록, 아이템 → 들고 온 포션). 후퇴는 확인을
-묻고 파견 결과에 "후퇴"로 기록된다. 이동·대기는 오른쪽 보조 버튼. 마나·쿨다운 부족은
-흐려지고, 공포·혼란인 아군은 조작 불가. 검사는 전부 코어, UI는 표시만.</div>
+<div class="note">유닛은 일러스트 전제. 명령은 한 줄의 분류 버튼 — <b>공격 · 스킬 · 아이템 · 이동 · 대기 · 후퇴</b>.
+분류를 클릭하면 버튼이 옆으로 전환되며 그 분류의 목록이 나온다(애니메이션 상정). 후퇴는 확인을
+묻고 파견 결과에 "후퇴"로 기록된다. 전열/후열이 애매해지면 그 사이 센터 포지션을 추가할 수도
+있다(선택지). 마나·쿨다운 부족은 흐려지고, 공포·혼란인 아군은 조작 불가. 검사는 전부 코어.</div>
 <div class="fit"><div class="stage">
   <div class="art" style="position:absolute; inset:0; border-radius:0; border:none">전장 배경 일러스트 자리 (가도 · 숲)</div>
   <div style="position:absolute; top:0; left:0; right:0; display:flex; gap:12px; padding:16px 36px; background:rgba(20,17,13,.9); font-size:24px; align-items:center">
@@ -264,21 +271,17 @@
       <div style="font-size:28px; color:#eadfc0">브렌의 행동</div>
       <div style="margin-left:auto; font-size:22px; color:#8a8378">지난 턴: 고블린 A가 브렌을 공격 — 7 피해 (계산 보기)</div>
     </div>
-    <div style="display:flex; gap:20px; align-items:flex-start">
-      <div class="nav" style="width:170px"><span class="ico">⚔️</span>공격</div>
-      <div class="nav" style="width:170px; border-color:#8a7434; color:#eadfc0"><span class="ico">✨</span>스킬 ◀</div>
-      <div class="nav" style="width:170px"><span class="ico">🧪</span>아이템</div>
-      <div class="nav" style="width:170px"><span class="ico">🏃</span>후퇴</div>
-      <!-- 선택한 분류의 목록이 옆에 펼쳐진다 -->
-      <div style="display:flex; flex-direction:column; gap:10px">
-        <button class="btn" style="font-size:26px">휘두르기 <small style="color:#8a8378">마나 4 · 쿨 2</small></button>
-        <button class="btn" style="font-size:26px; opacity:.4">도발 <small>마나 부족</small></button>
-      </div>
-      <div style="margin-left:auto; display:flex; flex-direction:column; gap:10px">
-        <button class="btn" style="font-size:24px">후열로 이동 <small style="color:#8a8378">턴 소모</small></button>
-        <button class="btn" style="font-size:24px">대기</button>
-      </div>
+    <div style="display:flex; gap:24px; justify-content:center">
+      <div class="nav" style="width:190px"><span class="ico">⚔️</span>공격</div>
+      <div class="nav" style="width:190px"><span class="ico">✨</span>스킬</div>
+      <div class="nav" style="width:190px"><span class="ico">🧪</span>아이템</div>
+      <div class="nav" style="width:190px"><span class="ico">↔️</span>이동</div>
+      <div class="nav" style="width:190px"><span class="ico">⏳</span>대기</div>
+      <div class="nav" style="width:190px"><span class="ico">🏃</span>후퇴</div>
     </div>
+    <div style="text-align:center; margin-top:12px; font-size:20px; color:#8a8378">
+      분류를 클릭하면 이 버튼들이 오른쪽으로 밀려 사라지고, 그 분류의 목록(스킬·포션·이동처)이
+      새 버튼으로 등장한다 — 좁은 칸에 몰아넣지 않는다.</div>
   </div>
 </div></div>
 
