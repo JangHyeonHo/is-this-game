@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guildwright — 화면 와이어프레임 v3 (1920×1080 고정)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0f0d0b; color:#d8d2c8; font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; line-height:1.5; padding:24px 12px 80px; }
+  .wrap { max-width:1160px; margin:0 auto; }
+  h1 { font-size:20px; margin-bottom:4px; color:#e8e0d0; }
+  .sub { color:#8a8378; font-size:13px; margin-bottom:24px; }
+  h2 { font-size:15px; color:#c9b98a; margin:44px 0 6px; }
+  .note { font-size:12.5px; color:#8a8378; margin-bottom:10px; }
+  .caption { font-size:12.5px; color:#8a8378; margin-top:8px; }
+  .caption b { color:#c9b98a; }
+
+  /* ── 1920×1080 고정 캔버스 (브라우저 폭에 맞춰 비율 유지 축소) ── */
+  .fit { width:100%; overflow:hidden; border:1px solid #3a352d; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+  .stage { width:1920px; height:1080px; position:relative; transform-origin:top left; background:#1c1916; font-size:24px; }
+
+  /* 공통 부품 (스테이지 내부 — 1080p 기준 px) */
+  .topbar { position:absolute; top:0; left:0; right:0; height:76px; display:flex; justify-content:space-between; align-items:center; background:rgba(28,24,19,.92); border-bottom:2px solid #3a352d; padding:0 36px; font-size:26px; }
+  .topbar .mid { color:#e8e0d0; font-weight:bold; }
+  .res { display:flex; gap:36px; }
+  .res b { color:#d6b45a; }
+  .badge { display:inline-block; background:#3a352d; border-radius:6px; padding:2px 14px; font-size:22px; color:#c9b98a; margin-left:12px; vertical-align:middle; }
+  .footer { position:absolute; bottom:0; left:0; right:0; height:120px; display:flex; align-items:center; gap:20px; background:rgba(24,20,16,.95); border-top:2px solid #3a352d; padding:0 36px; }
+  .nav { width:150px; height:88px; border:2px solid #4a4438; border-radius:12px; background:#2a251f; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:22px; color:#cfc8ba; }
+  .nav .ico { font-size:34px; line-height:1; }
+  .gobtn { margin-left:auto; height:88px; padding:0 60px; border-radius:12px; font-size:34px; font-weight:bold; display:flex; align-items:center; border:2px solid #8a7434; background:linear-gradient(#5a4c28,#463a1e); color:#f0e4be; }
+  .gobtn.dis { opacity:.4; border-color:#4a4438; background:#2a251f; color:#8a8378; font-weight:normal; }
+  .btn { border:2px solid #4a4438; background:#2e2922; color:#d8d2c8; border-radius:10px; padding:12px 28px; font-size:26px; }
+  .art { background:linear-gradient(160deg,#3a3226 0%,#241f18 60%,#1a1712 100%); border:2px dashed #55503f; color:#8a8378; display:flex; align-items:center; justify-content:center; text-align:center; border-radius:10px; font-size:22px; }
+  .portrait { background:linear-gradient(180deg,#4a4030,#2a241c); border:2px solid #55503f; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#a89a7c; font-size:52px; font-weight:bold; position:relative; }
+  .bar { height:14px; background:#2c2823; border-radius:7px; overflow:hidden; margin:4px 0 12px; }
+  .bar i { display:block; height:100%; background:#7a9a6a; }
+  .bar.mp i { background:#6a7a9a; }
+  .panel { background:rgba(30,26,21,.94); border:2px solid #3a352d; border-radius:12px; }
+  .panel h3 { font-size:22px; color:#8a8378; letter-spacing:2px; font-weight:normal; padding:14px 20px 6px; }
+  .card { border:2px solid #3a352d; border-radius:10px; background:#242019; padding:14px 18px; font-size:24px; }
+  .card .t { color:#e8e0d0; font-weight:bold; }
+  .card .m { color:#8a8378; font-size:20px; margin-top:4px; }
+  .card.sel { border-color:#d6b45a; box-shadow:0 0 0 2px rgba(214,180,90,.4); }
+  .check { position:absolute; top:-12px; right:-12px; width:44px; height:44px; border-radius:50%; background:#4a7a3a; color:#eaf4e0; display:flex; align-items:center; justify-content:center; font-size:28px; border:2px solid #6a9a5a; }
+  .tag { font-size:18px; color:#c9b98a; background:#3a352d; border-radius:6px; padding:1px 10px; }
+  .tabs { display:flex; gap:8px; padding:14px 20px 0; }
+  .tab { padding:8px 30px; border-radius:10px 10px 0 0; background:#242019; border:2px solid #3a352d; border-bottom:none; font-size:24px; color:#8a8378; }
+  .tab.on { background:#332c22; color:#eadfc0; border-color:#5a5240; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Guildwright — 화면 와이어프레임 v3</h1>
+<div class="sub">기준 해상도 <b>1920×1080 (16:9 고정)</b>. 아래 각 화면은 실제 1080p 캔버스를 비율 그대로
+축소한 것이라, 글자·버튼 크기 감각이 실제 게임과 같습니다. 이미지(키아트·초상화·배경)가
+들어가는 전제이며, 그 자리는 그라데이션 상자로 표시했습니다. 아이콘은 임시(이모지)입니다.</div>
+
+<!-- ═══════════════ 1. 타이틀 ═══════════════ -->
+<h2>화면 1 — 타이틀</h2>
+<div class="note">배경 전체 키아트 + 로고. 메뉴는 좌하단 세로 배치(키아트를 가리지 않게).</div>
+<div class="fit"><div class="stage">
+  <div class="art" style="position:absolute; inset:0; border-radius:0; border:none; font-size:30px">배경 전체 — 키아트 자리 (예산 최우선 투입처)</div>
+  <div style="position:absolute; top:140px; width:100%; text-align:center">
+    <div style="font-size:110px; letter-spacing:20px; color:#eee2c0; font-weight:bold; text-shadow:0 6px 24px rgba(0,0,0,.9)">GUILDWRIGHT</div>
+    <div style="font-size:26px; color:#a89a7c; margin-top:8px">— 가제 · 로고 일러스트로 교체 —</div>
+  </div>
+  <div style="position:absolute; left:120px; bottom:160px; display:flex; flex-direction:column; gap:18px; width:360px">
+    <button class="btn" style="padding:18px 0; font-size:30px; background:rgba(46,41,34,.9)">새로 시작</button>
+    <button class="btn" style="padding:18px 0; font-size:30px; background:rgba(46,41,34,.9); opacity:.45">이어하기 (저장 없음)</button>
+    <button class="btn" style="padding:18px 0; font-size:30px; background:rgba(46,41,34,.9)">설정</button>
+    <button class="btn" style="padding:18px 0; font-size:30px; background:rgba(46,41,34,.9)">게임 종료</button>
+  </div>
+  <div style="position:absolute; right:28px; bottom:20px; font-size:20px; color:#8a8378">v0.1 프로토타입</div>
+</div></div>
+
+<!-- ═══════════════ 2. 오프닝 — 길드명 입력 ═══════════════ -->
+<h2>화면 2 — 오프닝 · 길드명 입력</h2>
+<div class="note">삽화 + 짧은 내레이션(컷신 아님) 끝에 길드의 이름을 짓는다. 이 이름이 이후 모든 화면
+상단에 붙는다. 다음 단계에서 튜토리얼 여부를 묻는다.</div>
+<div class="fit"><div class="stage">
+  <div class="art" style="position:absolute; inset:0; border-radius:0; border:none; font-size:30px">오프닝 삽화 자리 (정적 그림)</div>
+  <div style="position:absolute; left:0; right:0; bottom:0; padding:60px 300px 80px; background:linear-gradient(transparent, rgba(10,8,6,.95) 40%)">
+    <div style="font-size:30px; color:#d8d2c8; margin-bottom:40px; line-height:1.8">
+      변경의 작은 길드를 물려받았다. 남은 것은 낡은 건물과 장부 한 권,<br>
+      그리고 문을 두드린 떠돌이 한 명 — 이제 이 길드에 이름을 붙일 차례다.
+    </div>
+    <div style="display:flex; gap:20px; align-items:center; justify-content:center">
+      <div style="border:2px solid #5a5240; background:#242019; border-radius:10px; padding:16px 30px; font-size:32px; color:#eadfc0; width:560px">은빛 부엉이<span style="color:#635c50">|</span></div>
+      <div style="font-size:30px; color:#8a8378">길드</div>
+      <button class="btn" style="font-size:30px; padding:16px 44px; border-color:#8a7434; color:#f0e4be">정했다</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- ═══════════════ 3. 메인 화면 ═══════════════ -->
+<h2>화면 3 — 메인 (길드 홈)</h2>
+<div class="note">중앙은 길드 사무실 배경 + 단원 스탠딩. 하단 푸터에 4개 아이콘 버튼(캐릭터·길드·의뢰·시스템),
+맨 오른쪽에 업무 시작. 말씀하신 구조 그대로다.</div>
+<div class="fit"><div class="stage">
+  <div class="art" style="position:absolute; inset:76px 0 120px 0; border-radius:0; border:none; font-size:30px">길드 사무실 배경 일러스트 자리</div>
+  <div class="topbar">
+    <div>은빛 부엉이 길드 <span class="badge">랭크 F</span></div>
+    <div class="mid">1274년 4월 · 봄</div>
+    <div class="res"><span>자금 <b>320</b></span><span>명성 <b>12</b></span><span>단원 <b>3/4</b></span></div>
+  </div>
+  <!-- 단원 스탠딩 -->
+  <div style="position:absolute; bottom:150px; left:180px; display:flex; gap:60px; align-items:flex-end">
+    <div style="text-align:center"><div class="portrait" style="width:200px; height:340px">리안<br><small style="font-size:20px; font-weight:normal">스탠딩<br>일러스트</small></div><div class="tag" style="margin-top:8px; display:inline-block">훈련중</div></div>
+    <div style="text-align:center"><div class="portrait" style="width:200px; height:340px; opacity:.55">브렌</div><div class="tag" style="margin-top:8px; display:inline-block">파견중 · 2달</div></div>
+    <div style="text-align:center"><div class="portrait" style="width:200px; height:340px">세라</div><div class="tag" style="margin-top:8px; display:inline-block; background:#4a3f28; color:#eadfc0">지시 대기</div></div>
+  </div>
+  <!-- 소식 패널 -->
+  <div class="panel" style="position:absolute; right:60px; top:140px; width:560px; padding-bottom:16px">
+    <h3>이번 달 소식</h3>
+    <div style="padding:0 20px; font-size:23px; color:#b8afa0; line-height:1.8">
+      · 브렌 — 가도에서 고블린 2마리와 교전, 이상 없음<br>
+      · 새 의뢰 3건이 게시판에 올라왔다<br>
+      · 유지비 정산까지 8달
+    </div>
+  </div>
+  <div class="footer">
+    <div class="nav"><span class="ico">👤</span>캐릭터</div>
+    <div class="nav"><span class="ico">🏰</span>길드</div>
+    <div class="nav"><span class="ico">📜</span>의뢰</div>
+    <div class="nav"><span class="ico">⚙️</span>시스템</div>
+    <div class="gobtn">업무 시작 ▶</div>
+  </div>
+</div></div>
+<div class="caption">푸터 버튼의 행선지 — <b>캐릭터</b>: 단원 목록·상세·전직·장비 / <b>길드</b>: 상점(약국·대장간)·모집·파티·재정 /
+<b>의뢰</b>: 게시판 열람 / <b>시스템</b>: 저장·설정·타이틀로.</div>
+
+<!-- ═══════════════ 4. 업무 준비 ═══════════════ -->
+<h2>화면 4 — 업무 시작 (준비)</h2>
+<div class="note">3단 구성 — 왼쪽에서 캐릭터를 고르고, 가운데에서 그 캐릭터의 이번 달(육성/의뢰)을 정하고,
+오른쪽에 캐릭터 정보가 뜬다. 배정된 캐릭터에는 ✓. <b>전원 배정해야</b> 하단 업무 시작이 켜진다.
+파견 중인 단원은 이미 잠겨 있어 배정 대상에서 빠진다.</div>
+<div class="fit"><div class="stage">
+  <div class="topbar"><div>← 메인으로</div><div class="mid">5월 업무 준비</div><div class="res"><span>자금 <b>320</b></span><span>배정 <b>1/2</b></span></div></div>
+
+  <!-- 좌: 캐릭터 리스트 -->
+  <div class="panel" style="position:absolute; left:36px; top:100px; bottom:150px; width:430px">
+    <h3>단원</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:10px 20px">
+      <div style="text-align:center; position:relative">
+        <div class="portrait" style="width:180px; height:220px">리안<div class="check">✓</div></div>
+        <button class="btn" style="width:180px; margin-top:8px; font-size:24px">리안</button>
+        <div class="tag" style="margin-top:6px; display:inline-block">근력 훈련</div>
+      </div>
+      <div style="text-align:center; position:relative">
+        <div class="portrait" style="width:180px; height:220px; border-color:#d6b45a; box-shadow:0 0 0 3px rgba(214,180,90,.5)">세라</div>
+        <button class="btn" style="width:180px; margin-top:8px; font-size:24px; color:#eadfc0; border-color:#8a7434">세라 ◀</button>
+        <div class="tag" style="margin-top:6px; display:inline-block; background:#2a251f; color:#8a8378">미배정</div>
+      </div>
+      <div style="text-align:center; position:relative; opacity:.5">
+        <div class="portrait" style="width:180px; height:220px">브렌</div>
+        <button class="btn" style="width:180px; margin-top:8px; font-size:24px">브렌</button>
+        <div class="tag" style="margin-top:6px; display:inline-block">파견중 · 잠김</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 중: 행동 선택 -->
+  <div class="panel" style="position:absolute; left:490px; top:100px; bottom:150px; right:640px">
+    <div class="tabs"><div class="tab on">육성</div><div class="tab">의뢰</div></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:20px">
+      <div class="card sel"><div class="t">근력 훈련</div><div class="m">힘 +0.6 · 활력 +0.3 · 피로 +9</div></div>
+      <div class="card"><div class="t">기술 훈련</div><div class="m">기교 +0.5 · 한손검 숙련 ▲ · 피로 +8</div></div>
+      <div class="card"><div class="t">모의전</div><div class="m">여러 능력 조금씩 · 판단력 ▲ · 피로 +12</div></div>
+      <div class="card"><div class="t">학술</div><div class="m">지능 +0.6 · 정신 +0.2 · 피로 +6</div></div>
+      <div class="card"><div class="t">명상</div><div class="m">정신 +0.6 · 마나 ▲ · 피로 +5</div></div>
+      <div class="card"><div class="t">휴식</div><div class="m">피로 크게 회복 · 성장 없음</div></div>
+    </div>
+    <div style="padding:0 20px; font-size:21px; color:#8a8378">예상 성장은 <b style="color:#c9b98a">선택 중인 캐릭터(세라)</b> 기준으로 계산된다.
+    의뢰 탭에서는 게시판의 의뢰를 고르고 파티 편성으로 이어진다.</div>
+  </div>
+
+  <!-- 우: 캐릭터 정보 -->
+  <div class="panel" style="position:absolute; right:36px; top:100px; bottom:150px; width:580px">
+    <div style="display:flex; gap:20px; padding:20px">
+      <div class="portrait" style="width:170px; height:220px">세라</div>
+      <div style="font-size:25px">
+        <div style="color:#eadfc0; font-size:30px; font-weight:bold">세라</div>
+        견습 F · 15세<br>컨디션 좋음 · 피로 8<br>
+        <span class="tag">한손검 6</span> <span class="tag">방패 2</span>
+      </div>
+    </div>
+    <div style="padding:0 24px">
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>힘 22</span><span style="color:#9cc79c">+0.4</span></div><div class="bar"><i style="width:22%"></i></div>
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>민첩 31</span><span style="color:#9cc79c">+0.6</span></div><div class="bar"><i style="width:31%"></i></div>
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>활력 26</span><span style="color:#9cc79c">+0.3</span></div><div class="bar"><i style="width:26%"></i></div>
+      <h3 style="padding-left:0">태생 패시브</h3>
+      <div style="font-size:24px">신중 <span style="color:#635c50">· ??? · ???</span></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div style="font-size:26px; color:#8a8378">전원의 이번 달을 정하면 시작할 수 있다 — <b style="color:#c9b98a">배정 1/2</b></div>
+    <div class="gobtn dis">업무 시작</div>
+  </div>
+</div></div>
+
+<!-- ═══════════════ 5. 월 결과 ═══════════════ -->
+<h2>화면 5 — 한 달의 결과</h2>
+<div class="note">업무 시작을 누르면 한 달이 진행되고(동행 파견에 전투가 있으면 수동 전투 화면 경유),
+끝나면 이 리포트가 뜬다. 확인하면 다음 달 메인으로.</div>
+<div class="fit"><div class="stage">
+  <div class="topbar"><div>은빛 부엉이 길드</div><div class="mid">1274년 5월의 결과</div><div class="res"><span>자금 <b>320 → 366</b></span></div></div>
+  <div style="position:absolute; top:110px; left:200px; right:200px; display:flex; flex-direction:column; gap:20px">
+    <div class="panel" style="display:flex; gap:24px; padding:20px; align-items:center">
+      <div class="portrait" style="width:110px; height:140px">리안</div>
+      <div style="flex:1; font-size:25px"><b style="color:#eadfc0">리안</b> — 근력 훈련<br><span style="color:#9cc79c">힘 +0.8 · 활력 +0.4</span> · 피로 21→28</div>
+    </div>
+    <div class="panel" style="display:flex; gap:24px; padding:20px; align-items:center">
+      <div class="portrait" style="width:110px; height:140px">세라</div>
+      <div style="flex:1; font-size:25px"><b style="color:#eadfc0">세라</b> — 기술 훈련<br><span style="color:#9cc79c">기교 +0.5 · 한손검 숙련 6→8</span></div>
+    </div>
+    <div class="panel" style="display:flex; gap:24px; padding:20px; align-items:center">
+      <div class="portrait" style="width:110px; height:140px; opacity:.7">브렌</div>
+      <div style="flex:1; font-size:25px"><b style="color:#eadfc0">브렌</b> — 가도 호위 (2달째 · 1달 남음)<br>고블린 2마리와 교전, 승리 · HP 78% · <span style="color:#d6b45a">보수는 완료 시 정산</span></div>
+    </div>
+  </div>
+  <div class="footer"><div class="gobtn" style="margin:0 auto">확인 — 6월로 ▶</div></div>
+</div></div>
+
+<!-- ═══════════════ 6. 수동 전투 ═══════════════ -->
+<h2>화면 6 — 수동 전투 (동행 파견에서 전투가 나면)</h2>
+<div class="note">유닛은 일러스트 전제. 차례가 온 아군의 행동·스킬을 직접 고른다. 마나·쿨다운 부족은
+흐려지고, 공포·혼란인 아군은 조작 불가. 검사는 전부 코어, UI는 표시만.</div>
+<div class="fit"><div class="stage">
+  <div class="art" style="position:absolute; inset:0; border-radius:0; border:none">전장 배경 일러스트 자리 (가도 · 숲)</div>
+  <div style="position:absolute; top:0; left:0; right:0; display:flex; gap:12px; padding:16px 36px; background:rgba(20,17,13,.9); font-size:24px; align-items:center">
+    행동 순서:&nbsp;<span class="tag" style="background:#4a3f28; color:#eadfc0; font-size:24px; padding:4px 18px">브렌</span>
+    <span class="tag" style="font-size:24px; padding:4px 18px">고블린 A</span><span class="tag" style="font-size:24px; padding:4px 18px">세라</span>
+    <span class="tag" style="font-size:24px; padding:4px 18px">고블린 B</span><span class="tag" style="font-size:24px; padding:4px 18px">고블린 C</span>
+  </div>
+  <!-- 아군 -->
+  <div style="position:absolute; left:120px; bottom:280px; display:flex; gap:50px; align-items:flex-end">
+    <div style="text-align:center"><div style="font-size:20px; color:#8a8378; margin-bottom:4px">후열</div>
+      <div class="portrait" style="width:190px; height:300px">세라</div>
+      <div style="width:190px"><div class="bar"><i style="width:92%"></i></div><div class="bar mp"><i style="width:60%"></i></div></div></div>
+    <div style="text-align:center"><div style="font-size:20px; color:#c9b98a; margin-bottom:4px">전열 · ◀ 차례</div>
+      <div class="portrait" style="width:210px; height:330px; border-color:#d6b45a; box-shadow:0 0 0 4px rgba(214,180,90,.5)">브렌</div>
+      <div style="width:210px"><div class="bar"><i style="width:78%"></i></div><div class="bar mp"><i style="width:40%"></i></div></div></div>
+  </div>
+  <!-- 적 -->
+  <div style="position:absolute; right:120px; bottom:280px; display:flex; gap:50px; align-items:flex-end">
+    <div style="text-align:center"><div style="font-size:20px; color:#8a8378; margin-bottom:4px">전열</div>
+      <div class="portrait" style="width:190px; height:280px; background:linear-gradient(180deg,#4a3030,#2a1c1c)">고블린 A</div>
+      <div style="width:190px"><div class="bar"><i style="width:65%; background:#9a6a6a"></i></div></div></div>
+    <div style="text-align:center"><div style="font-size:20px; color:#8a8378; margin-bottom:4px">전열</div>
+      <div class="portrait" style="width:190px; height:280px; background:linear-gradient(180deg,#4a3030,#2a1c1c)">고블린 B</div>
+      <div style="width:190px"><div class="bar"><i style="width:100%; background:#9a6a6a"></i></div></div></div>
+    <div style="text-align:center; opacity:.55"><div style="font-size:20px; color:#8a8378; margin-bottom:4px">후열 · 혼란</div>
+      <div class="portrait" style="width:190px; height:280px; background:linear-gradient(180deg,#4a3030,#2a1c1c)">고블린 C</div>
+      <div style="width:190px"><div class="bar"><i style="width:80%; background:#9a6a6a"></i></div></div></div>
+  </div>
+  <!-- 명령 패널 -->
+  <div style="position:absolute; left:0; right:0; bottom:0; background:rgba(20,17,13,.94); border-top:2px solid #3a352d; padding:24px 36px">
+    <div style="font-size:28px; color:#eadfc0; margin-bottom:14px">브렌의 행동 — 대상을 고르면 실행</div>
+    <div style="display:flex; gap:16px">
+      <button class="btn" style="font-size:27px">공격 <small style="color:#8a8378">철검</small></button>
+      <button class="btn" style="font-size:27px">휘두르기 <small style="color:#8a8378">마나 4 · 쿨 2</small></button>
+      <button class="btn" style="font-size:27px; opacity:.4">도발 <small>마나 부족</small></button>
+      <button class="btn" style="font-size:27px">후열로 이동 <small style="color:#8a8378">턴 소모</small></button>
+      <button class="btn" style="font-size:27px">대기</button>
+      <div style="margin-left:auto; font-size:22px; color:#8a8378; align-self:center">지난 턴: 고블린 A가 브렌을 공격 — 7 피해 (계산 보기)</div>
+    </div>
+  </div>
+</div></div>
+
+<div class="caption" style="margin-top:32px">
+  공통 규칙 — ① 최소 검증 해상도 1280×800(Steam Deck)에서 글자가 읽히는 크기 유지(본문 24px/1080p 기준)
+  ② 어느 화면에도 돌아가기/ESC ③ 숨겨진 성장 정보는 어떤 화면에도 안 나온다
+  ④ UI에 계산 로직을 두지 않는다 ⑤ 16:9 고정 + 다른 비율은 레터박스.
+</div>
+
+</div>
+<script>
+  function fit(){
+    document.querySelectorAll('.fit').forEach(function(f){
+      var s=f.querySelector('.stage'), k=f.clientWidth/1920;
+      s.style.transform='scale('+k+')'; f.style.height=(1080*k)+'px';
+    });
+  }
+  addEventListener('resize',fit); fit();
+</script>
+</body>
+</html>
