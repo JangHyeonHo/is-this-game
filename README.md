@@ -39,7 +39,7 @@ tests/
 docs/
   00-charter.md             프로젝트 헌장 — 목적 · 제약 · 성공 기준
   01-game-design.md         게임 디자인 — 규칙 전부
-  02-architecture.md        소프트웨어 설계
+  02-architecture.md        소프트웨어 설계 개요 (시스템별 상세: docs/design/)
   06-roadmap.md             로드맵 · 마일스톤
   09~11-research-*.md       시장 · 기술 · 아트 리서치 (2026-07)
   adr/                      주요 기술 결정과 그 근거

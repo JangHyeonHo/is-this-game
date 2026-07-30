@@ -35,7 +35,7 @@
 |---|---|
 | 그 기능 있나 | [04-implemented.generated.md](04-implemented.generated.md) — 코드에서 생성. 없으면 없는 것 |
 | 지금 게임이 어떻게 굴러가나 | [01-game-design.md](01-game-design.md) — 명세 |
-| 코드가 어떻게 나뉘어 있나 | [02-architecture.md](02-architecture.md) — 설계서 |
+| 코드가 어떻게 나뉘어 있나 | [02-architecture.md](02-architecture.md) — 개요. 시스템별 상세는 [design/](design/) |
 | 그 수치가 어디 있나 | [03-formulas.md](03-formulas.md) — 코드 위치 지도 |
 | 왜 · 누가 정했나 | [07-decisions.md](07-decisions.md) — 결정 기록 |
 | 왜 그 숫자인가 | [08-balance-log.md](08-balance-log.md) — 측정 기록 |
@@ -55,6 +55,7 @@
 | 공개 타입을 바꿨다 | `UPDATE_INVENTORY=1 dotnet test --filter SystemInventory` — 같은 커밋에 |
 | 코드에서 수치를 바꿨다 | 문서에 값을 복사하지 않는다. 코드가 정본이다 |
 | 없던 기능을 만들었다 | [05-gaps.md](05-gaps.md)에서 그 줄을 지우고 명세에 쓴다 |
+| 시스템 설계가 바뀌었다 | [design/](design/)의 그 시스템 파일을 덮어쓴다. 새 시스템이면 파일을 만들고 [02](02-architecture.md)의 색인에 줄을 넣는다 |
 | 제약을 풀었다 · 원인을 알아냈다 | [05-gaps.md](05-gaps.md)에서 그 줄을 지운다. 쌓이면 낡은 걱정 목록이 된다 |
 
 ## 3. 표기 — 누가 정했는가
