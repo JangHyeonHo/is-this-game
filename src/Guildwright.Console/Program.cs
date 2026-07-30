@@ -53,15 +53,6 @@ internal sealed class Guild(IRandomSource rng)
     /// </summary>
     private readonly PartyLedger _parties = new();
 
-    /// <summary>
-    /// 평가서 캐시.
-    /// <para>
-    /// <b>같은 상황에서 다시 보면 같은 내용이어야 합니다.</b> 볼 때마다 새로 굴리면
-    /// 화면을 다시 여는 것만으로 추정치가 바뀌어, 정보로서 의미가 없어집니다.
-    /// 관찰 연차나 감정 역량이 달라졌을 때만 새로 굴립니다.
-    /// </para>
-    /// </summary>
-    private readonly Dictionary<string, (int Years, int Skill, ScoutingReport Report)> _reports = [];
     private readonly List<Adventurer> _retired = [];
     private readonly List<string> _chronicle = [];
 
@@ -327,7 +318,6 @@ internal sealed class Guild(IRandomSource rng)
                 {
                     Display.StatSheet(member);
                     ShowSessionGains(member);
-                    Display.Scouting(member, ReportFor(member));
                     // 계열 전향(수평 이동)은 상세에서만 — 매달 메뉴에 열 개씩 늘어놓을 일이 아닙니다.
                     if (upgrades.Count > 0 && Ui.Confirm("   전직 목록을 보시겠습니까"))
                     {
@@ -390,14 +380,11 @@ internal sealed class Guild(IRandomSource rng)
     /// <summary>전직합니다. 고집을 타고났으면 다른 계열로는 가지 않습니다 (§16.8).</summary>
     private void ChangeJob(Adventurer member, List<Job> upgrades)
     {
-        // 무기 적성은 숨겨진 값이므로 평가서의 추정만 보여줍니다 — 실제 값이 새면 게임이 망가집니다.
-        var hints = ReportFor(member).AptitudeHints;
         var labels = upgrades
             .Select(j =>
             {
                 var weapon = Adventurer.StartingWeaponFor(j.Id);
-                string apt = hints.TryGetValue(weapon, out var g) ? $" · {weapon.ToKorean()} 적성(추정) {g}" : "";
-                return $"{j.Korean} — 액티브 슬롯 {j.ActiveSlots} · 수주 난이도 {j.MaxContractDifficulty}{apt}" +
+                return $"{j.Korean} — {weapon.ToKorean()} · 액티브 슬롯 {j.ActiveSlots} · 수주 난이도 {j.MaxContractDifficulty}" +
                        (j.Grants.Count > 0
                            ? $" · {string.Join(", ", j.Grants.Select(gr => SkillBook.Of(gr).Korean))}"
                            : "");
@@ -507,10 +494,6 @@ internal sealed class Guild(IRandomSource rng)
     {
         Ui.Section($"{_year}년 {_month}월 · 모집   자금 {_funds} · 단원 {_members.Count}/{RosterCapacity}");
 
-        // 감정 역량이 높은 은퇴자(멘토)가 있으면 후보를 더 정확히 봅니다.
-        double appraisal = GuildAppraisalSkill();
-        if (appraisal > 0) Ui.Note($"길드 감정 역량 {appraisal:P0} — 은퇴한 선배가 후보의 재능을 알아봅니다.");
-
         var candidates = new List<Adventurer>();
         for (int i = 0; i < NamePoolSize; i++)
         {
@@ -520,13 +503,17 @@ internal sealed class Guild(IRandomSource rng)
         var labels = new List<string>();
         Ui.Line();
 
+        // 평가서는 없습니다 (docs/07 §19 — 사용자 결정으로 제거). 보이는 것은 지금의
+        // 능력치와 희망 직업뿐이고, 성장 곡선은 키워 보기 전에는 알 수 없습니다.
         for (int i = 0; i < candidates.Count; i++)
         {
-            var report = ReportFor(candidates[i]);
+            var c = candidates[i];
             Ui.Line($"   ── 후보 {i + 1} ──");
-            Display.Scouting(candidates[i], report);
+            Ui.Line($"   {c.Name} ({c.Age}세) · 희망 직업: {c.Title}");
+            Ui.Line($"   힘{c.Stats.Strength} 민{c.Stats.Agility} 기{c.Stats.Finesse} " +
+                    $"활{c.Stats.Vitality} 지{c.Stats.Intellect} 정{c.Stats.Spirit}");
             Ui.Line();
-            labels.Add($"{candidates[i].Name} 영입 (계약금 {RecruitCost})");
+            labels.Add($"{c.Name} 영입 (계약금 {RecruitCost})");
         }
 
         // 길드 랭크가 최대 인원을 정합니다 (§17.10).
@@ -576,34 +563,26 @@ internal sealed class Guild(IRandomSource rng)
         Ui.Section("1년 봄 — 첫 단원");
         Ui.Note("길드의 첫 지원자가 문을 두드립니다. 맨손의 열다섯 살입니다.");
 
-        // 고정 캐릭터 — 평가서가 반드시 틀리도록 실제 곡선을 심습니다:
-        // 실제는 대기만성 · 실전형 · 높은 잠재력. 평가서는 정반대로 말합니다.
+        // 고정 캐릭터 — 평범형입니다 (docs/07 §19). 첫 해의 목적은 육성 손맛을 익히는 것이라
+        // 극단적인 곡선보다 표준적인 성장이 낫습니다.
         var first = new Adventurer(
             "T0", "리안(떠돌이)",
-            new PrimaryStats(9, 11, 10, 12, 8, 9),
-            judgement: 14,
+            new PrimaryStats(11, 11, 12, 12, 10, 10),
+            judgement: 16,
             new GrowthProfile
             {
-                PeakAge = 25, BloomWidth = 6.0,
-                Temperament = Temperament.Battleborn,
-                Potential = new PrimaryStats(84, 72, 78, 88, 44, 52),
-                DeclineAge = 38
+                PeakAge = 21, BloomWidth = 5.0,
+                Temperament = Temperament.Balanced,
+                Potential = new PrimaryStats(66, 62, 64, 68, 55, 58),
+                DeclineAge = 36
             },
             loadout: Loadout.Pair(WeaponKind.WoodenSword, WeaponKind.None));
         _members.Add(first);
 
-        // 가짜 평가서 — 조숙 · 수련형 · 낮은 잠재력이라고 말합니다. 전부 틀렸습니다.
-        var wrong = new ScoutingReport(
-            BloomTiming.Early, Temperament.Studious,
-            new PrimaryStats(55, 48, 50, 58, 40, 45),
-            Confidence: 0.2,
-            new Dictionary<WeaponKind, AptitudeGrade>
-            {
-                [WeaponKind.Sword] = AptitudeGrade.B,
-                [WeaponKind.Shield] = AptitudeGrade.C,
-                [WeaponKind.Bow] = AptitudeGrade.C
-            });
-        Display.Scouting(first, wrong);
+        Ui.Line($"   {first.Name} ({first.Age}세) · 희망 직업: {first.Title}");
+        Ui.Line($"   힘{first.Stats.Strength} 민{first.Stats.Agility} 기{first.Stats.Finesse} " +
+                $"활{first.Stats.Vitality} 지{first.Stats.Intellect} 정{first.Stats.Spirit}");
+        Ui.Note("성장 곡선은 보이지 않습니다 — 어떤 아이인지는 키워 봐야 압니다.");
         Ui.Note("무기고가 비어 있어 나무검을 쥐여 줍니다.");
         Ui.Pause("1년 동안 이 아이를 키웁니다 — 계속하려면 Enter");
 
@@ -614,33 +593,6 @@ internal sealed class Guild(IRandomSource rng)
             while (!TrainMonth(first, allowBack: false)) { }
         }
         SettleTraining(first);
-
-        // 진실 공개 — 글로 설명하면 안 읽히므로 실제와 대조해서 보여줍니다 (§1).
-        // Growth를 직접 읽는 유일한 자리입니다. 튜토리얼의 설계된 예외입니다.
-        var g = first.Growth;
-        string timing = g.Timing switch
-        {
-            BloomTiming.Early => "조숙 — 일찍 핀다",
-            BloomTiming.Late => "대기만성 — 늦게 핀다",
-            _ => "보통"
-        };
-        string temper = g.Temperament switch
-        {
-            Temperament.Studious => "수련형 — 훈련장에서 배운다",
-            Temperament.Battleborn => "실전형 — 싸움터에서 배운다",
-            _ => "균형형"
-        };
-
-        Ui.Section("1년이 지났다 — 평가서를 다시 본다");
-        Ui.Line("                 평가서가 말한 것          실제");
-        Ui.Line($"   개화 시기      일찍 피는 편             {timing}   ← 틀렸습니다");
-        Ui.Line($"   기질          훈련장에서 배우는 타입     {temper}   ← 틀렸습니다");
-        Ui.Line($"   잠재력(힘)     {wrong.EstimatedPotential.Strength}                      {g.Potential.Strength}");
-        Ui.Line($"   잠재력(활력)   {wrong.EstimatedPotential.Vitality}                      {g.Potential.Vitality}");
-        Ui.Line();
-        Ui.Note("평가서는 틀립니다. 이 게임의 모든 판단은 틀릴 수 있는 정보 위에서 내려집니다.");
-        Ui.Note("확신도가 낮을수록 크게 틀립니다 — 함께 보낸 시간과 멘토가 확신도를 올립니다.");
-        Ui.Pause();
 
         // 첫 의뢰 — 주인공이 짐꾼으로 동행합니다 (2인 충족 · §1).
         // 주인공은 싸우지 않습니다. 싸우면 1년 훈련의 결과가 화면에 나타나지 않습니다.
@@ -723,33 +675,6 @@ internal sealed class Guild(IRandomSource rng)
         return Names.Next(rng);
     }
 
-    /// <summary>캐시된 평가서를 가져옵니다. 상황이 바뀌었을 때만 다시 굴립니다.</summary>
-    private ScoutingReport ReportFor(Adventurer a)
-    {
-        double skill = GuildAppraisalSkill();
-        int skillBucket = (int)Math.Round(skill * 20);   // 5%p 단위로만 갱신
-
-        if (_reports.TryGetValue(a.Id, out var cached) &&
-            cached.Years == a.CompletedYears && cached.Skill == skillBucket)
-        {
-            return cached.Report;
-        }
-
-        var fresh = Appraiser.Appraise(a, skill, rng.Fork($"appraise:{a.Id}:{a.CompletedYears}:{skillBucket}"));
-        _reports[a.Id] = (a.CompletedYears, skillBucket, fresh);
-        return fresh;
-    }
-
-    private double GuildAppraisalSkill()
-    {
-        double fromMembers = 0.0;
-
-        double fromMentors = _retired.Count == 0
-            ? 0.0
-            : _retired.Max(r => Mentorship.From(r).AppraisalBonus);
-
-        return Math.Clamp(Math.Max(fromMembers, fromMentors), 0.0, 1.0);
-    }
 
     // ── 연간 계획과 실행 ────────────────────────────────────
 

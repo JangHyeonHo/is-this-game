@@ -33,30 +33,6 @@ public static class Display
         if (a.Innate.Count > 0) Ui.Note($"타고난 것: {string.Join(", ", a.Innate.Select(id => SkillBook.Of(id).Korean))}");
     }
 
-    /// <summary>플레이어가 볼 수 있는 정보만 담긴 평가서.</summary>
-    public static void Scouting(Adventurer a, ScoutingReport r)
-    {
-        Ui.Line($"   {a.Name} ({a.Age}세)  힘{a.Stats.Strength} 민{a.Stats.Agility} 기{a.Stats.Finesse} " +
-                $"활{a.Stats.Vitality} 지{a.Stats.Intellect} 정{a.Stats.Spirit}");
-        Ui.Line($"   [평가서] 확신도 {r.Confidence:P0} ({r.ConfidenceLabel}) {Ui.Bar(r.Confidence)}");
-        Ui.Line($"     · {r.TimingText}");
-        Ui.Line($"     · {r.TemperamentText}");
-        // 확신이 낮은데 정밀한 숫자를 주면 가짜 정밀도입니다 — 흐릴수록 어림수로 보여줍니다.
-        Func<int, string> est = r.Confidence switch
-        {
-            < 0.25 => v => $"≈{(int)Math.Round(v / 20.0) * 20}",
-            < 0.60 => v => $"≈{(int)Math.Round(v / 10.0) * 10}",
-            _ => v => v.ToString()
-        };
-        Ui.Line($"     · 추정 잠재력(상한 999): 힘{est(r.EstimatedPotential.Strength)} 민{est(r.EstimatedPotential.Agility)} " +
-                $"기{est(r.EstimatedPotential.Finesse)} 활{est(r.EstimatedPotential.Vitality)} " +
-                $"지{est(r.EstimatedPotential.Intellect)} 정{est(r.EstimatedPotential.Spirit)}");
-
-        var top = r.AptitudeHints.OrderByDescending(kv => kv.Value).Take(3)
-                   .Select(kv => $"{kv.Key.ToKorean()} {kv.Value}");
-        Ui.Line($"     · 어울려 보이는 무기: {string.Join(", ", top)}");
-    }
-
     /// <summary>
     /// 1년 계획의 예상 결과 — 원천 성장, 전투 수치 변화, 달마다의 피로.
     /// <para>
