@@ -420,19 +420,27 @@ public class WeaponAndJobTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void 태생은_파티_전체_직업은_자신에게만()
+    public void 태생과_직업은_획득_경로가_다른_축이다()
     {
-        // 이 배치가 "좋은 성격을 타고난 캐릭터가 육성 성과를 압도하는" 문제를 막습니다.
-        foreach (var skill in SkillBook.Catalogue
-            .Where(s => s.Source == SkillSource.Innate && s.Boosts is not null))
+        // ⚠️ 예전 이 테스트는 "태생은 파티 전체, 직업은 자신에게만"을 고정했습니다.
+        //    그것은 docs/08 §10에 "[제안] 밸런스 축 — 승인 안 됨"으로 적힌
+        //    에이전트 안이고, 테스트로 고정하면 다음 세션이 주인님의 결정으로 읽습니다.
+        //    승인 안 된 배치를 고정하지 않고, 확정된 것만 고정합니다.
+        //
+        // 확정된 것: 태생은 타고나는 것이고 직업은 배우는 것 — 획득 경로가 다릅니다 (§10).
+        foreach (var id in SkillBook.InnatePool)
         {
-            Assert.True(skill.PartyWide, $"{skill.Korean}이 파티 오라가 아닙니다.");
+            Assert.Equal(SkillSource.Innate, SkillBook.Of(id).Source);
         }
 
-        foreach (var skill in SkillBook.Catalogue.Where(s => s.Source == SkillSource.Job))
+        // 직업이 주는 것은 직업 스킬이어야 합니다. 직업이 태생을 주면 두 축이 붕괴합니다 —
+        // "타고난다"와 "배운다"가 같아지기 때문입니다.
+        foreach (var job in Jobs.Catalogue)
         {
-            Assert.False(skill.PartyWide,
-                $"{skill.Korean}이 파티 오라입니다 — 직업 스킬은 자신에게만 걸립니다.");
+            foreach (var id in job.Grants)
+            {
+                Assert.Equal(SkillSource.Job, SkillBook.Of(id).Source);
+            }
         }
     }
 

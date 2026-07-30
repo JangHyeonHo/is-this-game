@@ -59,6 +59,14 @@ public enum SkillId
     Sweep,
     /// <summary>회복약을 아군에게 씁니다. <b>짐꾼의 핵심</b>입니다.</summary>
     HandPotion,
+    /// <summary>
+    /// 관통 사격 — <b>적 후열을 노립니다.</b>
+    /// <para>
+    /// 원거리 무기를 들었다고 후열이 열리는 게 아니라 <b>이걸 배워야</b> 열립니다.
+    /// §10 "[확정] 스킬이 떠맡게 된 것" 표의 <c>CanStrikeBackRow → 스킬</c>이 이 줄입니다.
+    /// </para>
+    /// </summary>
+    PiercingShot,
 
     // ---- 직업 패시브 — 숙련도가 여는 것 ----
     /// <summary>쌍수 숙달. 치명타가 자잘하게 자주 터집니다.</summary>
@@ -69,15 +77,16 @@ public enum SkillId
     Shielding,
     /// <summary>조준. 활을 오래 쏴서 얻은 명중.</summary>
     SteadyAim,
-    /// <summary>짐 다루기. 더 많이 나릅니다.</summary>
+    /// <summary>짐 다루기. 무거운 짐을 지고도 버팁니다.</summary>
     Packcraft,
 
-    // ---- 태생 패시브 (성격) — 파티 전체에 걸립니다 ----
-    /// <summary>신중. 파티의 기교가 오르되 조우가 줄어듭니다.</summary>
+    // ---- 태생 패시브 (성격) ----
+    // ⚠️ 효과가 파티 전체인지 자신인지는 [제안]일 뿐 승인되지 않았습니다 (docs/08 §10).
+    /// <summary>신중. 방어가 오르되 느려집니다.</summary>
     Careful,
-    /// <summary>막무가내. 파티의 위력이 오르되 회피가 떨어집니다.</summary>
+    /// <summary>막무가내. 위력이 오르되 회피가 떨어집니다.</summary>
     Reckless,
-    /// <summary>분위기 메이커. 파티의 정신이 버텨줍니다.</summary>
+    /// <summary>분위기 메이커. 마법 방어가 오르되 물리 위력이 떨어집니다.</summary>
     Cheerful,
     /// <summary>고집. <b>플레이어의 전직 권유를 듣지 않습니다.</b></summary>
     Stubborn
@@ -122,8 +131,14 @@ public enum SkillId
 /// <param name="PartyWide">
 /// 파티 전체에 걸리는가.
 /// <para>
-/// 태생은 <b>약하지만 파티 전체</b>, 직업은 <b>강하지만 자신</b>입니다.
-/// 이 배치가 "좋은 성격을 타고난 캐릭터가 육성 성과를 압도하는" 문제를 막습니다.
+/// ⚠️ <b>[제안] — 승인되지 않았습니다.</b> "태생은 약하지만 파티 전체, 직업은 강하지만
+/// 자신"은 <b>에이전트가 낸 밸런스 안</b>이고, docs/08 §10에 <b>"[제안] 밸런스 축 —
+/// 승인 안 됨"</b>으로 명시되어 있습니다. 지금 표의 값이 그 안대로 들어가 있으나
+/// <b>주인님의 결정으로 인용하지 마세요.</b>
+/// </para>
+/// <para>
+/// 확정된 것은 §10의 <b>"오라 = 파티 전체 패시브"</b>라는 형태뿐이고, 태생과 직업 중
+/// 어느 쪽이 오라를 갖는지·세기가 어떻게 갈리는지는 정해지지 않았습니다.
 /// </para>
 /// </param>
 public sealed record Skill(
@@ -196,6 +211,11 @@ public static class SkillBook
             Action: TacticAction.GivePotion, RequiresWeapon: WeaponKind.Backpack,
             ManaCost: 0, Cooldown: 1),
 
+        // 후열 타격은 무기가 아니라 이 스킬이 엽니다 (§10).
+        // 사거리는 무기가 정하지만, 그 사거리로 뒤를 노리는 것은 배워야 합니다.
+        new(SkillId.PiercingShot, "관통 사격", SkillSource.Job, SkillForm.Active,
+            Action: TacticAction.AttackBackRow, ManaCost: 4, Cooldown: 1),
+
         // ---- 직업 패시브 — 숙련도가 여는 것 ----
         // 치명타 특성이 여기 있는 이유: 초보가 쌍수를 들었다고 바로 자잘하게 잘 터지는 건
         // 이상합니다. 그건 무기의 성질이 아니라 오래 써서 얻은 것입니다.
@@ -217,8 +237,8 @@ public static class SkillBook
             Boosts: DerivedStat.MaxHp, BoostAmount: 6.0),
 
         // ---- 태생 패시브 (성격) ----
-        // 약하지만 파티 전체에 걸리고, 이득에는 대가가 붙습니다.
-        // 대가가 없으면 모두가 같은 성격을 원하게 되어 성격이 서열이 됩니다.
+        // 이득에는 대가가 붙습니다 — 대가가 없으면 모두가 같은 성격을 원해 성격이 서열이 됩니다.
+        // ⚠️ PartyWide 배치와 세기는 [제안]이며 승인되지 않았습니다 (docs/08 §10).
 
         new(SkillId.Careful, "신중", SkillSource.Innate, SkillForm.Passive,
             Boosts: DerivedStat.PhysicalGuard, BoostAmount: 4.0,

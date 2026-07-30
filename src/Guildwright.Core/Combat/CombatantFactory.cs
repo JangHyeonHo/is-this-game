@@ -179,6 +179,10 @@ public static class CombatantFactory
         return new BattleState(combatants);
     }
 
+    /// <summary>이어받은 값. <b>키가 없으면 null</b>이고 그때는 최대치로 시작합니다.</summary>
+    private static int? Carried(IReadOnlyDictionary<string, int>? carried, string id) =>
+        carried is not null && carried.TryGetValue(id, out int value) ? value : null;
+
     private static List<Combatant> Arrange(
         IEnumerable<Adventurer> party,
         Team team,
@@ -187,13 +191,18 @@ public static class CombatantFactory
         IReadOnlyDictionary<string, int>? carriedMana = null)
     {
         var members = party.ToList();
+
+        // 짐꾼은 가장 안전한 위치에서 서포팅하는 것이 규칙입니다 (§16.8b). 가방은
+        // 사거리가 Melee라, 사거리만 보면 무방비 짐꾼이 전열에서 시작합니다.
         var rows = members.ToDictionary(
             a => a.Id,
-            a => a.Loadout.CanActFromBackRow ? Row.Back : Row.Front);
+            a => a.Loadout.CarryingPack || a.Loadout.CanActFromBackRow ? Row.Back : Row.Front);
 
         if (members.Count > 0 && rows.Values.All(r => r == Row.Back))
         {
-            var toughest = members.OrderByDescending(a => a.Stats.Vitality + a.Stats.Strength)
+            // 전열이 빌 때 끌어내는 것도 짐꾼은 마지막입니다 — 때릴 수 있는 사람이 먼저입니다.
+            var toughest = members.OrderBy(a => a.Loadout.CarryingPack ? 1 : 0)
+                                  .ThenByDescending(a => a.Stats.Vitality + a.Stats.Strength)
                                   .ThenBy(a => a.Id, StringComparer.Ordinal)
                                   .First();
             rows[toughest.Id] = Row.Front;
@@ -203,8 +212,12 @@ public static class CombatantFactory
             .Select(a => Create(
                 a, team, rows[a.Id],
                 potions: carriedPotions?.GetValueOrDefault(a.Id, 2) ?? 2,
-                startingHp: carriedHp?.GetValueOrDefault(a.Id),
-                startingMana: carriedMana is null ? null : carriedMana.GetValueOrDefault(a.Id)))
+
+                // ⚠️ GetValueOrDefault를 그대로 쓰면 키가 없을 때 0이 들어가고,
+                //    HP는 Math.Max(1, 0) → 1이 됩니다. 조용히 반신불수 파티가 만들어지므로
+                //    "키가 없다"와 "0이다"를 구분해야 합니다.
+                startingHp: Carried(carriedHp, a.Id),
+                startingMana: Carried(carriedMana, a.Id)))
             .ToList();
     }
 }

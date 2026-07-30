@@ -1,3 +1,4 @@
+using Guildwright.Core.Adventurers;
 using Guildwright.Core.Parties;
 using Guildwright.Core.Rng;
 
@@ -80,9 +81,15 @@ public static class ContractBoard
     public static int MaxDifficultyAt(Rank guildRank) => 2 + (int)guildRank * 2;
 
     /// <summary>
-    /// 랭크별 최소 난이도. 랭크가 오르면 시시한 의뢰가 줄어듭니다 — 하한선도 같이 오릅니다.
+    /// 최소 난이도. <b>랭크가 올라도 오르지 않습니다.</b>
+    /// <para>
+    /// ⚠️ 한때 <c>랭크 − 1</c>로 두었습니다. §17.8이 말하는 것은 <b>상한</b>("감당 못 할
+    /// 의뢰는 아예 뜨지 않는다")뿐이고 하한은 없습니다. 게시판은 길드 공용이므로 하한을
+    /// 올리면 <b>신입이 받을 수 있는 의뢰가 사라집니다</b> — 매년 1월에 뽑는 신입이
+    /// 아무것도 못 하게 됩니다.
+    /// </para>
     /// </summary>
-    public static int MinDifficultyAt(Rank guildRank) => Math.Max(1, (int)guildRank - 1);
+    public const int MinDifficulty = 1;
 
     /// <summary>
     /// 계절별 형태 가중치. <b>강제가 아니라 경향</b>입니다.
@@ -191,18 +198,54 @@ public static class ContractBoard
         // 승급 의뢰의 난이도는 올라갈 등급에 맞춥니다 — 시시하면 승급이 사건이 안 됩니다.
         int difficulty = Math.Max(1, MaxDifficultyAt(target.Below(1)));
 
+        const int PromotionMonths = 2;
+
         return new Contract(
             Id: $"promo:{(partyOnly ? "party" : "solo")}:{target}",
-            Name: $"{target.ToKorean()}등급 승급 의뢰",
+            Name: $"{target.Label()} 승급 의뢰",
             Form: ContractForm.Subjugate,
             Source: ContractSource.Realm,
             Difficulty: difficulty,
-            Months: 2,
-            Intensity: difficulty * 3,
+            Months: PromotionMonths,
+            // 강도도 같은 함수를 씁니다. 예전에는 난이도 × 3이라 D 승급이 2달에 12마리였고,
+            // 처치 상한이 8이라 4인 파티로도 통과가 불가능했습니다 — 등급이 영원히 F에
+            // 고정되고 그 위에 얹힌 모든 자격이 잠겼습니다.
+            Intensity: IntensityFor(ContractForm.Subjugate, PromotionMonths),
             PartyOnly: partyOnly,
             Persists: true,
-            RequiredRank: target.Below(1));
+            RequiredRank: target.Below(1),
+            PromotionTo: target);
     }
+
+    /// <summary>
+    /// 그 사람에게 지금 뜰 승급 의뢰. 없으면 <c>null</c>.
+    /// <para>
+    /// <b>지속 의뢰이므로 게시판에 넣어 두면 계속 남습니다</b> (§6.5). 이 배선이 없으면
+    /// <see cref="Promotion"/>이 만들어지기만 하고 아무도 쓰지 않아, 개인 등급이 영원히
+    /// F에 고정되고 그 위에 얹힌 자격(상위 의뢰·파티 전용·솔로잉)이 통째로 잠깁니다.
+    /// </para>
+    /// <para>
+    /// <b>[검토중]</b> 승급 의뢰의 자격 조건 (§6.5). 지금은 <b>실전 경험</b>만 봅니다 —
+    /// "훈련만 5년 해도 3등급이 되는" 문제를 막는 것이 이 방식의 목적이었으므로,
+    /// 실전 없이는 뜨지 않아야 합니다.
+    /// </para>
+    /// </summary>
+    public static Contract? PromotionFor(Adventurer adventurer)
+    {
+        if (adventurer.Rank == Ranks.Highest) return null;
+        if (adventurer.DeploymentMonths < MonthsOfServicePerRank * ((int)adventurer.Rank + 1)) return null;
+
+        return Promotion(adventurer.Rank.Above(1));
+    }
+
+    /// <summary>
+    /// 승급 의뢰가 뜨기까지 필요한 실전 달 (등급마다 누적). ⚠️ 임시값 · [검토중].
+    /// </summary>
+    public const int MonthsOfServicePerRank = 6;
+
+    /// <summary>그 파티에게 지금 뜰 승급 의뢰. 없으면 <c>null</c>.</summary>
+    public static Contract? PromotionFor(Party party) =>
+        party.ReadyToPromote ? Promotion(party.Rank.Above(1), partyOnly: true) : null;
 
     /// <summary>그 사람 · 그 파티가 지금 받을 수 있는 의뢰만 골라냅니다.</summary>
     /// <param name="board">게시판.</param>
@@ -228,15 +271,13 @@ public static class ContractBoard
         var form = PickForm(rng, weights);
         int months = PickMonths(rng);
 
-        int min = MinDifficultyAt(guildRank);
         int max = MaxDifficultyAt(guildRank);
-        int difficulty = min + rng.NextInt(0, Math.Max(1, max - min + 1));
+        int difficulty = MinDifficulty + rng.NextInt(0, Math.Max(1, max - MinDifficulty + 1));
 
         var source = PickSource(rng, form);
         var (name, objective) = ContractFlavor.Pick(form, rng);
 
-        // 강도는 기간과 난이도에서 나옵니다 — 그 기간에 그 정도 싸움이 있다는 표시입니다.
-        int intensity = Math.Max(1, (int)Math.Round(difficulty * months * IntensityScale(form)));
+        int intensity = IntensityFor(form, months);
 
         // 파티 전용은 여럿이 필요한 일 — 긴 토벌과 전선 수비가 자연스럽게 여기 옵니다.
         bool partyOnly = months >= 3
@@ -256,14 +297,49 @@ public static class ContractBoard
             Objective: objective);
     }
 
-    /// <summary>형태별 강도 배율. 토벌은 마리 수라 크고, 발견은 곳 수라 작습니다. ⚠️ 임시값.</summary>
-    private static double IntensityScale(ContractForm form) => form switch
+    /// <summary>
+    /// 강도 — <b>기간에서만 나옵니다. 난이도를 곱하지 않습니다.</b>
+    /// <para>
+    /// ⚠️ 한때 <c>난이도 × 기간 × 배율</c>이었습니다. 그러면 <b>난이도 3 이상의 토벌은
+    /// 성공이 산술적으로 불가능</b>해집니다 — 한 달에 전투는 최대 1회이고 한 전투의 적은
+    /// 최대 <see cref="EncounterGenerator.MaxEnemies"/>마리이므로 처치 상한이 정해져 있는데,
+    /// 요구치만 난이도에 비례해 올라갔기 때문입니다. §17.4의 "달성 전제"와 §17.8의
+    /// "감당 못 할 의뢰는 아예 뜨지 않는다"가 동시에 깨졌습니다.
+    /// </para>
+    /// <para>
+    /// 근본 원인은 <c>docs/06</c> #33이 이미 경고한 것입니다 — <b>수로 난이도를 나타내면
+    /// 난이도가 두 번 반영됩니다.</b> 난이도는 적을 <b>강하게</b> 만들고, 수는 파티 인원이 정합니다.
+    /// </para>
+    /// <para>
+    /// 측정(docs/06 #42): 월당 처치는 2인 1.69 · 3인 2.54 · 4인 3.39이고
+    /// <b>난이도가 오르면 오히려 줄어듭니다</b>(난이도 6에서 0.5대). 그래서 최소 인원
+    /// 2명이 닿을 수 있는 선으로 잡습니다.
+    /// </para>
+    /// </summary>
+    private static int IntensityFor(ContractForm form, int months) => form switch
     {
-        ContractForm.Subjugate => 2.0,
-        ContractForm.Defend => 0.5,
-        ContractForm.Gather => 3.0,
-        _ => 0.4
+        ContractForm.Subjugate => Math.Max(1, (int)Math.Round(months * SubjugateKillsPerMonth)),
+
+        // 지킴은 "몇 차례의 습격"이고 진척 판정에서 빠지므로 표시용입니다.
+        ContractForm.Defend => Math.Max(1, (int)Math.Round(months * DeploymentRules.EncounterChanceOf(form))),
+
+        // 수집·발견은 WorkShare가 기간으로 되나누므로 어떤 값이든 달성 가능합니다.
+        ContractForm.Gather => Math.Max(1, months * GatherUnitsPerMonth),
+        _ => Math.Max(1, months)
     };
+
+    /// <summary>
+    /// 토벌 한 달의 처치 목표. ⚠️ 임시값이지만 <b>측정에 근거합니다</b> —
+    /// 최소 인원(2명)의 월당 처치 평균 <b>1.69</b>에서 여유를 둔 값입니다 (docs/06 #42).
+    /// <para>
+    /// 1.5로 잡았더니 3달 의뢰에서 40번 중 2번이 진척 미달로 실패했습니다 — 평균에
+    /// 붙여 놓으면 <b>운이 나쁜 파견이 실패</b>가 되고, 그건 "달성 전제"가 아닙니다.
+    /// </para>
+    /// </summary>
+    public const double SubjugateKillsPerMonth = 1.2;
+
+    /// <summary>수집 한 달의 수량. ⚠️ 임시값 — 표시 단위일 뿐 달성 여부에 영향이 없습니다.</summary>
+    public const int GatherUnitsPerMonth = 3;
 
     /// <summary>난이도가 요구하는 등급. 낮은 등급이 높은 난이도를 받지 못하게 합니다. ⚠️ 임시값.</summary>
     private static Rank RequiredRankFor(int difficulty) =>

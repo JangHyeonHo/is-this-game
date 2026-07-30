@@ -86,6 +86,15 @@ public enum RewardKind
 /// </param>
 /// <param name="RequiredRank">수주 자격 등급.</param>
 /// <param name="Objective">지켜야 할 것 · 찾아야 할 것의 이름. 표시용.</param>
+/// <param name="PromotionTo">
+/// 승급 의뢰라면 <b>올라가는 등급</b>. 아니면 <c>null</c>.
+/// <para>
+/// 이것이 승급의 유일한 경로입니다 (§6.5) — 이 값이 있고 성공했을 때만 등급이 오릅니다.
+/// Id 문자열을 파싱하지 않고 값으로 두는 이유는, 배선이 빠졌는지를 타입으로 볼 수 있게
+/// 하기 위함입니다. 실제로 <c>Promotion()</c>이 만들어지기만 하고 아무 곳에서도
+/// 쓰이지 않아 등급이 영원히 오르지 않던 기간이 있었습니다.
+/// </para>
+/// </param>
 public sealed record Contract(
     string Id,
     string Name,
@@ -97,8 +106,12 @@ public sealed record Contract(
     bool PartyOnly = false,
     bool Persists = false,
     Rank RequiredRank = Rank.F,
-    string? Objective = null)
+    string? Objective = null,
+    Rank? PromotionTo = null)
 {
+    /// <summary>승급 의뢰인가.</summary>
+    public bool IsPromotion => PromotionTo is not null;
+
     /// <summary>보상의 성격. 길드가 자기 돈으로 하는 일은 명성으로 돌아옵니다.</summary>
     public RewardKind Reward => Source == ContractSource.Guild ? RewardKind.Renown : RewardKind.Pay;
 

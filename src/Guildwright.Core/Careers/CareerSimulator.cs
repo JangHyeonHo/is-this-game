@@ -63,6 +63,13 @@ public static class CareerSimulator
     {
         bool downed = session.Hp.GetValueOrDefault(adventurer.Id, adventurer.MaxHp) <= 0;
 
+        // 승급은 여기서만 일어납니다 (§6.5) — 문턱을 넘어 조용히 오르는 것이 아니라
+        // 승급 의뢰를 받아 통과해야 합니다. 이 배선이 빠져 있으면 등급이 영원히 F입니다.
+        if (result.Succeeded && result.Contract.PromotionTo is { } target && adventurer.Rank < target)
+        {
+            adventurer.Promote();
+        }
+
         return ResolveDeploymentYear(
             adventurer,
             result.Contract.Difficulty,
@@ -153,7 +160,12 @@ public static class CareerSimulator
         // 사망한 해에는 성장이 없습니다.
         var change = outcome == DeploymentOutcome.Died ? penalty : growth + penalty;
 
-        int income = outcome == DeploymentOutcome.Died
+        // 길드 자체 의뢰는 보수가 없습니다 — 길드가 자기 돈을 들이는 투자이고
+        // 돌아오는 것은 명성입니다 (§17.2). 예전에는 보수까지 받아서 길드 의뢰가
+        // "보수 + 명성 2배"로 가장 이득인 역설이 있었습니다.
+        bool paysMoney = contract is null || contract.Reward == RewardKind.Pay;
+
+        int income = outcome == DeploymentOutcome.Died || !paysMoney
             ? 0
             : (int)Math.Round(
                 difficulty * CareerRules.IncomePerDifficulty
@@ -181,13 +193,22 @@ public static class CareerSimulator
 
         if (outcome != DeploymentOutcome.Died)
         {
-            adventurer.GainJudgement(CareerRules.JudgementFromDeployment);
+            // 판단력도 기간에 비례합니다. 이게 빠져 있어서 1달 의뢰를 열두 번 하면
+            // 판단력이 42→100이 되고 12달 의뢰 한 번은 42→48이었습니다 — 사고 위험을
+            // 최대 45% 깎는 값이므로 짧은 의뢰 반복이 명확한 최적해였습니다.
+            int judgement = Math.Max(1, (int)Math.Round(CareerRules.JudgementFromDeployment * share));
+            adventurer.GainJudgement(judgement);
 
             // ★ 겪은 것이 파생 수치에 직접 붙습니다.
             //   계속 맞다 보면 몸이 단단해지고, 급소를 노리다 보면 손에 익습니다.
+            // 실제 전투를 돌렸으면 사건 수(맞은 양·치명타 수)에서 나오므로 이미 기간에
+            // 비례합니다 — 여기서 또 곱하면 이중 감쇠입니다. 요약 경로(FromRole)만
+            // 고정값이라 기간을 곱해야 합니다.
+            double bonusShare = experience is null ? share : 1.0;
+
             foreach (var (stat, amount) in lived.Bonuses)
             {
-                adventurer.ApplyDerivedBonus(stat, amount);
+                adventurer.ApplyDerivedBonus(stat, amount * bonusShare);
             }
         }
 

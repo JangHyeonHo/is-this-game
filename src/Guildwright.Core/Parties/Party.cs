@@ -51,28 +51,45 @@ public sealed class Party
         Rank == Ranks.Highest ? 0 : Math.Max(0, PartyRules.EvaluationNeeded(Rank) - Evaluation);
 
     /// <summary>
-    /// 파티로서 평가를 쌓습니다. 문턱을 넘으면 등급이 오릅니다.
-    /// <para>한 번에 여러 단이 오를 수도 있습니다 — 큰 의뢰 하나가 그럴 수 있습니다.</para>
+    /// 승급 의뢰를 받을 만큼 쌓았는가.
+    /// <para>
+    /// <b>이것만으로는 오르지 않습니다.</b> 평가는 "이제 올릴 때가 됐다"는 표시일 뿐이고,
+    /// 실제로 오르는 것은 <see cref="Promote"/> — 승급 의뢰를 통과했을 때입니다.
+    /// </para>
+    /// <para>
+    /// <b>[검토중]</b> 승급 의뢰의 자격 조건이 평가 문턱인지 (§6.5). 문턱이라는 형태 자체가
+    /// 아직 승인되지 않았으므로 <b>자격에만 쓰고 승급 판정에는 쓰지 않습니다.</b>
+    /// </para>
     /// </summary>
-    /// <returns>이번에 오른 단 수.</returns>
-    internal int RecordEvaluation(int points)
+    public bool ReadyToPromote =>
+        !Disbanded && Rank != Ranks.Highest && Evaluation >= PartyRules.EvaluationNeeded(Rank);
+
+    /// <summary>
+    /// 파티로서 평가를 쌓습니다. <b>등급은 여기서 오르지 않습니다.</b>
+    /// <para>
+    /// 예전에는 문턱을 넘는 순간 등급이 올라갔습니다 — 한 번에 다섯 단이 오르기도 했습니다.
+    /// 그것이 §6.5가 명시적으로 금지한 형태입니다: <b>"승급이 자동이 아니라 사건이 됩니다.
+    /// 문턱을 넘는 순간 조용히 올라가는 게 아니라, 의뢰를 받고 통과해야 합니다."</b>
+    /// </para>
+    /// </summary>
+    internal void RecordEvaluation(int points)
     {
-        if (Disbanded || points <= 0) return 0;
-
+        if (Disbanded || points <= 0) return;
         Evaluation += points;
+    }
 
-        int risen = 0;
-        while (Rank != Ranks.Highest && Evaluation >= PartyRules.EvaluationNeeded(Rank))
-        {
-            Evaluation -= PartyRules.EvaluationNeeded(Rank);
-            Rank = Rank.Above(1);
-            risen++;
-        }
+    /// <summary>
+    /// 한 단 승급합니다. <b>승급 의뢰를 통과했을 때만</b> 불립니다 (§6.5).
+    /// <para>쌓은 평가는 승급과 함께 소진됩니다 — 다음 단은 다시 쌓아야 합니다.</para>
+    /// </summary>
+    /// <returns>실제로 올랐는지.</returns>
+    internal bool Promote()
+    {
+        if (Disbanded || Rank == Ranks.Highest) return false;
 
-        // 최고 등급에서는 더 쌓아도 갈 곳이 없습니다.
-        if (Rank == Ranks.Highest) Evaluation = 0;
-
-        return risen;
+        Evaluation = Math.Max(0, Evaluation - PartyRules.EvaluationNeeded(Rank));
+        Rank = Rank.Above(1);
+        return true;
     }
 
     internal void Add(Adventurer member)
@@ -98,6 +115,9 @@ public sealed class Party
     }
 
     public override string ToString() =>
-        $"{Name} [{Rank.ToKorean()}] {_members.Count}명" +
-        (Disbanded ? " (해체)" : $" 평가 {Evaluation}/{PartyRules.EvaluationNeeded(Rank)}");
+        $"{Name} [{Rank.Label()}] {_members.Count}명" +
+        (Disbanded
+            ? " (해체)"
+            : $" 평가 {Evaluation}/{PartyRules.EvaluationNeeded(Rank)}" +
+              (ReadyToPromote ? " · 승급 의뢰 가능" : ""));
 }

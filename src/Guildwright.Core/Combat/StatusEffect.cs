@@ -176,6 +176,14 @@ public enum EffectName
 /// <param name="Target">수치 증감의 대상.</param>
 /// <param name="Growth">지속 피해가 커지는 방식.</param>
 /// <param name="BlocksRecovery">자연회복을 막는가.</param>
+/// <param name="StacksScaleDamage">
+/// 스택이 <b>피해</b>를 키우는가.
+/// <para>
+/// 스택이 쌓이는 것과 피해가 커지는 것은 다른 일입니다. 동상은 스택을 쌓지만
+/// (<see cref="TransitionThreshold"/>에 쓰입니다) 피해는 커지지 않습니다 —
+/// 그러지 않으면 동상이 "중독 + 둔화 + 전이"가 되어 중독과 축이 겹칩니다 (§18.4).
+/// </para>
+/// </param>
 /// <param name="Companion">
 /// 같이 걸리는 효과. 동상이 속도 저하를 동반하는 식입니다.
 /// <para>이렇게 두면 "지속 피해 + 둔화" 같은 조합에 새 기전이 필요 없습니다.</para>
@@ -209,6 +217,7 @@ public sealed record EffectProfile(
     ShiftTarget Target = ShiftTarget.None,
     GrowthMode Growth = GrowthMode.None,
     bool BlocksRecovery = false,
+    bool StacksScaleDamage = true,
     EffectName? Companion = null,
     EffectName? TransitionsTo = null,
     int TransitionThreshold = 0,
@@ -326,8 +335,12 @@ public static class StatusEffects
             Growth: GrowthMode.PerAction, Cure: CureItem.Bandage, DefaultMagnitude: 1.0),
 
         // 속도 저하를 동반하고, 쌓이면 빙결로 넘어갑니다.
+        // 스택은 쌓이지만 피해에는 곱하지 않습니다 — 스택이 필요한 것은 임계 전이(빙결)
+        // 때문입니다. 곱하면 동상이 "중독 + 둔화 + 전이"가 되어 중독과 축이 겹칩니다.
+        // §18.4는 동상을 "안 커짐 + 느려짐"으로, 중독만 "다시 걸릴 때 커짐"으로 규정합니다.
         new(EffectName.Frostbite, EffectMechanism.DamageOverTime, "동상", Persists: true,
-            Growth: GrowthMode.PerStack, Companion: EffectName.SpeedDown,
+            Growth: GrowthMode.PerStack, StacksScaleDamage: false,
+            Companion: EffectName.SpeedDown,
             TransitionsTo: EffectName.Freeze, TransitionThreshold: 4,
             Cure: CureItem.FrostSalve, DefaultMagnitude: 1.0),
 

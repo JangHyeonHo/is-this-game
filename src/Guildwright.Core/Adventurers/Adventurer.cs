@@ -155,9 +155,15 @@ public sealed class Adventurer
     internal void ApplyDerivedBonus(DerivedStat stat, double amount) => Bonuses.Add(stat, amount);
 
     /// <summary>
-    /// 비전투 역량. 함정 감지·척후·운반·채집·감정.
+    /// 타고난 스킬 (성격). <b>플레이어가 정할 수 없습니다.</b>
     /// <para>
-    /// 이 목록은 이해도가 오르면서 하나씩 드러납니다 (docs/08 §16.7).
+    /// ⚠️ 여기 있던 주석은 폐기된 <c>SupportSkill</c> 5종(함정 감지·척후·운반·채집·감정)
+    /// 설명이 그대로 남아 있었습니다. 그 개념은 §16.8c로 폐기됐고, 타입은 지웠지만
+    /// 서술이 살아 있어 되살아날 위험이 있었습니다.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>이해도로 하나씩 드러나는 은닉은 아직 구현되지 않았습니다</b> (§16.7). 지금은
+    /// 이 프로퍼티가 그냥 공개되어 있습니다 — 예전 주석은 은닉이 있는 것처럼 서술했습니다.
     /// </para>
     /// </summary>
     public IReadOnlyList<SkillId> Innate { get; }
@@ -213,15 +219,39 @@ public sealed class Adventurer
     /// <para>
     /// 다만 <b>고집</b>을 타고났으면 권유를 듣지 않습니다 (docs/08 §16.8).
     /// </para>
+    /// <para>
+    /// ⚠️ <b>[검토중] — 고집의 세기는 정해지지 않았습니다.</b> 문서는 "고집 같은 특성이
+    /// 있으면 얘기가 <b>달라질 수 있습니다</b>"이고, §16.9는 "희망 직업 무시 시 반응 —
+    /// 특성에 따라 다름"을 검토중으로 둡니다. 지금은 <b>영구 전면 봉쇄</b>인데, §16.2c로
+    /// 계급이 직업 행이 된 뒤 사다리는 전직으로만 오르므로 <b>고집을 타고나면 평생
+    /// 견습에 고정</b>됩니다. 그 결과는 문서에 없습니다.
+    /// </para>
+    /// <para>
+    /// 그래서 <b>같은 계열 안에서 올라가는 것은 막지 않습니다</b> — 고집은 "다른 길로
+    /// 가라는 권유를 듣지 않는" 것이고, 자기 길에서 숙달하는 것을 거부하는 것이 아닙니다.
+    /// 이 완화도 확정이 아니므로 수치가 정해지면 여기만 고칩니다.
+    /// </para>
     /// </summary>
     /// <returns>실제로 바뀌었는지.</returns>
     public bool ChangeJob(JobId job)
     {
-        if (Innate.Contains(SkillId.Stubborn) && job != Job) return false;
+        if (Innate.Contains(SkillId.Stubborn) && !SameLine(Job, job) && job != Job) return false;
         if (!Jobs.Of(job).IsUnlockedBy(k => Proficiency[k])) return false;
 
         Job = job;
         return true;
+    }
+
+    /// <summary>
+    /// 같은 무기 계열인가. <b>고집이 막지 않는 범위</b>를 정합니다.
+    /// <para>요구 무기가 없는 견습단은 <see cref="StartingWeaponFor"/>로 계열을 봅니다.</para>
+    /// </summary>
+    private static bool SameLine(JobId from, JobId to) => LineOf(from) == LineOf(to);
+
+    private static WeaponKind LineOf(JobId job)
+    {
+        var requires = Jobs.Of(job).Requires;
+        return requires.Count == 1 ? requires.Keys.First() : StartingWeaponFor(job);
     }
 
     /// <summary>무기를 끼웁니다.</summary>

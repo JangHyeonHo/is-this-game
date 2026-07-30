@@ -213,7 +213,11 @@ public static class DamageModel
     /// </summary>
     public static int OverTimeDamage(Combatant victim, StatusEffect effect)
     {
-        double ratio = StatusEffects.DamageOverTimeScale * effect.Magnitude * effect.Stacks;
+        // 스택이 피해를 키우는지는 이름이 아니라 표의 한 칸입니다 — 동상은 스택을
+        // 쌓지만 피해는 안 커집니다(스택은 빙결로 넘어가는 임계에만 쓰입니다).
+        int stacks = StatusEffects.ProfileOf(effect.Name).StacksScaleDamage ? effect.Stacks : 1;
+
+        double ratio = StatusEffects.DamageOverTimeScale * effect.Magnitude * stacks;
         return Math.Max(1, (int)Math.Round(victim.MaxHp * ratio));
     }
 }

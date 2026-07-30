@@ -172,9 +172,26 @@ public sealed class DeploymentSession
     public IReadOnlyList<Adventurer> Standing =>
         [.. _party.Where(a => a.IsAlive && _hp[a.Id] > 0)];
 
-    /// <summary>파티 평균 HP 비율. 쉴지 말지의 판단 기준입니다.</summary>
-    public double HealthRatio =>
-        _party.Count == 0 ? 0.0 : _party.Sum(a => (double)_hp[a.Id] / a.MaxHp) / _party.Count;
+    /// <summary>
+    /// <b>서 있는 사람</b>의 평균 HP 비율. 쉴지 말지의 판단 기준입니다.
+    /// <para>
+    /// ⚠️ 예전에는 쓰러진 사람을 분모에 그대로 뒀습니다. 파견 중에는 쓰러진 사람이
+    /// 일어나지 않으므로, 2인 파티에서 한 명이 쓰러지면 비율이 <b>영구히 0.5</b>가 되어
+    /// 문턱(0.55) 아래에 고정되고, <b>만피인 동료까지 남은 모든 달을 쉬게</b> 됩니다.
+    /// 지킴형은 그 순간 실패 경로가 사라져 성공이 확정되고 수집형은 미달이 확정됐습니다.
+    /// </para>
+    /// </summary>
+    public double HealthRatio
+    {
+        get
+        {
+            var standing = Standing;
+            if (standing.Count == 0) return 0.0;
+
+            // 순서를 고정합니다 — Standing은 이미 서수 정렬된 _party에서 나옵니다.
+            return standing.Sum(a => (double)_hp[a.Id] / a.MaxHp) / standing.Count;
+        }
+    }
 
     /// <summary>
     /// 한 달을 진행합니다.
@@ -192,6 +209,14 @@ public sealed class DeploymentSession
         if (IsComplete) throw new InvalidOperationException("이미 끝난 파견입니다.");
 
         int month = CurrentMonth;
+
+        // 아무도 서 있지 못하면 그 자리에서 끝입니다.
+        if (Standing.Count == 0)
+        {
+            _failure = DeploymentFailure.Wiped;
+            return Record(new DeploymentMonth(
+                month, MonthWork.Rest, $"{month}달째: 아무도 일어서지 못했다", 0, Fought: false));
+        }
 
         // 일할지 쉴지는 모험가가 판단합니다. 생존이 최우선입니다.
         if (HealthRatio < DeploymentRules.RestBelowHpRatio)

@@ -107,16 +107,26 @@ public static class TacticalBrain
         return null;
     }
 
+    /// <summary>
+    /// 그 행동을 지금 할 수 있는가. <b>지휘 개입도 이 검사를 지나야 합니다</b> —
+    /// 검사가 UI에만 있으면 배치 시뮬레이터가 규칙 밖의 행동을 시킬 수 있습니다.
+    /// </summary>
+    public static bool CanTake(Combatant self, TacticAction action) => IsActionAvailable(self, action);
+
     /// <summary>스타일과 현재 상태가 이 행동을 허용하는가.</summary>
     private static bool IsActionAvailable(Combatant self, TacticAction action) => action switch
     {
         TacticAction.UsePotion => self.Potions > 0,
-        TacticAction.AttackBackRow => self.CanStrikeBackRow,
-        TacticAction.AttackAll => self.CanDo(TacticAction.AttackAll),
-        TacticAction.HealAlly => self.CanDo(TacticAction.HealAlly) && self.Mana >= DamageModel.ManaPerSpell,
-        TacticAction.BuffAlly or TacticAction.DebuffEnemy =>
-            self.UsesMagicPower && self.Mana >= DamageModel.ManaPerSpell,
-        TacticAction.Taunt => self.CanDo(TacticAction.Taunt),
+
+        // 아래는 전부 스킬이 엽니다 — 무기가 아닙니다 (docs/08 §10 "스킬이 떠맡게 된 것").
+        // 예전에는 후열 타격이 Loadout.CanStrikeBackRow로, 강화·약화가 UsesMagicPower로
+        // 열렸습니다. 그러면 스킬 하나 없는 견습이 지팡이만 들어도 버프를 씁니다.
+        TacticAction.AttackBackRow => self.CanAfford(TacticAction.AttackBackRow),
+        TacticAction.AttackAll => self.CanAfford(TacticAction.AttackAll),
+        TacticAction.HealAlly => self.CanAfford(TacticAction.HealAlly),
+        TacticAction.BuffAlly or TacticAction.DebuffEnemy => self.CanAfford(action),
+        TacticAction.Taunt => self.CanAfford(TacticAction.Taunt),
+        TacticAction.GivePotion => self.Potions > 0 && self.CanAfford(TacticAction.GivePotion),
         TacticAction.MoveBack => self.Row == Row.Front,
         TacticAction.MoveFront => self.Row == Row.Back,
         _ => true
@@ -138,33 +148,34 @@ public static class TacticalBrain
             actions.Add(new ChosenAction(TacticAction.AttackStrongest, PickStrongest(reachable)));
         }
 
-        if (self.CanStrikeBackRow)
+        if (self.CanAfford(TacticAction.AttackBackRow))
         {
             var back = enemies.Where(e => e.Row == Row.Back).ToList();
             if (back.Count > 0) actions.Add(new ChosenAction(TacticAction.AttackBackRow, PickWeakest(back)));
         }
 
-        if (self.CanDo(TacticAction.AttackAll) && reachable.Count > 1)
+        if (self.CanAfford(TacticAction.AttackAll) && reachable.Count > 1)
         {
             actions.Add(new ChosenAction(TacticAction.AttackAll, null));
         }
 
-        bool hasMana = self.Mana >= DamageModel.ManaPerSpell;
-
-        if (self.CanDo(TacticAction.HealAlly) && hasMana)
+        if (self.CanAfford(TacticAction.HealAlly))
         {
             var wounded = allies.OrderBy(a => a.HpRatio).ThenBy(a => a.Id, StringComparer.Ordinal).First();
             if (wounded.HpRatio < 0.999) actions.Add(new ChosenAction(TacticAction.HealAlly, wounded));
         }
 
-        if (self.UsesMagicPower && hasMana)
+        if (self.CanAfford(TacticAction.BuffAlly))
         {
             var strongestAlly = allies.OrderByDescending(a => a.EffectiveOffense).ThenBy(a => a.Id, StringComparer.Ordinal).First();
             if (!strongestAlly.HasEffect(EffectName.PowerUp))
             {
                 actions.Add(new ChosenAction(TacticAction.BuffAlly, strongestAlly));
             }
+        }
 
+        if (self.CanAfford(TacticAction.DebuffEnemy))
+        {
             var threat = PickStrongest(enemies);
             if (!threat.HasEffect(EffectName.PowerDown))
             {
@@ -172,9 +183,18 @@ public static class TacticalBrain
             }
         }
 
-        if (self.CanDo(TacticAction.Taunt) && self.Row == Row.Front)
+        if (self.CanAfford(TacticAction.Taunt) && self.Row == Row.Front)
         {
             actions.Add(new ChosenAction(TacticAction.Taunt, null));
+        }
+
+        // 짐꾼의 회복약 건네기. 예전에는 후보에 아예 없어서 기본 전술 규칙이 조용히 무효였습니다.
+        if (self.Potions > 0 && self.CanAfford(TacticAction.GivePotion))
+        {
+            var hurt = allies.Where(a => a.IsAlive && a.Id != self.Id && a.HpRatio < 0.999)
+                             .OrderBy(a => a.HpRatio).ThenBy(a => a.Id, StringComparer.Ordinal)
+                             .FirstOrDefault();
+            if (hurt is not null) actions.Add(new ChosenAction(TacticAction.GivePotion, hurt));
         }
 
         if (self.Potions > 0 && self.Hp < self.MaxHp)
@@ -252,7 +272,7 @@ public static class TacticalBrain
                 //   차라리 한 대라도 더 때리는 게 낫습니다.
                 bool canRecover =
                     self.Potions > 0 ||
-                    allies.Any(a => a.IsAlive && a.CanDo(TacticAction.HealAlly) && a.Mana >= DamageModel.ManaPerSpell);
+                    allies.Any(a => a.IsAlive && a.CanAfford(TacticAction.HealAlly));
 
                 return 2.2 * danger * stylePenalty * abandonPenalty * (canRecover ? 1.0 : 0.3);
             }

@@ -82,9 +82,14 @@ public sealed class WeaponAptitudes
         {
             var affinity = Weaponry.AffinityOf(kind);
 
+            // ⚠️ Dictionary 순회 순서로 부동소수를 누적하면 안 됩니다 —
+            //    합의 순서가 마지막 비트를 바꾸고, 그 값이 적성 등급 → 경력 전체를
+            //    좌우합니다. 능력치 열거형 순서로 고정합니다.
             double weighted = 0.0, weightSum = 0.0;
-            foreach (var (stat, weight) in affinity)
+            foreach (var stat in PrimaryStats.AllStats)
             {
+                if (!affinity.TryGetValue(stat, out double weight)) continue;
+
                 weighted += potential[stat] * weight;
                 weightSum += weight;
             }

@@ -37,8 +37,18 @@ public static class Ranks
     public static IReadOnlyList<Rank> All { get; } =
         [Rank.F, Rank.E, Rank.D, Rank.C, Rank.B, Rank.A, Rank.S, Rank.SS];
 
-    /// <summary>등급 이름. 눈금이 알파벳이라 한국어도 같습니다.</summary>
-    public static string ToKorean(this Rank rank) => rank == Rank.SS ? "SS" : rank.ToString();
+    /// <summary>등급 글자. 눈금이 알파벳이라 한국어도 같습니다.</summary>
+    public static string ToKorean(this Rank rank) => rank.ToString();
+
+    /// <summary>
+    /// 화면에 쓰는 표기 — <b>"A급"</b>.
+    /// <para>
+    /// 무기 적성도 A~S 눈금을 쓰므로 화면에 <c>A</c> 하나만 뜨면 무엇의 A인지 알 수 없습니다.
+    /// <b>표기로 가르는 것이 싸고 충분합니다</b> — 적성은 "적성 A", 등급은 "A급".
+    /// </para>
+    /// 근거: docs/08-design-revision.md §"등급 표기 충돌"
+    /// </summary>
+    public static string Label(this Rank rank) => $"{rank}급";
 
     /// <summary>몇 단 위. 상한에서 멈춥니다.</summary>
     public static Rank Above(this Rank rank, int steps) =>

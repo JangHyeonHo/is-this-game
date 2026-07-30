@@ -109,6 +109,39 @@ public sealed class Combatant
     public bool CanDo(TacticAction action) => SkillFor(action) is not null;
 
     /// <summary>
+    /// 그 행동을 지금 쓸 수 있는가 — <b>스킬 보유 + 무기 + 쿨다운 + 마나</b>를 모두 봅니다.
+    /// <para>
+    /// 마나 소모량은 <b>스킬마다 다릅니다</b> (§10.0b). 예전에는 어디서나
+    /// <c>DamageModel.ManaPerSpell</c> 고정값을 써서 <see cref="Skill.ManaCost"/>가
+    /// 읽히지 않는 죽은 데이터였고, 물리 기술은 싼 것이 아니라 <b>공짜</b>였습니다.
+    /// </para>
+    /// </summary>
+    public bool CanAfford(TacticAction action)
+    {
+        var skill = SkillFor(action);
+        return skill is not null && Mana >= skill.ManaCost;
+    }
+
+    /// <summary>그 행동의 마나 비용. 스킬이 없으면 0입니다.</summary>
+    public int ManaCostOf(TacticAction action) => SkillFor(action)?.ManaCost ?? 0;
+
+    /// <summary>
+    /// 그 행동을 실제로 씁니다 — <b>마나를 내고 쿨다운을 시작합니다.</b>
+    /// <para>
+    /// 이걸 부르지 않으면 <see cref="Skill.Cooldown"/>이 죽은 데이터가 됩니다. 실제로
+    /// <c>StartCooldown</c>·<c>TickCooldowns</c>가 한 번도 호출되지 않던 기간이 있었습니다.
+    /// </para>
+    /// </summary>
+    internal void PaySkillCost(TacticAction action)
+    {
+        var skill = SkillFor(action);
+        if (skill is null) return;
+
+        if (skill.ManaCost > 0) SpendMana(skill.ManaCost);
+        if (skill.Cooldown > 0) StartCooldown(skill.Id, skill.Cooldown);
+    }
+
+    /// <summary>
     /// 그 행동을 여는 스킬. 없으면 null.
     /// <para>순회 순서는 <see cref="Actives"/>의 순서이므로 결정적입니다.</para>
     /// </summary>

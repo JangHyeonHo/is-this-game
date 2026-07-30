@@ -124,10 +124,11 @@ public class PartySystemTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void 누적은_상위_집합으로_세어서_등록이_선택이_된다()
+    public void 누적은_정확히_그_조합에만_쌓인다()
     {
-        // A+B+C로 여섯 달 나가면 A+B, B+C, A+C, A+B+C가 모두 조건을 채웁니다.
-        // "누구와 등록할까"가 판단이 되는 지점입니다.
+        // ⚠️ 한때 상위 집합으로 셌습니다 — A+B+C로 여섯 달 나가면 A+B도 여섯 달.
+        // 문서 근거가 없는 구현자 규칙이었고, §6.1 "증원도 6개월"과 §6.6 "죽음의 대가는
+        // 증원에 다시 6개월"을 무력화했습니다. 되살아나면 이 테스트가 깨집니다.
         var ledger = new PartyLedger();
         var a = Member("A");
         var b = Member("B");
@@ -135,12 +136,57 @@ public class PartySystemTests(ITestOutputHelper output)
 
         GoOut(ledger, PartyRules.MonthsToRegister, a, b, c);
 
+        Assert.Equal(PartyRules.MonthsToRegister, ledger.MonthsTogether([a, b, c]));
+        Assert.Equal(0, ledger.MonthsTogether([a, b]));
+        Assert.Equal(RegistrationProblem.NotEnoughMonths, ledger.CheckRegistration([a, b]));
+    }
+
+    [Fact]
+    public void 여러_조합을_굴리면_등록이_선택이_된다()
+    {
+        // "누구와 등록할까"는 상위 집합 규칙 없이도 성립합니다 —
+        // 달마다 다른 조합을 내보내면 조건을 채운 조합이 여럿 생깁니다.
+        var ledger = new PartyLedger();
+        var a = Member("A");
+        var b = Member("B");
+        var c = Member("C");
+
+        GoOut(ledger, PartyRules.MonthsToRegister, a, b);
+        GoOut(ledger, PartyRules.MonthsToRegister, a, c);
+
         var options = ledger.RegistrableCompositions([a, b, c]);
         foreach (var option in options) output.WriteLine(option.ToString());
 
-        Assert.Contains(PartyComposition.Of(a, b, c), options);
-        Assert.Equal(PartyRules.MonthsToRegister, ledger.MonthsTogether([a, b]));
-        Assert.Equal(RegistrationProblem.None, ledger.CheckRegistration([a, b]));
+        Assert.Contains(PartyComposition.Of(a, b), options);
+        Assert.Contains(PartyComposition.Of(a, c), options);
+
+        // 그리고 A는 하나만 고를 수 있습니다 — 한 사람은 정규 파티 하나이므로.
+        Assert.NotNull(ledger.Register("P1", "A와 B", [a, b]));
+        Assert.Equal(RegistrationProblem.AlreadyInRegularParty, ledger.CheckRegistration([a, c]));
+    }
+
+    [Fact]
+    public void 죽은_자리를_메우는_데_다시_여섯_달이_걸린다()
+    {
+        // §6.6: 죽음의 대가는 랭크 소멸이 아니라 증원에 다시 6개월이 걸리는 것.
+        // 상위 집합으로 세면 이것이 사라집니다 — 넷으로 나간 달이 셋의 달로도 세어져
+        // 한 명이 죽은 직후 대기 0달로 즉시 합류가 됩니다.
+        var ledger = new PartyLedger();
+        var a = Member("A");
+        var b = Member("B");
+        var c = Member("C");
+        var d = Member("D");
+
+        GoOut(ledger, PartyRules.MonthsToRegister, a, b, c);
+        var party = ledger.Register("P1", "셋", [a, b, c])!;
+
+        // 넷으로 여섯 달 나갔습니다 — D는 이 파티에 들어올 자격을 채웠습니다.
+        GoOut(ledger, PartyRules.MonthsToRegister, a, b, c, d);
+        Assert.Equal(AdmissionProblem.None, ledger.CheckAdmission(party, d));
+
+        // C가 빠지면 파티는 {A,B}가 됩니다. D는 그 파티와는 아직 여섯 달을 안 채웠습니다.
+        Assert.True(ledger.Leave("C"));
+        Assert.Equal(AdmissionProblem.NotEnoughMonths, ledger.CheckAdmission(party, d));
     }
 
     [Fact]
@@ -151,7 +197,8 @@ public class PartySystemTests(ITestOutputHelper output)
         var b = Member("B");
         var c = Member("C");
 
-        GoOut(ledger, PartyRules.MonthsToRegister, a, b, c);
+        GoOut(ledger, PartyRules.MonthsToRegister, a, b);
+        GoOut(ledger, PartyRules.MonthsToRegister, a, c);
         Assert.NotNull(ledger.Register("P1", "첫 파티", [a, b]));
 
         // A는 이미 정규 파티가 있으므로 다른 정규 파티를 또 만들 수 없습니다.
@@ -179,7 +226,30 @@ public class PartySystemTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void 파티_등급은_평가를_쌓아_오른다()
+    public void 평가를_쌓아도_등급은_저절로_오르지_않는다()
+    {
+        // §6.5 [확정]: "승급이 자동이 아니라 사건이 됩니다. 문턱을 넘는 순간 조용히
+        // 올라가는 게 아니라, 의뢰를 받고 통과해야 합니다."
+        // 예전 구현은 문턱을 넘는 순간 올렸고, 한 번에 다섯 단이 오르기도 했습니다.
+        var ledger = new PartyLedger();
+        var a = Member("A");
+        var b = Member("B");
+        GoOut(ledger, PartyRules.MonthsToRegister, a, b);
+        var party = ledger.Register("P1", "파티", [a, b])!;
+
+        ledger.RecordEvaluation(party, PartyRules.EvaluationNeeded(Rank.F) * 10);
+
+        Assert.Equal(Ranks.Lowest, party.Rank);        // 열 배를 쌓아도 그대로입니다.
+        Assert.True(party.ReadyToPromote);             // 자격만 생깁니다.
+        output.WriteLine(party.ToString());
+
+        // 승급 의뢰를 통과해야 오르고, 한 번에 한 단만 오릅니다.
+        Assert.True(ledger.Promote(party));
+        Assert.Equal(Rank.E, party.Rank);
+    }
+
+    [Fact]
+    public void 평가가_모자라면_승급_의뢰_자격이_없다()
     {
         var ledger = new PartyLedger();
         var a = Member("A");
@@ -187,12 +257,12 @@ public class PartySystemTests(ITestOutputHelper output)
         GoOut(ledger, PartyRules.MonthsToRegister, a, b);
         var party = ledger.Register("P1", "파티", [a, b])!;
 
-        Assert.Equal(0, ledger.RecordEvaluation(party, PartyRules.EvaluationNeeded(Rank.F) - 1));
-        Assert.Equal(Rank.F, party.Rank);
+        Assert.False(party.ReadyToPromote);
+        ledger.RecordEvaluation(party, PartyRules.EvaluationNeeded(Rank.F) - 1);
+        Assert.False(party.ReadyToPromote);
 
-        Assert.Equal(1, ledger.RecordEvaluation(party, 1));
-        Assert.Equal(Rank.E, party.Rank);
-        output.WriteLine(party.ToString());
+        ledger.RecordEvaluation(party, 1);
+        Assert.True(party.ReadyToPromote);
     }
 
     [Fact]
@@ -210,7 +280,7 @@ public class PartySystemTests(ITestOutputHelper output)
         var party = ledger.Register("P1", "파티", [a, b])!;
 
         // 파티가 B급까지 올라가면 F등급은 못 들어옵니다 ("B + B + F는 안 된다").
-        while (party.Rank < Rank.B) ledger.RecordEvaluation(party, PartyRules.EvaluationNeeded(party.Rank));
+        while (party.Rank < Rank.B) Assert.True(ledger.Promote(party));   // 승급 의뢰를 통과한 셈
         Assert.Equal(Rank.D, party.JoinFloor);
 
         // F등급이라 붙어 나가는 것부터 막힙니다 — 캐리 태우기가 성립하지 않습니다.
@@ -237,7 +307,7 @@ public class PartySystemTests(ITestOutputHelper output)
 
         GoOut(ledger, PartyRules.MonthsToRegister, a, b);
         var party = ledger.Register("P1", "F등급 둘", [a, b])!;
-        while (party.Rank < Rank.B) ledger.RecordEvaluation(party, PartyRules.EvaluationNeeded(party.Rank));
+        while (party.Rank < Rank.B) Assert.True(ledger.Promote(party));   // 승급 의뢰를 통과한 셈
 
         Assert.Equal(Rank.F, a.Rank);
         Assert.True(a.Rank < party.JoinFloor);
@@ -418,7 +488,7 @@ public class PartySystemTests(ITestOutputHelper output)
             var c = Member("C");
 
             GoOut(ledger, 4, a, b, c);
-            GoOut(ledger, 4, a, b);
+            GoOut(ledger, 6, a, b);
             GoOut(ledger, 2, b, c);
 
             var party = ledger.Register("P1", "파티", [a, b])!;

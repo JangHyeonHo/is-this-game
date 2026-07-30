@@ -48,9 +48,14 @@ public enum AdmissionProblem
 /// <b>정규 파티</b>는 등록되어 <see cref="Party"/> 객체를 갖습니다.
 /// </para>
 /// <para>
-/// 누적은 <b>상위 집합으로 셉니다</b> — A+B+C로 여섯 달 나갔으면 A+B도 여섯 달입니다.
-/// 그래야 "여러 조합이 조건을 채웠을 때 누구와 등록할까"라는 판단이 실제로 생깁니다.
-/// 반대로 하면 정해둔 조합 하나만 등록 가능해져서 선택이 사라집니다.
+/// 누적은 <b>정확히 그 조합에만</b> 쌓입니다. A+B+C로 나간 달은 A+B의 달이 아닙니다.
+/// </para>
+/// <para>
+/// ⚠️ 한때 <b>상위 집합으로</b> 셌습니다(A+B+C 6달 → A+B도 6달). 문서에 근거가 없는
+/// 구현자 규칙이었고, §6.1의 "증원도 6개월"과 §6.6의 "죽음의 대가는 증원에 다시 6개월"을
+/// <b>무력화</b>했습니다 — 넷으로 여섯 달 나간 뒤 한 명이 죽으면 대기 0달로 즉시 합류가
+/// 됩니다. "누구와 등록할까"라는 선택은 <b>달마다 다른 조합을 굴리는 것</b>으로 이미
+/// 성립하므로 그 규칙이 필요하지 않았습니다.
 /// </para>
 /// <para>부작용이 없습니다 — 시간·난수·파일에 손대지 않습니다. 달은 호출자가 넘겨줍니다.</para>
 /// 근거: docs/08-design-revision.md §6.0, §6.1
@@ -88,44 +93,45 @@ public sealed class PartyLedger
     /// <summary>
     /// 등급이 세워진 정규 파티에 <b>붙어 나가는 사람</b>이 자격을 갖췄는가.
     /// <para>
-    /// 자격은 이미 있던 멤버에게 걸지 않습니다. F등급 둘이 모여 B급까지 올린 파티가
-    /// 자기 멤버 때문에 못 나가면 안 됩니다.
+    /// 기준은 <b>조합에 섞여 있는 정규 파티 중 가장 높은 등급</b>입니다. 그 파티의 멤버는
+    /// 자격을 안 봅니다 — F등급 둘이 모여 B급까지 올린 파티가 자기 멤버 때문에 못 나가면
+    /// 안 됩니다 (§"등급 −2 제한이 막는 것": "가입 후 파티 등급이 올라도 기존 멤버는 남습니다").
+    /// </para>
+    /// <para>
+    /// ⚠️ 예전에는 <b>파티가 조합에 온전히 들어 있을 때만</b> 기준으로 삼았습니다. 그러면
+    /// 1군에서 한 명만 빼고 신입을 끼우는 것으로 자격이 통째로 우회됩니다 —
+    /// B급 파티원 둘이 난이도를 열어주고 신입은 위험 없이 숙련을 챙기는,
+    /// §6.0이 "성립할 자리가 없다"고 한 바로 그 캐리 태우기입니다.
     /// </para>
     /// </summary>
     private bool EveryNewcomerIsEligible(IReadOnlyList<Adventurer> members)
     {
-        foreach (var party in ActiveParties)
+        // 조합에 한 명이라도 섞여 있는 정규 파티들. 등급 순으로 가장 높은 것이 기준입니다.
+        var involved = ActiveParties
+            .Where(p => p.Members.Any(m => members.Any(x => string.Equals(x.Id, m.Id, StringComparison.Ordinal))))
+            .ToArray();
+
+        if (involved.Length == 0) return true;
+
+        var standard = involved.MaxBy(p => (int)p.Rank)!;
+        if (standard.Rank == Ranks.Lowest) return true;   // 최하 등급은 자격이 걸릴 기준이 못 됩니다.
+
+        foreach (var person in members)
         {
-            // 그 파티가 이 조합에 온전히 들어 있을 때만 그 파티의 등급이 기준이 됩니다.
-            if (!party.Members.All(m => members.Any(x => string.Equals(x.Id, m.Id, StringComparison.Ordinal))))
-                continue;
+            // 기준을 세운 파티의 멤버는 자격을 안 봅니다.
+            if (standard.Members.Any(m => string.Equals(m.Id, person.Id, StringComparison.Ordinal))) continue;
 
-            var newcomers = members.Where(x =>
-                !party.Members.Any(m => string.Equals(m.Id, x.Id, StringComparison.Ordinal)));
-
-            if (newcomers.Any(x => !PartyFormation.IsEligibleToJoin(x, party.Rank))) return false;
+            if (!PartyFormation.IsEligibleToJoin(person, standard.Rank)) return false;
         }
 
         return true;
     }
 
     /// <summary>
-    /// 그 조합이 함께 나간 달. <b>이 조합 전원을 포함한 모든 출동</b>을 셉니다.
+    /// 그 조합이 함께 나간 달. <b>정확히 그 조합으로 나간 달만</b> 셉니다.
     /// </summary>
-    public int MonthsTogether(PartyComposition composition)
-    {
-        if (composition.Size == 0) return 0;
-
-        // Dictionary 순회지만 합산이라 순서가 결과를 바꾸지 않습니다.
-        // 그래도 정렬해 두면 나중에 로그를 찍을 때 재현됩니다.
-        int total = 0;
-        foreach (var (recorded, months) in _months.OrderBy(e => e.Key.Key, StringComparer.Ordinal))
-        {
-            if (composition.MemberIds.All(recorded.Contains)) total += months;
-        }
-
-        return total;
-    }
+    public int MonthsTogether(PartyComposition composition) =>
+        composition.Size == 0 ? 0 : _months.GetValueOrDefault(composition);
 
     public int MonthsTogether(IReadOnlyList<Adventurer> members) =>
         MonthsTogether(PartyComposition.Of(members));
@@ -147,11 +153,17 @@ public sealed class PartyLedger
     /// <summary>정규 등록이 가능한가.</summary>
     public RegistrationProblem CheckRegistration(IReadOnlyList<Adventurer> members)
     {
-        // 새 파티는 등급이 없으므로 자격이 걸릴 기준이 없습니다 (§6.2).
-        if (!PartyFormation.CanForm(members)) return RegistrationProblem.InvalidComposition;
-
         // 등록에는 최소 인원이 필요합니다 — 솔로잉이 열려도 혼자는 파티가 아닙니다.
         if (members.Count < PartyRules.MinimumMembers) return RegistrationProblem.InvalidComposition;
+
+        // 짐꾼 규칙은 등록에도 걸립니다 (§16.8b).
+        // ⚠️ 파견 가능 여부(CanDeploy)는 보지 않습니다 — 등록 조건은 "함께 나간 6개월"과
+        //   소속뿐입니다(§6.1). 예전에는 PartyFormation.Check를 그대로 써서, 멤버 한 명이
+        //   불구가 되면 여섯 달을 채웠어도 등록이 막혔습니다. 문서에 없는 제약이었습니다.
+        if (members.Count(PartyFormation.IsPorter) > PartyRules.MaxPorters)
+            return RegistrationProblem.InvalidComposition;
+
+        if (!members.Any(m => m.JobProfile.Combat)) return RegistrationProblem.InvalidComposition;
 
         if (members.Any(m => RegularPartyOf(m.Id) is not null))
             return RegistrationProblem.AlreadyInRegularParty;
@@ -245,8 +257,14 @@ public sealed class PartyLedger
     // ---- 평가 ----
 
     /// <summary>
-    /// 파티가 평가를 쌓습니다. 파티 등급은 개인 등급과 <b>독립적으로</b> 오릅니다.
+    /// 파티가 평가를 쌓습니다. <b>등급은 여기서 오르지 않습니다</b> — 승급 의뢰를 통과해야 오릅니다.
+    /// <para>파티 등급은 개인 등급에서 파생되지 않고 <b>독립적으로</b> 쌓입니다 (§6.2).</para>
     /// </summary>
-    /// <returns>이번에 오른 단 수.</returns>
-    public int RecordEvaluation(Party party, int points) => party.RecordEvaluation(points);
+    public void RecordEvaluation(Party party, int points) => party.RecordEvaluation(points);
+
+    /// <summary>
+    /// 파티를 한 단 승급시킵니다. <b>승급 의뢰를 통과했을 때만</b> 불립니다 (§6.5).
+    /// </summary>
+    /// <returns>실제로 올랐는지.</returns>
+    public bool Promote(Party party) => party.Promote();
 }

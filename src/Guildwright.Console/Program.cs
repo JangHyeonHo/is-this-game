@@ -336,8 +336,12 @@ internal sealed class Guild(IRandomSource rng)
     private void DeploymentYear(Adventurer member, IReadOnlyList<Contract> board)
     {
         // 게시판에서 고릅니다. 그 달에 안 받으면 사라집니다 (지속 의뢰만 남습니다).
+        // 승급 의뢰는 지속 의뢰이므로 자격이 되면 붙여 둡니다 — 등급이 오르는 유일한 길입니다.
+        var promotion = ContractBoard.PromotionFor(member);
+        var posted = promotion is null ? board : [.. board, promotion];
+
         var open = ContractBoard.AvailableTo(
-            board, member.Rank, asRegularParty: false, member.MaxContractDifficulty);
+            posted, member.Rank, asRegularParty: false, member.MaxContractDifficulty);
 
         if (open.Count == 0)
         {

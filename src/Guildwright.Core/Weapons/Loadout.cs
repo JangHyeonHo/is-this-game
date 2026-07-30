@@ -170,10 +170,14 @@ public sealed class Loadout
             _slots[(set, Other(hand))] = WeaponKind.None;
         }
 
+        // 가방을 들면 전환할 무기를 가질 수 없습니다. 비우는 것은 <b>반대 세트</b>입니다 —
+        // 예전에는 언제나 보조 세트를 비웠으므로, 보조 세트에 가방을 끼우면 방금 넣은
+        // 그 가방이 지워졌습니다. 예외도 안 나고 조용히 사라지는 종류의 버그였습니다.
         if (kind == WeaponKind.Backpack)
         {
-            _slots[(WeaponSet.Secondary, Hand.Right)] = WeaponKind.None;
-            _slots[(WeaponSet.Secondary, Hand.Left)] = WeaponKind.None;
+            var other = set == WeaponSet.Primary ? WeaponSet.Secondary : WeaponSet.Primary;
+            _slots[(other, Hand.Right)] = WeaponKind.None;
+            _slots[(other, Hand.Left)] = WeaponKind.None;
         }
     }
 

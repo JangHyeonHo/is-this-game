@@ -118,7 +118,7 @@
 - `record Skill` — 스킬 하나의 정의
 - `static class SkillBook` — 스킬 목록과 조회
 - `enum SkillForm` — 패시브인가 액티브인가<br>　└ `Passive` · `Active`
-- `enum SkillId` — 스킬 이름<br>　└ `Cure` · `Empower` · `Enfeeble` · `Provoke` · `Sweep` · `HandPotion` · `TwinStrike` · `HeavyBlow` · `Shielding` · `SteadyAim` · `Packcraft` · `Careful` · `Reckless` · `Cheerful` · `Stubborn`
+- `enum SkillId` — 스킬 이름<br>　└ `Cure` · `Empower` · `Enfeeble` · `Provoke` · `Sweep` · `HandPotion` · `PiercingShot` · `TwinStrike` · `HeavyBlow` · `Shielding` · `SteadyAim` · `Packcraft` · `Careful` · `Reckless` · `Cheerful` · `Stubborn`
 - `enum SkillSource` — 스킬이 어디서 오는가<br>　└ `Innate` · `Job`
 
 ## Training
