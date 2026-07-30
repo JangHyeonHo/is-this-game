@@ -146,6 +146,12 @@ public static class TacticalBrain
             actions.Add(new ChosenAction(TacticAction.AttackNearest, PickNearest(reachable)));
             actions.Add(new ChosenAction(TacticAction.AttackWeakest, PickWeakest(reachable)));
             actions.Add(new ChosenAction(TacticAction.AttackStrongest, PickStrongest(reachable)));
+
+            // 베고 막기 — 배운 사람만 후보에 오른다 (docs/07 §22).
+            if (self.CanAfford(TacticAction.GuardStrike))
+            {
+                actions.Add(new ChosenAction(TacticAction.GuardStrike, PickNearest(reachable)));
+            }
         }
 
         if (self.CanAfford(TacticAction.AttackBackRow))

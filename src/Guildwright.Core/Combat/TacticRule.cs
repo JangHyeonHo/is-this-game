@@ -38,6 +38,8 @@ public enum TacticAction
     AttackBackRow,
     /// <summary>광역 공격. 다수를 동시에 타격.</summary>
     AttackAll,
+    /// <summary>베고 막기 — 공격력의 75%로 공격하며 방어 자세를 취함. 한손검 필요 (docs/07 §22).</summary>
+    GuardStrike,
     /// <summary>마법 회복. 지팡이만 가능.</summary>
     HealAlly,
     /// <summary>아군에게 강화를 겁니다.</summary>

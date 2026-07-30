@@ -346,6 +346,37 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
                 log?.Add($"{actor.Name}: 방어 태세");
                 return;
 
+            // 베고 막기 (docs/07 §22) — 공격력의 75%로 베고 그 자리에서 방어 자세.
+            case TacticAction.GuardStrike:
+            {
+                var target = choice.Target;
+                if (target is null || !target.IsAlive)
+                {
+                    log?.Add($"{actor.Name}: 대상 없음");
+                    return;
+                }
+
+                if (!actor.CanAfford(TacticAction.GuardStrike))
+                {
+                    actor.BeginDefending();
+                    log?.Add($"{actor.Name}: 베고 막기를 쓸 수 없어 방어");
+                    return;
+                }
+
+                actor.PaySkillCost(TacticAction.GuardStrike);
+                var hit = DamageModel.ResolveAttack(actor, target, rng,
+                    explain: explainAttacks, powerScale: DamageModel.GuardStrikePowerRatio);
+
+                // ⚠️ ApplyHit은 피해를 실제로 적용합니다 — log?.Add의 인자로 넣지 않습니다 (docs/08 #13).
+                string guardLine = ApplyHit(actor, target, hit, actor.UsesMagicPower, prefix: "베고 막기 ");
+                log?.Add(guardLine);
+                Explain(hit, log);
+
+                actor.BeginDefending();
+                log?.Add($"{actor.Name}: 방어 자세");
+                return;
+            }
+
             case TacticAction.AttackAll:
             {
                 var targets = state.ReachableTargets(actor);

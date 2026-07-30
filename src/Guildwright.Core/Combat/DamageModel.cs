@@ -28,6 +28,9 @@ public static class DamageModel
     /// <summary>방어 태세일 때 받는 피해 배율.</summary>
     public const double DefendMultiplier = 0.5;
 
+    /// <summary>베고 막기의 공격 배율 — "공격력의 75%" (docs/07 §22, 사용자 확정값).</summary>
+    public const double GuardStrikePowerRatio = 0.75;
+
     /// <summary>후열에 있을 때 받는 피해 배율.</summary>
     public const double BackRowDefenseBonus = 0.75;
 
@@ -89,12 +92,14 @@ public static class DamageModel
     /// <b>난수 소비 순서와 결과는 이 값과 무관하게 완전히 동일합니다.</b>
     /// (달라지면 배치 시뮬레이션으로 잰 밸런스가 실제 플레이와 어긋납니다.)
     /// </param>
+    /// <param name="powerScale">기술이 정하는 공격 배율 — 베고 막기의 0.75가 여기로 들어옵니다.</param>
     public static AttackResult ResolveAttack(
         Combatant attacker,
         Combatant defender,
         IRandomSource rng,
         bool area = false,
-        bool explain = false)
+        bool explain = false,
+        double powerScale = 1.0)
     {
         double evasionChance = EvasionChanceOf(attacker, defender, area);
 
@@ -110,7 +115,7 @@ public static class DamageModel
         double variance = 1.0 + (rng.NextDouble() * 2.0 - 1.0) * Variance;
 
         var steps = explain ? new List<string>() : null;
-        int damage = ComputeDamage(attacker, defender, area, variance, critMultiplier, steps);
+        int damage = ComputeDamage(attacker, defender, area, variance, critMultiplier, steps, powerScale);
 
         string? detail = null;
         if (steps is not null)
@@ -155,7 +160,8 @@ public static class DamageModel
         bool area,
         double variance,
         double critMultiplier,
-        List<string>? steps = null)
+        List<string>? steps = null,
+        double powerScale = 1.0)
     {
         bool magic = attacker.UsesMagicPower;
 
@@ -167,6 +173,7 @@ public static class DamageModel
 
         raw = Step(raw, attacker.Loadout.Power, "무기", steps);
         raw = Step(raw, attacker.WeaponEffectiveness, "숙련", steps);
+        raw = Step(raw, powerScale, "기술 배율", steps);
         raw = Step(raw, critMultiplier, "치명타", steps);
 
         // 근접 무기가 후열에서 휘두르면 제대로 닿지 않습니다.

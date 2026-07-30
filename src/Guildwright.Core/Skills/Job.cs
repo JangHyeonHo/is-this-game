@@ -135,14 +135,26 @@ public static class Jobs
         [WeaponKind.Backpack] = [SkillId.HandPotion, SkillId.Packcraft]
     };
 
+    /// <summary>
+    /// 첫 단(견습)이 처음부터 갖는 스킬 (docs/07 §22 — 사용자 결정 2026-07-30).
+    /// 견습 전사는 대담함(패시브)과 베고 막기(액티브)를 받는다 —
+    /// 베고 막기는 요구 숙련을 채워야 실제로 배운다.
+    /// </summary>
+    private static readonly Dictionary<WeaponKind, SkillId[]> StarterGrants = new()
+    {
+        [WeaponKind.Sword] = [SkillId.Boldness, SkillId.CutAndGuard]
+    };
+
     private static IEnumerable<Job> Ladder(WeaponKind weapon, JobId[] ids, string[] names)
     {
         var grants = LadderGrants.GetValueOrDefault(weapon, []);
+        var starter = StarterGrants.GetValueOrDefault(weapon, []);
 
         for (int i = 0; i < ids.Length; i++)
         {
             // 숙련 패시브는 두 번째 단부터 붙습니다 — 견습이 숙달을 가질 수는 없습니다.
-            var given = i >= 1 ? grants : [];
+            // 견습의 것(StarterGrants)은 위 단으로도 이어집니다 — 전직해도 패시브는 남는 규칙과 결이 같습니다.
+            var given = i >= 1 ? [.. starter, .. grants] : starter;
             yield return Rung(ids[i], names[i], weapon, Steps[i],
                 Slots[i], Difficulty[i], given);
         }
@@ -162,9 +174,12 @@ public static class Jobs
     {
         // 열거형 순서로 고정합니다 — Dictionary 순회 순서가 스킬 목록 순서를 바꾸면
         // 액티브 슬롯에 들어가는 스킬이 실행마다 달라집니다.
+        // 견습의 것(StarterGrants)도 합집합에 든다 — §16.5 "각 계열이 주는 것의 합집합".
         var granted = requires
             .OrderBy(r => r.Weapon)
-            .SelectMany(r => LadderGrants.GetValueOrDefault(r.Weapon, []))
+            .SelectMany(r => (SkillId[])[
+                .. StarterGrants.GetValueOrDefault(r.Weapon, []),
+                .. LadderGrants.GetValueOrDefault(r.Weapon, [])])
             .Distinct()
             .ToArray();
 
@@ -175,17 +190,20 @@ public static class Jobs
 
     private static readonly Job[] Table =
     [
+        // 한손검 계열 = 전사 계열 (docs/07 §22 — 사용자가 "견습 전사"로 지칭·확정).
         .. Ladder(WeaponKind.Sword,
             [JobId.SwordApprentice, JobId.Swordsman, JobId.TwinBlade, JobId.Blademaster, JobId.SwordSaint],
-            ["견습 검객", "검객", "쌍검사", "명검객", "검성"]),
+            ["견습 전사", "전사", "쌍검사", "명검객", "검성"]),
 
         .. Ladder(WeaponKind.Shield,
             [JobId.ShieldApprentice, JobId.Shieldbearer, JobId.Guardsman, JobId.Knight, JobId.Warden],
             ["견습 방패병", "방패병", "근위병", "기사", "수호기사"]),
 
+        // "전사" 이름은 한손검 계열이 가져갔으므로 대검 계열은 대검사로 구분한다.
+        // ⚠️ 이 개명은 이름 충돌을 피하기 위한 기계적 조치다 — 최종 명명은 사람이 정한다.
         .. Ladder(WeaponKind.Greatsword,
             [JobId.GreatApprentice, JobId.Warrior, JobId.Veteran, JobId.Champion, JobId.Warlord],
-            ["견습 전사", "전사", "역전의 전사", "맹장", "대전사"]),
+            ["견습 대검사", "대검사", "역전의 대검사", "맹장", "대전사"]),
 
         .. Ladder(WeaponKind.Spear,
             [JobId.SpearApprentice, JobId.Spearman, JobId.Lancer, JobId.SpearAdept, JobId.SpearSaint],

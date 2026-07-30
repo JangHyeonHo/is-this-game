@@ -88,7 +88,7 @@
 - `enum ShiftTarget` — 수치 증감이 건드리는 대상<br>　└ `None` · `Power` · `Guard` · `Accuracy` · `Evasion` · `Speed`
 - `record StatusEffect` — 한 캐릭터에게 걸려 있는 상태 효과 하나
 - `static class StatusEffects` — 상태 효과 목록과 조회
-- `enum TacticAction` — 전술 규칙이 지시하는 행동<br>　└ `AttackNearest` · `AttackWeakest` · `AttackStrongest` · `AttackBackRow` · `AttackAll` · `HealAlly` · `BuffAlly` · `DebuffEnemy` · `Taunt` · `UsePotion` · `GivePotion` · `SwitchWeapon` · `Defend` · `MoveBack` · `MoveFront`
+- `enum TacticAction` — 전술 규칙이 지시하는 행동<br>　└ `AttackNearest` · `AttackWeakest` · `AttackStrongest` · `AttackBackRow` · `AttackAll` · `GuardStrike` · `HealAlly` · `BuffAlly` · `DebuffEnemy` · `Taunt` · `UsePotion` · `GivePotion` · `SwitchWeapon` · `Defend` · `MoveBack` · `MoveFront`
 - `enum TacticCondition` — 전술 규칙의 발동 조건<br>　└ `Always` · `SelfHpBelow` · `AllyHpBelow` · `EnemyHpBelow` · `SelfInFrontRow` · `SelfInBackRow` · `FrontRowEmpty`
 - `struct TacticRule` — FF12 감빗과 유사한 조건-행동 규칙
 - `static class TacticalBrain` — 전투 중 한 캐릭터가 무엇을 할지 결정하는 Utility AI
@@ -128,7 +128,7 @@
 - `record Skill` — 스킬 하나의 정의
 - `static class SkillBook` — 스킬 목록과 조회
 - `enum SkillForm` — 패시브인가 액티브인가<br>　└ `Passive` · `Active`
-- `enum SkillId` — 스킬 이름<br>　└ `Cure` · `Empower` · `Enfeeble` · `Provoke` · `Sweep` · `HandPotion` · `PiercingShot` · `TwinStrike` · `HeavyBlow` · `Shielding` · `SteadyAim` · `Packcraft` · `Careful` · `Reckless` · `Cheerful` · `Stubborn`
+- `enum SkillId` — 스킬 이름<br>　└ `Cure` · `Empower` · `Enfeeble` · `Provoke` · `Sweep` · `HandPotion` · `PiercingShot` · `CutAndGuard` · `TwinStrike` · `HeavyBlow` · `Shielding` · `SteadyAim` · `Packcraft` · `Boldness` · `Careful` · `Reckless` · `Cheerful` · `Stubborn`
 - `enum SkillSource` — 스킬이 어디서 오는가<br>　└ `Innate` · `Job`
 
 ## Training
