@@ -104,8 +104,9 @@ public class CritAndEvasionTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void 방어_태세는_피해도_줄이고_회피도_돕는다()
+    public void 방어_태세는_피해만_줄이고_회피는_그대로다()
     {
+        // 회피 보정은 근거 없는 초기 발명이라 제거됐다 (docs/08 #67).
         var attacker = Make("A", Team.Player);
 
         var plain = Make("P", Team.Enemy);
@@ -119,7 +120,7 @@ public class CritAndEvasionTests(ITestOutputHelper output)
         output.WriteLine($"회피율   · 평상시 {plainSample.EvasionRate:P1} / 방어 태세 {guardedSample.EvasionRate:P1}");
 
         Assert.True(guardedSample.AverageDamage < plainSample.AverageDamage * 0.7);
-        Assert.True(guardedSample.EvasionRate > plainSample.EvasionRate);
+        Assert.Equal(plainSample.EvasionRate, guardedSample.EvasionRate, precision: 3);
     }
 
     // ---------------------------------------------------------------

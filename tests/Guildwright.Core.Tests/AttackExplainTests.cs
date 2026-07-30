@@ -71,8 +71,10 @@ public class AttackExplainTests
     }
 
     [Fact]
-    public void EvasionChanceOf_방어_태세면_회피율이_오른다()
+    public void EvasionChanceOf_방어_태세는_회피율을_바꾸지_않는다()
     {
+        // 방어는 자세를 굳혀 버티는 것이지 더 잘 피하는 것이 아니다 (docs/08 #67).
+        // 방어 태세의 효과는 받는 피해 절반뿐이다.
         var attacker = TestParty.Make("A", Team.Player, 50);
         var defender = TestParty.Make("D", Team.Enemy, 50);
 
@@ -80,7 +82,7 @@ public class AttackExplainTests
         defender.BeginDefending();
         double after = DamageModel.EvasionChanceOf(attacker, defender);
 
-        Assert.True(after > before, $"방어 태세 회피율 {after:P1} 이 평소 {before:P1} 보다 높아야 합니다.");
+        Assert.Equal(before, after);
     }
 
     private static AttackResult Attack(ulong seed, bool explain)
