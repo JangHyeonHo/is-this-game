@@ -1,12 +1,13 @@
-@* 메인 — 월 루프의 축. 사무실 배경 + 단원 스탠딩 + 소식 패널,
-   푸터 4버튼(캐릭터·길드·의뢰·시스템) + 업무 시작 (docs/07 §21). *@
+@* 메인 — 월 루프의 축 (docs/07 §21). 왼쪽에 길드 현황(실계산 수치), 오른쪽에 소식,
+   가운데 단원 스탠딩. 푸터 버튼은 누르면 그 버튼 위로 상세 행동 메뉴가 펼쳐진다 —
+   가운데 모달이 아니다. *@
 
-<div class="art full" style="top:76px; bottom:120px; position:absolute; inset:76px 0 120px 0">
+<div class="art full" style="position:absolute; inset:76px 0 120px 0">
     길드 사무실 배경 일러스트 자리
 </div>
 
 <div class="topbar">
-    <div>@Session.GuildName 길드 <span class="badge">랭크 F</span></div>
+    <div>@Session.GuildName 길드 <span class="badge">랭크 @Session.RankLabel</span></div>
     <div class="mid">@(Session.Year)년 @(Session.Month)월 · @Session.Season</div>
     <div class="res">
         <span>자금 <b>@Session.Gold</b></span>
@@ -15,11 +16,25 @@
     </div>
 </div>
 
-<div style="position:absolute; bottom:150px; left:180px; display:flex; gap:60px; align-items:flex-end; z-index:2">
+@* ── 좌: 길드 현황 — 경영 수치는 항상 보인다 ── *@
+<div class="panel" style="position:absolute; left:60px; top:140px; width:460px; padding-bottom:18px; z-index:2">
+    <h3>길드 현황</h3>
+    <div style="padding:0 20px; font-size:24px; line-height:2.0">
+        <div style="display:flex; justify-content:space-between"><span>자금</span><b style="color:#d6b45a">@Session.Gold</b></div>
+        <div style="display:flex; justify-content:space-between"><span>명성</span><b style="color:#d6b45a">@Session.Fame</b></div>
+        <div style="display:flex; justify-content:space-between"><span>길드 랭크</span><b>@Session.RankLabel</b></div>
+        <div style="display:flex; justify-content:space-between"><span>단원</span><b>@Session.Members.Count / @Session.Capacity</b></div>
+        <div style="display:flex; justify-content:space-between"><span>연말 유지비 예정</span><b style="color:#c79c9c">-@Session.UpkeepDue</b></div>
+        <div style="display:flex; justify-content:space-between"><span>영입 계약금</span><b>@Session.RecruitPrice/인 · 매년 1월</b></div>
+    </div>
+</div>
+
+@* ── 중: 단원 스탠딩 ── *@
+<div style="position:absolute; bottom:150px; left:580px; display:flex; gap:50px; align-items:flex-end; z-index:2">
     @foreach (var member in Session.Members)
     {
         <div style="text-align:center; @(member.Free ? "" : "opacity:.55")">
-            <div class="portrait" style="width:200px; height:340px">@member.Name</div>
+            <div class="portrait" style="width:180px; height:300px; font-size:38px">@ShortName(member.Name)</div>
             <div style="margin-top:8px">
                 @if (!member.Free)
                 {
@@ -38,71 +53,88 @@
     }
 </div>
 
-<div class="panel" style="position:absolute; right:60px; top:140px; width:560px; padding-bottom:16px; z-index:2">
-    <h3>이번 달 소식</h3>
+@* ── 우: 소식 — 연대기 기록 ── *@
+<div class="panel" style="position:absolute; right:60px; top:140px; width:520px; padding-bottom:16px; z-index:2">
+    <h3>소식</h3>
     <div style="padding:0 20px; font-size:23px; color:#b8afa0; line-height:1.8">
-        · 브렌 — 가도에서 고블린 2마리와 교전, 이상 없음<br />
-        · 새 의뢰 3건이 게시판에 올라왔다<br />
-        · 유지비 정산까지 @(12 - Session.Month)달
+        @if (Session.Chronicle.Count == 0)
+        {
+            <span style="color:#635c50">아직 아무 일도 없었다.</span>
+        }
+        else
+        {
+            @foreach (var entry in Session.Chronicle.TakeLast(4).Reverse())
+            {
+                <div>· @entry</div>
+            }
+        }
     </div>
-    <div style="padding:8px 20px 0; font-size:19px; color:#635c50">※ 소식은 코어 연결 단계에서 실제 사건으로 채워진다</div>
 </div>
 
+@* ── 푸터 — 버튼을 누르면 그 버튼 위로 메뉴가 펼쳐진다 ── *@
 <div class="footer">
-    <div class="nav" @onclick='() => OpenStub("캐릭터", "단원 목록 · 상세 · 전직 · 장비")'><span class="ico">👤</span>캐릭터</div>
-    <div class="nav" @onclick='() => OpenStub("길드", "상점(약국·대장간) · 모집 · 파티 · 재정")'><span class="ico">🏰</span>길드</div>
-    <div class="nav" @onclick='() => OpenStub("의뢰", "게시판 열람 (수락은 업무 준비에서)")'><span class="ico">📜</span>의뢰</div>
-    <div class="nav" @onclick="() => _showSystem = true"><span class="ico">⚙️</span>시스템</div>
+    <div class="navwrap">
+        @if (_openMenu == "캐릭터")
+        {
+            <div class="navmenu">
+                <button class="btn" disabled>단원 목록 · 상세 — 준비 중</button>
+                <button class="btn" disabled>전직 · 장비 — 준비 중</button>
+            </div>
+        }
+        <div class="nav @(_openMenu == "캐릭터" ? "on" : "")" @onclick='() => ToggleMenu("캐릭터")'><span class="ico">👤</span>캐릭터</div>
+    </div>
+    <div class="navwrap">
+        @if (_openMenu == "길드")
+        {
+            <div class="navmenu">
+                @if (Session.RecruitOpen)
+                {
+                    <button class="btn" @onclick="Session.OpenRecruit">모집 (1월)</button>
+                }
+                else
+                {
+                    <button class="btn" disabled>모집 — 매년 1월</button>
+                }
+                <button class="btn" disabled>상점 (약국·대장간) — 준비 중</button>
+                <button class="btn" disabled>파티 — 준비 중</button>
+                <button class="btn" disabled>재정 — 준비 중</button>
+            </div>
+        }
+        <div class="nav @(_openMenu == "길드" ? "on" : "")" @onclick='() => ToggleMenu("길드")'><span class="ico">🏰</span>길드</div>
+    </div>
+    <div class="navwrap">
+        @if (_openMenu == "의뢰")
+        {
+            <div class="navmenu">
+                <button class="btn" disabled>게시판 — 준비 중</button>
+            </div>
+        }
+        <div class="nav @(_openMenu == "의뢰" ? "on" : "")" @onclick='() => ToggleMenu("의뢰")'><span class="ico">📜</span>의뢰</div>
+    </div>
+    <div class="navwrap">
+        @if (_openMenu == "시스템")
+        {
+            <div class="navmenu">
+                <button class="btn" disabled>저장 — 세이브 준비 전</button>
+                <button class="btn" disabled>설정 — 준비 중</button>
+                <button class="btn" @onclick="() => Session.Go(Screen.Title)">타이틀로</button>
+            </div>
+        }
+        <div class="nav @(_openMenu == "시스템" ? "on" : "")" @onclick='() => ToggleMenu("시스템")'><span class="ico">⚙️</span>시스템</div>
+    </div>
     <div class="gobtn" @onclick="() => Session.Go(Screen.Prep)">업무 시작 ▶</div>
 </div>
-
-@if (_stubTitle is not null)
-{
-    <div class="dim-layer" @onclick="CloseStub">
-        <div class="modal" @onclick:stopPropagation>
-            <h4>@_stubTitle</h4>
-            <div class="mrow">@_stubBody</div>
-            <div class="mrow" style="color:#635c50">코어 연결 단계에서 채워진다.</div>
-            <div style="margin-top:24px; text-align:right">
-                <button class="btn" @onclick="CloseStub">닫기</button>
-            </div>
-        </div>
-    </div>
-}
-
-@if (_showSystem)
-{
-    <div class="dim-layer" @onclick="() => _showSystem = false">
-        <div class="modal" @onclick:stopPropagation>
-            <h4>시스템</h4>
-            <div style="display:flex; flex-direction:column; gap:14px">
-                <button class="btn" @onclick="() => _showSystem = false">이어서 한다 (닫기)</button>
-                <button class="btn" disabled>저장한다 — 세이브 시스템 준비 전</button>
-                <button class="btn" disabled>설정 — 준비 전</button>
-                <button class="btn" @onclick="ToTitle">타이틀로</button>
-            </div>
-        </div>
-    </div>
-}
 
 @code {
     [CascadingParameter] public required GameSession Session { get; set; }
 
-    private string? _stubTitle;
-    private string _stubBody = "";
-    private bool _showSystem;
+    private string? _openMenu;
 
-    private void OpenStub(string title, string body)
+    private void ToggleMenu(string name) => _openMenu = _openMenu == name ? null : name;
+
+    private static string ShortName(string name)
     {
-        _stubTitle = title;
-        _stubBody = body;
-    }
-
-    private void CloseStub() => _stubTitle = null;
-
-    private void ToTitle()
-    {
-        _showSystem = false;
-        Session.Go(Screen.Title);
+        int cut = name.IndexOf('(');
+        return cut > 0 ? name[..cut] : name;
     }
 }

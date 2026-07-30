@@ -8,7 +8,7 @@
 </div>
 
 <div class="tmenu">
-    <button class="btn" @onclick="() => Session.Go(Screen.Opening)">새로 시작</button>
+    <button class="btn" @onclick="Session.NewGame">새로 시작</button>
     <button class="btn" disabled>이어하기 (저장 없음)</button>
     <button class="btn" @onclick="() => _showSettings = true">설정</button>
     <button class="btn" @onclick="() => _showQuitNote = true">게임 종료</button>

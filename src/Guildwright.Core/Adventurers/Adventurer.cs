@@ -439,7 +439,8 @@ public sealed class Adventurer
 
         // 희망 직업을 가지고 옵니다 — 플레이어가 배정하는 게 아닙니다.
         // 적성과 어긋날 수 있고, 그 어긋남이 전직의 동기가 됩니다 (docs/07 §16.3).
-        var wished = Jobs.Starting[rng.Fork($"wish:{id}").NextInt(0, Jobs.Starting.Count)];
+        // 풀은 지금 열려 있는 직업만입니다 (docs/07 §20.5 — 당장은 한손검+방패 하나).
+        var wished = Jobs.OpenForRecruit[rng.Fork($"wish:{id}").NextInt(0, Jobs.OpenForRecruit.Count)];
         var loadout = StartingLoadoutFor(wished);
 
         // 태생 패시브 하나를 타고납니다. 이해도가 올라야 드러납니다 (docs/07 §16.7).

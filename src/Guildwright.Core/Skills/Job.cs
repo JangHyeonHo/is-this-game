@@ -255,6 +255,13 @@ public static class Jobs
         Table.Where(j => j.Requires.Count == 0).Select(j => j.Id).ToArray();
 
     /// <summary>
+    /// 지금 열려 있는 시작 직업 (docs/07 §20.5 — 당장은 한손검+방패 계열 하나만).
+    /// 모집 후보의 희망 직업은 이 목록에서만 나온다. 직업은 순차적으로 연다 —
+    /// 직업 체계 자체(<see cref="Starting"/>·사다리·히든)는 그대로 두고 입구만 좁힌다.
+    /// </summary>
+    public static IReadOnlyList<JobId> OpenForRecruit { get; } = [JobId.SwordApprentice];
+
+    /// <summary>
     /// 이 숙련도로 가질 수 있는 직업들.
     /// <para>
     /// 정렬 순서를 고정합니다 — <see cref="Table"/> 순서를 그대로 따르므로
