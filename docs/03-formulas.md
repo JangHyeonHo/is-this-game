@@ -60,9 +60,13 @@
 |---|---|
 | 무기 표 (위력 · 속도 · 사거리 · 손 · 적재량) | `Weapons/WeaponKind.cs` → `Weaponry.Table` |
 | 장착 4칸 · 위력·속도 합산 · 전환 | `Weapons/Loadout.cs` |
+| 재질 위력 배율 (나무·철·강철 — §20.7) | `Weapons/WeaponMaterial.cs` → `PowerFactor` |
 | 숙련도 · 효율 곡선 · 획득량 | `Weapons/WeaponProficiency.cs` |
 | 적성 굴림 (잠재력과의 상관 + 노이즈) | `Weapons/WeaponAptitudes.cs` |
-| 직업 표 (요구 숙련 · 슬롯 · 수주 난이도 · 유지비) | `Skills/Job.cs` → `Jobs.Table` |
+| 직업 표 (요구 숙련 · 슬롯 · 수주 난이도) | `Skills/Job.cs` → `Jobs.Table` |
+| 모집에 열린 직업 (§20.5) | `Skills/Job.cs` → `Jobs.OpenForRecruit` |
+| 상점 카탈로그 · 가격 (§20.3, ⚠️임시) | `Items/Shop.cs` |
+| 길드 인벤토리 | `Items/Armory.cs` |
 | 스킬 표 (마나 · 쿨다운 · 요구 무기 · 보정) | `Skills/Skill.cs` → `SkillBook.Table` |
 
 ---

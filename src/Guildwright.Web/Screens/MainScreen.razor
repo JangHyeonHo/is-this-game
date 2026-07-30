@@ -77,8 +77,9 @@
         @if (_openMenu == "캐릭터")
         {
             <div class="navmenu">
-                <button class="btn" disabled>단원 목록 · 상세 — 준비 중</button>
-                <button class="btn" disabled>전직 · 장비 — 준비 중</button>
+                <button class="btn" disabled="@(Session.Members.Count == 0)"
+                        @onclick="() => Session.Go(Screen.Characters)">단원 상세 · 장비</button>
+                <button class="btn" disabled>전직 — 준비 중</button>
             </div>
         }
         <div class="nav @(_openMenu == "캐릭터" ? "on" : "")" @onclick='() => ToggleMenu("캐릭터")'><span class="ico">👤</span>캐릭터</div>
@@ -95,7 +96,7 @@
                 {
                     <button class="btn" disabled>모집 — 매년 1월</button>
                 }
-                <button class="btn" disabled>상점 (약국·대장간) — 준비 중</button>
+                <button class="btn" @onclick="() => Session.Go(Screen.Shop)">상점 (대장간·약국)</button>
                 <button class="btn" disabled>파티 — 준비 중</button>
                 <button class="btn" disabled>재정 — 준비 중</button>
             </div>

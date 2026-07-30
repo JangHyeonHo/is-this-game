@@ -10,7 +10,7 @@
 > 수치(상수)는 넣지 않는다 — 튜닝마다 흔들려 스냅샷이 무의미해진다. 코드를 직접 본다.
 > 설계 맥락·미구현 목록·막혀 있는 기능은 [05-gaps.md](05-gaps.md)에 있다.
 
-공개 타입 119개
+공개 타입 126개
 
 ## Adventurers
 
@@ -94,6 +94,14 @@
 - `static class TacticalBrain` — 전투 중 한 캐릭터가 무엇을 할지 결정하는 Utility AI
 - `enum Team`<br>　└ `Player` · `Enemy`
 
+## Items
+
+- `class Armory` — 길드 인벤토리 — 창고에 쌓인 장비와 소모품 (docs/07 §20.3 · §20.7)
+- `enum ConsumableKind` — 소모품 (docs/07 §20.7 — 당장은 소형 포션 둘뿐)<br>　└ `HealthPotionSmall` · `ManaPotionSmall`
+- `static class Consumables`
+- `static class Shop` — 상점 카탈로그 (docs/07 §20.3 — 대장간은 무기, 약국은 포션)
+- `struct WeaponItem` — 장비 아이템 하나 — 무기 종류 + 재질 (docs/07 §20.7)
+
 ## Parties
 
 - `enum AdmissionProblem` — 증원이 안 되는 이유<br>　└ `None` · `NotEnoughMonths` · `AlreadyInRegularParty` · `Disbanded` · `AlreadyMember` · `RankTooLow` · `InvalidComposition`
@@ -152,7 +160,9 @@
 - `enum Reach` — 사거리<br>　└ `Melee` · `Extended` · `Ranged`
 - `enum Row` — 전투에서의 위치<br>　└ `Front` · `Back`
 - `class WeaponAptitudes` — 스타일별 무기 적성
-- `enum WeaponKind` — 무기 종류<br>　└ `None` · `WoodenSword` · `Sword` · `Axe` · `Mace` · `Greatsword` · `Spear` · `Shield` · `Bow` · `Crossbow` · `Staff` · `Pickaxe` · `Backpack`
+- `enum WeaponKind` — 무기 종류<br>　└ `None` · `Sword` · `Axe` · `Mace` · `Greatsword` · `Spear` · `Shield` · `Bow` · `Crossbow` · `Staff` · `Pickaxe` · `Backpack`
+- `enum WeaponMaterial` — 무기 재질 (docs/07 §20.7 — 초급 아이템은 나무·철·강철 × 검·방패)<br>　└ `Wood` · `Iron` · `Steel`
+- `static class WeaponMaterials`
 - `class WeaponProficiency` — 스타일별 숙련도
 - `enum WeaponSet` — 어느 세트인가<br>　└ `Primary` · `Secondary`
 - `record WeaponSpec` — 무기 하나의 명세
