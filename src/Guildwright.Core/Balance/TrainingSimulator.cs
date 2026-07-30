@@ -63,7 +63,7 @@ public static class TrainingSimulator
         int trials = 400,
         int years = 5,
         ulong seed = 900_1,
-        WeaponStyle style = WeaponStyle.SwordAndShield)
+        WeaponKind style = WeaponKind.Sword)
         => Run(policy.Name, (_, session, _) => policy.ChooseFor(session), trials, years, seed, style);
 
     /// <summary>
@@ -90,7 +90,7 @@ public static class TrainingSimulator
         int trials = 400,
         int years = 5,
         ulong seed = 900_1,
-        WeaponStyle style = WeaponStyle.SwordAndShield)
+        WeaponKind style = WeaponKind.Sword)
     {
         var totalStats = new double[PrimaryStats.AllStats.Count];
         double totalGain = 0, totalProf = 0, totalJudge = 0;
@@ -105,7 +105,7 @@ public static class TrainingSimulator
         {
             // 캐릭터 생성은 방침과 무관한 스트림에서 — 방침을 바꿔도 같은 사람이 나옵니다.
             var adventurer = Adventurer.Recruit($"S{t}", $"표본{t}", root.Fork($"char:{t}"));
-            adventurer.Equip(style, WeaponClass.Blade);
+            adventurer.Equip(WeaponSet.Primary, Hand.Right, style);
 
             int startTotal = adventurer.Stats.Total;
 
@@ -244,7 +244,7 @@ public static class TrainingSimulator
         int trials = 300,
         int years = 5,
         ulong seed = 5150,
-        WeaponStyle style = WeaponStyle.SwordAndShield)
+        WeaponKind style = WeaponKind.Sword)
     {
         int leftWins = 0, decided = 0;
         var root = new DeterministicRandom(seed);
@@ -281,19 +281,19 @@ public static class TrainingSimulator
             team: team,
             stats: a.Stats,
             judgement: a.Judgement,
-            style: a.EquippedStyle,
+            loadout: a.Loadout,
             weaponEffectiveness: a.WeaponEffectiveness,
             bonuses: a.Bonuses,
             row: Row.Front,
-            tactics: CombatantFactory.DefaultTacticsFor(a.EquippedStyle),
+            tactics: CombatantFactory.DefaultTacticsFor(a.Loadout),
             potions: 2);
 
     private static Adventurer? Grow(
         Func<Adventurer, TrainingYearSession, IRandomSource, TrainingActivity> chooser,
-        int trial, int years, WeaponStyle style, IRandomSource root)
+        int trial, int years, WeaponKind style, IRandomSource root)
     {
         var a = Adventurer.Recruit($"D{trial}", $"결투{trial}", root.Fork($"char:{trial}"));
-        a.Equip(style, WeaponClass.Blade);
+        a.Equip(WeaponSet.Primary, Hand.Right, style);
 
         for (int y = 0; y < years; y++)
         {
@@ -326,7 +326,7 @@ public static class TrainingSimulator
     public static TrainingActivity CombatOracle(Adventurer a, TrainingYearSession session, IRandomSource _)
     {
         var growth = a.Growth;
-        bool magic = WeaponStyles.CapabilityOf(a.EquippedStyle).UsesMagic;
+        bool magic = Weaponry.Of(a.Loadout.MainWeapon).UsesMagicPower;
 
         // 능력치 1점이 전투력에 얼마나 기여하는가.
         // 파생 공식(docs/07 §1)에서 그대로 가져왔습니다.

@@ -9,7 +9,7 @@
 > 수치(상수)는 일부러 넣지 않았습니다 — 코드를 직접 보세요.
 > 설계 맥락·미구현 목록·막혀 있는 기능은 [09-systems.md](09-systems.md)에 있습니다.
 
-공개 타입 96개
+공개 타입 101개
 
 ## Adventurers
 
@@ -46,8 +46,6 @@
 - `record Contract` — 길드가 받는 의뢰
 - `static class ContractGenerator` — 의뢰를 절차적으로 생성합니다
 - `enum ContractKind` — 의뢰의 성격<br>　└ `Combat` · `Gathering` · `Exploration`
-- `static class ContractResolver`
-- `record ContractSupport` — 파티가 의뢰에 가져오는 비전투 역량의 총합과 그 효과
 - `record Encounter` — 조우한 무리와, 피할 수 있는 가능성
 - `static class EncounterGenerator` — 의뢰에 맞는 적을 만듭니다
 - `enum FieldAction` — 파견 나간 한 달 동안 무엇을 할지<br>　└ `Search` · `Patrol` · `Camp`
@@ -55,12 +53,7 @@
 - `static class FieldRules` — 파견 월 단위 진행의 밸런스 상수
 - `record FieldYearResult` — 파견 1년의 결과
 - `class FieldYearSession` — 파견 1년을 월 단위로 진행합니다
-- `enum JobRank` — 직업 등급<br>　└ `Apprentice` · `Journeyman` · `Adept` · `Master` · `Grandmaster`
-- `static class JobRanks`
 - `record Mentorship` — 선배가 후배 육성에 주는 보너스
-- `enum SupportSkill` — 비전투 역량<br>　└ `TrapSense` · `Scouting` · `Portering` · `Gathering` · `Appraisal`
-- `class SupportSkillSet` — 한 모험가의 비전무 역량 수준
-- `static class SupportSkills`
 
 ## Combat
 
@@ -86,7 +79,7 @@
 - `enum ShiftTarget` — 수치 증감이 건드리는 대상<br>　└ `None` · `Power` · `Guard` · `Accuracy` · `Evasion` · `Speed`
 - `record StatusEffect` — 한 캐릭터에게 걸려 있는 상태 효과 하나
 - `static class StatusEffects` — 상태 효과 목록과 조회
-- `enum TacticAction` — 전술 규칙이 지시하는 행동<br>　└ `AttackNearest` · `AttackWeakest` · `AttackStrongest` · `AttackBackRow` · `AttackAll` · `HealAlly` · `BuffAlly` · `DebuffEnemy` · `Taunt` · `UsePotion` · `Defend` · `MoveBack` · `MoveFront`
+- `enum TacticAction` — 전술 규칙이 지시하는 행동<br>　└ `AttackNearest` · `AttackWeakest` · `AttackStrongest` · `AttackBackRow` · `AttackAll` · `HealAlly` · `BuffAlly` · `DebuffEnemy` · `Taunt` · `UsePotion` · `GivePotion` · `SwitchWeapon` · `Defend` · `MoveBack` · `MoveFront`
 - `enum TacticCondition` — 전술 규칙의 발동 조건<br>　└ `Always` · `SelfHpBelow` · `AllyHpBelow` · `EnemyHpBelow` · `SelfInFrontRow` · `SelfInBackRow` · `FrontRowEmpty`
 - `struct TacticRule` — FF12 감빗과 유사한 조건-행동 규칙
 - `static class TacticalBrain` — 전투 중 한 캐릭터가 무엇을 할지 결정하는 Utility AI
@@ -96,6 +89,17 @@
 
 - `class DeterministicRandom` — xoshiro256** 기반 결정론적 난수 생성기
 - `interface IRandomSource` — 코어의 유일한 난수 공급원
+
+## Skills
+
+- `record Job` — 직업 하나
+- `enum JobId` — 직업 이름<br>　└ `SwordApprentice` · `Swordsman` · `TwinBlade` · `Blademaster` · `SwordSaint` · `ShieldApprentice` · `Shieldbearer` · `Guardsman` · `Knight` · `Warden` · `GreatApprentice` · `Warrior` · `Veteran` · `Champion` · `Warlord` · `SpearApprentice` · `Spearman` · `Lancer` · `SpearAdept` · `SpearSaint` · `BowApprentice` · `Archer` · `Marksman` · `Sharpshooter` · `Divineshot` · `BoltApprentice` · `Crossbowman` · `Sniper` · `Deadeye` · `Piercer` · `StaffApprentice` · `Mage` · `HighMage` · `Archmage` · `Sage` · `Axeman` · `Berserker` · `Maceman` · `Warpriest` · `Miner` · `Prospector` · `Porter` · `SkilledPorter` · `Quartermaster` · `SpellArcher` · `SpellBlade`
+- `static class Jobs` — 직업 목록과 해금 판정
+- `record Skill` — 스킬 하나의 정의
+- `static class SkillBook` — 스킬 목록과 조회
+- `enum SkillForm` — 패시브인가 액티브인가<br>　└ `Passive` · `Active`
+- `enum SkillId` — 스킬 이름<br>　└ `Cure` · `Empower` · `Enfeeble` · `Provoke` · `Sweep` · `HandPotion` · `TwinStrike` · `HeavyBlow` · `Shielding` · `SteadyAim` · `Packcraft` · `Careful` · `Reckless` · `Cheerful` · `Stubborn`
+- `enum SkillSource` — 스킬이 어디서 오는가<br>　└ `Innate` · `Job`
 
 ## Training
 
@@ -120,10 +124,14 @@
 
 - `enum AptitudeGrade` — 무기 적성 등급<br>　└ `E` · `D` · `C` · `B` · `A` · `S`
 - `static class AptitudeGrades`
+- `enum Hand` — 어느 손인가<br>　└ `Right` · `Left`
+- `enum Hands` — 몇 손으로 드는가<br>　└ `One` · `Two`
+- `class Loadout` — 장착 4칸 — 주무기(좌·우) + 보조무기(좌·우)
+- `enum Reach` — 사거리<br>　└ `Melee` · `Extended` · `Ranged`
 - `enum Row` — 전투에서의 위치<br>　└ `Front` · `Back`
-- `record StyleCapability` — 스타일이 여는 전술적 능력
 - `class WeaponAptitudes` — 스타일별 무기 적성
-- `enum WeaponClass` — 무기종<br>　└ `Blade` · `Blunt` · `Axe` · `Pierce`
+- `enum WeaponKind` — 무기 종류<br>　└ `None` · `Sword` · `Axe` · `Mace` · `Greatsword` · `Spear` · `Shield` · `Bow` · `Crossbow` · `Staff` · `Pickaxe` · `Backpack`
 - `class WeaponProficiency` — 스타일별 숙련도
-- `enum WeaponStyle` — 장비 형태<br>　└ `SwordAndShield` · `DualWield` · `TwoHanded` · `Bow` · `Crossbow` · `Staff` · `Polearm`
-- `static class WeaponStyles`
+- `enum WeaponSet` — 어느 세트인가<br>　└ `Primary` · `Secondary`
+- `record WeaponSpec` — 무기 하나의 명세
+- `static class Weaponry` — 무기 목록과 조회

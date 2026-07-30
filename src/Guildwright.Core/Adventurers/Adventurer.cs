@@ -1,5 +1,6 @@
 using Guildwright.Core.Careers;
 using Guildwright.Core.Rng;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Adventurers;
@@ -39,7 +40,7 @@ public enum DeploymentOutcome
 /// <param name="Outcome">실전이었을 때의 결과.</param>
 /// <param name="Income">벌어들인 금액.</param>
 /// <param name="Note">이력에 남길 서술.</param>
-/// <param name="SupportRole">그 해에 맡은 비전투 역할. 없으면 전투원으로만 굴렀다는 뜻입니다.</param>
+/// <param name="JobAtTime">그 해의 직업.</param>
 /// <param name="ProficiencyGain">
 /// 그 해에 오른 장착 무기 숙련도. null이면 활동 종류에 따른 기본값을 씁니다.
 /// <para>
@@ -55,7 +56,7 @@ public sealed record YearRecord(
     DeploymentOutcome? Outcome,
     int Income,
     string Note,
-    SupportSkill? SupportRole = null,
+    JobId? JobAtTime = null,
     double? ProficiencyGain = null);
 
 /// <summary>
@@ -80,8 +81,9 @@ public sealed class Adventurer
         GrowthProfile growth,
         int age = RecruitAge,
         WeaponAptitudes? aptitudes = null,
-        WeaponStyle equippedStyle = WeaponStyle.SwordAndShield,
-        WeaponClass equippedClass = WeaponClass.Blade)
+        Loadout? loadout = null,
+        JobId job = JobId.SwordApprentice,
+        IReadOnlyList<SkillId>? innate = null)
     {
         Id = id;
         Name = name;
@@ -90,8 +92,9 @@ public sealed class Adventurer
         Growth = growth;
         Age = age;
         Aptitudes = aptitudes ?? WeaponAptitudes.Uniform(AptitudeGrade.C);
-        EquippedStyle = equippedStyle;
-        EquippedClass = equippedClass;
+        Loadout = loadout ?? Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield);
+        Job = job;
+        Innate = innate ?? [];
     }
 
     public string Id { get; }
@@ -143,68 +146,80 @@ public sealed class Adventurer
     /// <summary>
     /// 비전투 역량. 함정 감지·척후·운반·채집·감정.
     /// <para>
-    /// 전투력이 낮아도 여기가 뛰어나면 파티에 자리가 있습니다.
-    /// 무기 숙련도와 같은 원리로, 맡은 역할의 이력입니다.
+    /// 이 목록은 이해도가 오르면서 하나씩 드러납니다 (docs/08 §16.7).
     /// </para>
     /// </summary>
-    public SupportSkillSet Support { get; } = new();
+    public IReadOnlyList<SkillId> Innate { get; }
 
-    public WeaponStyle EquippedStyle { get; private set; }
-
-    public WeaponClass EquippedClass { get; private set; }
+    /// <summary>장착 4칸 — 주무기(좌·우) + 보조무기(좌·우).</summary>
+    public Loadout Loadout { get; }
 
     /// <summary>
-    /// 무기를 바꿉니다. 예전 숙련도는 사라지지 않지만, 새 스타일은 처음부터입니다.
+    /// 현재 직업.
+    /// <para>
+    /// <b>희망 직업으로 시작</b>하고, 이해도가 올라 적성이 드러나면 전직합니다.
+    /// 전직은 자유이고 비용도 없지만, 새 무기 숙련이 0부터라 늦게 알아챌수록 손해입니다.
+    /// </para>
     /// </summary>
-    /// <exception cref="ArgumentException">해당 스타일에 장착할 수 없는 무기종인 경우.</exception>
-    public void Equip(WeaponStyle style, WeaponClass weaponClass)
-    {
-        var allowed = WeaponStyles.AllowedClasses(style);
-        if (!allowed.Contains(weaponClass))
-        {
-            throw new ArgumentException(
-                $"{style.ToKorean()}에는 {weaponClass.ToKorean()}을(를) 장착할 수 없습니다. " +
-                $"가능: {string.Join(", ", allowed.Select(c => c.ToKorean()))}",
-                nameof(weaponClass));
-        }
+    public JobId Job { get; private set; }
 
-        EquippedStyle = style;
-        EquippedClass = weaponClass;
+    public Job JobProfile => Jobs.Of(Job);
+
+    /// <summary>현재 칭호. 직업 이름이 그대로 칭호입니다 — 계급이라는 별도 축이 없습니다.</summary>
+    public string Title => JobProfile.Korean;
+
+    /// <summary>
+    /// 전직합니다. <b>조건도 비용도 없습니다.</b>
+    /// <para>
+    /// 대가는 규칙이 아니라 자연히 생깁니다 — 새 무기 숙련은 0부터입니다.
+    /// "신궁이었던 애가 검사로 전직한다고 검성이 되진 않습니다."
+    /// </para>
+    /// <para>
+    /// 다만 <b>고집</b>을 타고났으면 권유를 듣지 않습니다 (docs/08 §16.8).
+    /// </para>
+    /// </summary>
+    /// <returns>실제로 바뀌었는지.</returns>
+    public bool ChangeJob(JobId job)
+    {
+        if (Innate.Contains(SkillId.Stubborn) && job != Job) return false;
+        if (!Jobs.Of(job).IsUnlockedBy(k => Proficiency[k])) return false;
+
+        Job = job;
+        return true;
     }
 
-    /// <summary>현재 장비의 전투 효율. 숙련도에서 나옵니다.</summary>
-    public double WeaponEffectiveness => Proficiency.EffectivenessOf(EquippedStyle);
+    /// <summary>무기를 끼웁니다.</summary>
+    public void Equip(WeaponSet set, Hand hand, WeaponKind kind) => Loadout.Equip(set, hand, kind);
+
+    /// <summary>현재 장비의 전투 효율. <b>주된 무기의 숙련도</b>에서 나옵니다.</summary>
+    public double WeaponEffectiveness => Proficiency.EffectivenessOf(Loadout.MainWeapon);
+
+    /// <summary>지금 숙련도로 가질 수 있는 직업들. <b>히든 직업이 여기서 드러납니다.</b></summary>
+    public IReadOnlyList<Job> AvailableJobs => Jobs.UnlockedBy(k => Proficiency[k]);
+
+    /// <summary>가진 패시브 — 태생 + 현재 직업이 주는 것.</summary>
+    public IReadOnlyList<SkillId> Passives =>
+        [.. Innate.Where(id => SkillBook.Of(id).Form == SkillForm.Passive),
+         .. JobProfile.Grants.Where(id => SkillBook.Of(id).Form == SkillForm.Passive)];
 
     /// <summary>
-    /// 현재 직업 등급. <b>지금 든 무기의 숙련도</b>에서 나옵니다.
-    /// <para>
-    /// 무기를 바꾸면 등급이 떨어집니다 — 대마법사가 대검을 잡으면 견습 전사입니다.
-    /// 전직의 대가가 여기서 나옵니다. 다만 예전 숙련도는 남아 있으므로 돌아갈 수는 있습니다.
-    /// </para>
+    /// 장착할 액티브. 직업이 주는 것 중 슬롯 수만큼, 그리고 <b>지금 든 무기로 쓸 수 있는 것</b>만.
     /// </summary>
-    public JobRank Rank => JobRanks.FromProficiency(Proficiency[EquippedStyle]);
+    public IReadOnlyList<SkillId> Actives =>
+        JobProfile.Grants
+            .Where(id => SkillBook.Of(id).Form == SkillForm.Active)
+            .Where(id => SkillBook.Of(id).UsableWith(Loadout))
+            .Take(JobProfile.ActiveSlots)
+            .ToArray();
 
-    /// <summary>현재 칭호. 예: "대마법사", "견습 창병".</summary>
-    public string Title => JobRanks.TitleOf(EquippedStyle, Rank);
+    /// <summary>연간 유지비. 직업 데이터에서 나옵니다 — 예전 JobRank.AnnualWage를 흡수했습니다.</summary>
+    public int AnnualWage => JobProfile.Upkeep;
 
-    /// <summary>
-    /// 여태 도달한 최고 등급 (스타일 무관).
-    /// <para>
-    /// 전직해서 견습으로 돌아가도 "한때 대마법사였던" 사실은 남습니다.
-    /// 이력이 곧 이 게임의 서사이므로, 잃어버린 것도 기록해 둡니다.
-    /// </para>
-    /// </summary>
-    public JobRank PeakRank =>
-        WeaponStyles.All.Select(s => JobRanks.FromProficiency(Proficiency[s])).Max();
+    /// <summary>수주할 수 있는 의뢰 난이도 상한. 실력이 아니라 자격입니다.</summary>
+    public int MaxContractDifficulty => JobProfile.MaxContractDifficulty;
 
-    /// <summary>연간 급여. 등급이 오르면 유지비도 오릅니다.</summary>
-    public int AnnualWage => JobRanks.AnnualWage(Rank);
-
-    /// <summary>수주할 수 있는 의뢰 난이도 상한.</summary>
-    public int MaxContractDifficulty => JobRanks.MaxContractDifficulty(Rank);
-
-    /// <summary>길드 평판에 기여하는 정도.</summary>
-    public int ReputationValue => JobRanks.ReputationValue(Rank);
+    /// <summary>길드 평판에 기여하는 정도. 수주 자격에 비례합니다.</summary>
+    public int ReputationValue => JobProfile.MaxContractDifficulty * 2;
 
     public IReadOnlyList<YearRecord> History => _history;
 
@@ -243,12 +258,14 @@ public sealed class Adventurer
                     ? WeaponProficiency.PerDeploymentYear
                     : 0.0);
 
-            if (baseGain > 0.0) Proficiency.Advance(EquippedStyle, Aptitudes[EquippedStyle], baseGain);
-
-            // 비전투 역량은 실전에서만 늡니다. 훈련장에서는 함정을 만날 일이 없습니다.
-            if (record.Activity == YearActivity.Deployment)
+            // 든 것들의 숙련도가 각각 오릅니다 — 검+방패면 둘 다 늡니다.
+            // 순서를 고정하기 위해 Loadout.Held의 순서를 그대로 씁니다.
+            if (baseGain > 0.0)
             {
-                Support.AdvanceYear(record.SupportRole, Stats);
+                foreach (var kind in Loadout.Held)
+                {
+                    Proficiency.Advance(kind, Aptitudes[kind], baseGain);
+                }
             }
         }
 
@@ -286,14 +303,51 @@ public sealed class Adventurer
         int judgement = 10 + rng.NextInt(0, 25);
         var aptitudes = WeaponAptitudes.Roll(growth.Potential, rng.Fork($"aptitude:{id}"));
 
-        // 기본 장비는 가장 잘 맞는 스타일로. 플레이어가 나중에 바꿀 수 있습니다.
-        var style = aptitudes.Best;
-        var weaponClass = WeaponStyles.AllowedClasses(style)[0];
+        // 희망 직업을 가지고 옵니다 — 플레이어가 배정하는 게 아닙니다.
+        // 적성과 어긋날 수 있고, 그 어긋남이 전직의 동기가 됩니다 (docs/08 §16.3).
+        var wished = Jobs.Starting[rng.Fork($"wish:{id}").NextInt(0, Jobs.Starting.Count)];
+        var loadout = StartingLoadoutFor(wished);
 
-        return new Adventurer(id, name, starting, judgement, growth, RecruitAge, aptitudes, style, weaponClass);
+        // 태생 패시브 하나를 타고납니다. 이해도가 올라야 드러납니다 (docs/08 §16.7).
+        var pool = SkillBook.InnatePool;
+        var innate = new[] { pool[rng.Fork($"innate:{id}").NextInt(0, pool.Count)] };
+
+        return new Adventurer(
+            id, name, starting, judgement, growth, RecruitAge, aptitudes, loadout, wished, innate);
     }
+
+    /// <summary>희망 직업이 쓰는 무기를 손에 들려줍니다.</summary>
+    private static Loadout StartingLoadoutFor(JobId job)
+    {
+        var requires = Jobs.Of(job).Requires;
+
+        // 요구 숙련이 없는 시작 직업이므로, 그 계열의 무기를 찾아 들려줍니다.
+        var kind = requires.Count > 0
+            ? requires.Keys.First()
+            : StartingWeaponFor(job);
+
+        return Weaponry.Of(kind).Hands == Hands.Two
+            ? Loadout.Single(kind)
+            : Loadout.Pair(kind, WeaponKind.Shield);
+    }
+
+    private static WeaponKind StartingWeaponFor(JobId job) => job switch
+    {
+        JobId.SwordApprentice => WeaponKind.Sword,
+        JobId.ShieldApprentice => WeaponKind.Shield,
+        JobId.GreatApprentice => WeaponKind.Greatsword,
+        JobId.SpearApprentice => WeaponKind.Spear,
+        JobId.BowApprentice => WeaponKind.Bow,
+        JobId.BoltApprentice => WeaponKind.Crossbow,
+        JobId.StaffApprentice => WeaponKind.Staff,
+        JobId.Axeman => WeaponKind.Axe,
+        JobId.Maceman => WeaponKind.Mace,
+        JobId.Miner => WeaponKind.Pickaxe,
+        JobId.Porter => WeaponKind.Backpack,
+        _ => WeaponKind.Sword
+    };
 
     public override string ToString() =>
         $"{Name} · {Title} ({Age}세, {Status}) {Stats} 판단력 {Judgement} " +
-        $"[{EquippedClass.ToKorean()} 숙련 {Proficiency[EquippedStyle]}, 연봉 {AnnualWage}]";
+        $"[{Loadout} 숙련 {Proficiency[Loadout.MainWeapon]}, 유지비 {AnnualWage}]";
 }

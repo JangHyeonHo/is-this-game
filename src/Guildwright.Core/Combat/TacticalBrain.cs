@@ -111,12 +111,12 @@ public static class TacticalBrain
     private static bool IsActionAvailable(Combatant self, TacticAction action) => action switch
     {
         TacticAction.UsePotion => self.Potions > 0,
-        TacticAction.AttackBackRow => self.Capability.CanStrikeBackRow,
-        TacticAction.AttackAll => self.Capability.HitsMultipleTargets,
-        TacticAction.HealAlly => self.Capability.CanHeal && self.Mana >= DamageModel.ManaPerSpell,
+        TacticAction.AttackBackRow => self.CanStrikeBackRow,
+        TacticAction.AttackAll => self.CanDo(TacticAction.AttackAll),
+        TacticAction.HealAlly => self.CanDo(TacticAction.HealAlly) && self.Mana >= DamageModel.ManaPerSpell,
         TacticAction.BuffAlly or TacticAction.DebuffEnemy =>
-            self.Capability.UsesMagic && self.Mana >= DamageModel.ManaPerSpell,
-        TacticAction.Taunt => self.Capability.CanTaunt,
+            self.UsesMagicPower && self.Mana >= DamageModel.ManaPerSpell,
+        TacticAction.Taunt => self.CanDo(TacticAction.Taunt),
         TacticAction.MoveBack => self.Row == Row.Front,
         TacticAction.MoveFront => self.Row == Row.Back,
         _ => true
@@ -138,26 +138,26 @@ public static class TacticalBrain
             actions.Add(new ChosenAction(TacticAction.AttackStrongest, PickStrongest(reachable)));
         }
 
-        if (self.Capability.CanStrikeBackRow)
+        if (self.CanStrikeBackRow)
         {
             var back = enemies.Where(e => e.Row == Row.Back).ToList();
             if (back.Count > 0) actions.Add(new ChosenAction(TacticAction.AttackBackRow, PickWeakest(back)));
         }
 
-        if (self.Capability.HitsMultipleTargets && reachable.Count > 1)
+        if (self.CanDo(TacticAction.AttackAll) && reachable.Count > 1)
         {
             actions.Add(new ChosenAction(TacticAction.AttackAll, null));
         }
 
         bool hasMana = self.Mana >= DamageModel.ManaPerSpell;
 
-        if (self.Capability.CanHeal && hasMana)
+        if (self.CanDo(TacticAction.HealAlly) && hasMana)
         {
             var wounded = allies.OrderBy(a => a.HpRatio).ThenBy(a => a.Id, StringComparer.Ordinal).First();
             if (wounded.HpRatio < 0.999) actions.Add(new ChosenAction(TacticAction.HealAlly, wounded));
         }
 
-        if (self.Capability.UsesMagic && hasMana)
+        if (self.UsesMagicPower && hasMana)
         {
             var strongestAlly = allies.OrderByDescending(a => a.EffectiveOffense).ThenBy(a => a.Id, StringComparer.Ordinal).First();
             if (!strongestAlly.HasEffect(EffectName.PowerUp))
@@ -172,7 +172,7 @@ public static class TacticalBrain
             }
         }
 
-        if (self.Capability.CanTaunt && self.Row == Row.Front)
+        if (self.CanDo(TacticAction.Taunt) && self.Row == Row.Front)
         {
             actions.Add(new ChosenAction(TacticAction.Taunt, null));
         }
@@ -237,7 +237,7 @@ public static class TacticalBrain
 
                 // 후열에서도 제 몫을 하는 스타일(활·석궁·지팡이·창)은 후퇴 비용이 없습니다.
                 // 근접 무기는 후열에서 위력이 절반 이하이므로 계산이 완전히 다릅니다.
-                double stylePenalty = self.Capability.CanActFromBackRow ? 1.0 : 0.5;
+                double stylePenalty = self.CanActFromBackRow ? 1.0 : 0.5;
 
                 // 세제곱을 쓰는 이유: 제곱이면 HP 50%에서도 물러나기 시작하는데,
                 // 그건 신중함이 아니라 그냥 딜을 버리는 것입니다.
@@ -252,7 +252,7 @@ public static class TacticalBrain
                 //   차라리 한 대라도 더 때리는 게 낫습니다.
                 bool canRecover =
                     self.Potions > 0 ||
-                    allies.Any(a => a.IsAlive && a.Capability.CanHeal && a.Mana >= DamageModel.ManaPerSpell);
+                    allies.Any(a => a.IsAlive && a.CanDo(TacticAction.HealAlly) && a.Mana >= DamageModel.ManaPerSpell);
 
                 return 2.2 * danger * stylePenalty * abandonPenalty * (canRecover ? 1.0 : 0.3);
             }
@@ -260,7 +260,7 @@ public static class TacticalBrain
             case TacticAction.MoveFront:
             {
                 // 후열에서도 제 몫을 하는 스타일은 굳이 나갈 이유가 없습니다.
-                if (self.Capability.CanActFromBackRow) return 0.05;
+                if (self.CanActFromBackRow) return 0.05;
 
                 // 근접 무기가 후열에 있으면 위력이 절반 이하입니다.
                 // 회복해서 여유가 생겼으면 다시 나가야 합니다 — 후퇴는 편도가 아니어야 합니다.
@@ -301,7 +301,7 @@ public static class TacticalBrain
                 var target = candidate.Target;
                 if (target is null) return 0.0;
                 // 후열은 대개 회복·마법 담당이라 우선순위가 높습니다.
-                double priority = target.Capability.CanHeal ? 0.35 : 0.15;
+                double priority = target.CanDo(TacticAction.HealAlly) ? 0.35 : 0.15;
                 return AttackUtility(self, target, enemies) + priority;
             }
 

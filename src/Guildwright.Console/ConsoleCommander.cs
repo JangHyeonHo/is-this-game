@@ -87,14 +87,14 @@ public sealed class ConsoleCommander(bool watchEveryTurn = false) : IBattleComma
                 options.Add(($"회복약 사용 (남은 {actor.Potions}개)", new CommandOrder(TacticAction.UsePotion, null)));
             }
 
-            if (actor.Capability.CanHeal && actor.Mana >= DamageModel.ManaPerSpell)
+            if (actor.CanDo(TacticAction.HealAlly) && actor.Mana >= DamageModel.ManaPerSpell)
             {
                 var wounded = allies.OrderBy(a => a.HpRatio).First();
                 options.Add(($"{wounded.Name} 회복 (HP {wounded.Hp}/{wounded.MaxHp})",
                     new CommandOrder(TacticAction.HealAlly, wounded)));
             }
 
-            if (actor.Capability.CanTaunt && actor.Row == Row.Front)
+            if (actor.CanDo(TacticAction.Taunt) && actor.Row == Row.Front)
             {
                 options.Add(("도발 — 적의 공격을 끌어들임", new CommandOrder(TacticAction.Taunt, null)));
             }

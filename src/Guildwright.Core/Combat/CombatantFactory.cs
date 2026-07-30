@@ -43,11 +43,11 @@ public static class CombatantFactory
             team: team,
             stats: adventurer.Stats,
             judgement: adventurer.Judgement,
-            style: adventurer.EquippedStyle,
+            loadout: adventurer.Loadout,
             weaponEffectiveness: adventurer.WeaponEffectiveness,
             bonuses: adventurer.Bonuses,
             row: row,
-            tactics: tactics ?? DefaultTacticsFor(adventurer.EquippedStyle),
+            tactics: tactics ?? DefaultTacticsFor(adventurer.Loadout),
             potions: potions);
 
         if (startingHp is { } hp && hp < combatant.MaxHp)
@@ -59,60 +59,83 @@ public static class CombatantFactory
     }
 
     /// <summary>
-    /// 스타일에 맞는 기본 전술 규칙.
+    /// 손에 든 것에 맞는 기본 전술 규칙.
     /// <para>
     /// 플레이어가 편성하기 전의 출발점입니다. 이것만으로도 그럭저럭 싸워야
     /// 신규 플레이어가 규칙 편집 화면에서 막히지 않습니다.
     /// </para>
+    /// <para>
+    /// ⚠️ 예전에는 <c>WeaponStyle</c> 7종에 대한 <c>switch</c>였습니다. 이제 스타일이라는
+    /// 개념이 없으므로 <b>손에 든 것의 성질</b>로 판단합니다 — 무기를 추가해도
+    /// 이 함수를 안 건드립니다.
+    /// </para>
     /// </summary>
-    public static IReadOnlyList<TacticRule> DefaultTacticsFor(WeaponStyle style) => style switch
+    public static IReadOnlyList<TacticRule> DefaultTacticsFor(Loadout loadout)
     {
-        WeaponStyle.SwordAndShield =>
+        // 가방을 들었으면 싸울 수 없습니다. 살아남는 것과 아군을 돕는 것만 합니다.
+        if (loadout.CarryingPack)
+        {
+            return
+            [
+                TacticRule.AllyHpBelow(0.40, TacticAction.GivePotion),
+                TacticRule.When(TacticCondition.SelfInFrontRow, TacticAction.MoveBack),
+                TacticRule.Always(TacticAction.Defend)
+            ];
+        }
+
+        // 방패를 들었으면 앞에서 버티고 끌어당깁니다.
+        if (loadout.Holding(WeaponKind.Shield))
+        {
+            return
+            [
+                TacticRule.SelfHpBelow(0.30, TacticAction.UsePotion),
+                TacticRule.When(TacticCondition.SelfInBackRow, TacticAction.MoveFront),
+                TacticRule.AllyHpBelow(0.50, TacticAction.Taunt),
+                TacticRule.Always(TacticAction.AttackNearest)
+            ];
+        }
+
+        // 지팡이는 회복을 먼저 봅니다.
+        if (loadout.UsesMagicPower)
+        {
+            return
+            [
+                TacticRule.AllyHpBelow(0.45, TacticAction.HealAlly),
+                TacticRule.SelfHpBelow(0.40, TacticAction.MoveBack),
+                TacticRule.EnemyHpBelow(0.30, TacticAction.AttackBackRow),
+                TacticRule.Always(TacticAction.AttackNearest)
+            ];
+        }
+
+        // 원거리는 뒤에서 적 후열을 노립니다.
+        if (loadout.CanStrikeBackRow)
+        {
+            return
+            [
+                TacticRule.SelfHpBelow(0.45, TacticAction.MoveBack),
+                TacticRule.Always(TacticAction.AttackBackRow)
+            ];
+        }
+
+        // 리치가 길면 뒤에 서서도 칩니다.
+        if (loadout.CanActFromBackRow)
+        {
+            return
+            [
+                TacticRule.SelfHpBelow(0.35, TacticAction.MoveBack),
+                TacticRule.EnemyHpBelow(0.30, TacticAction.AttackWeakest),
+                TacticRule.Always(TacticAction.AttackNearest)
+            ];
+        }
+
+        // 광역을 쓸 수 있으면 그걸 기본으로 둡니다 (대검 숙련이 열어줍니다).
+        return
         [
             TacticRule.SelfHpBelow(0.30, TacticAction.UsePotion),
-            TacticRule.When(TacticCondition.SelfInBackRow, TacticAction.MoveFront),
-            TacticRule.AllyHpBelow(0.50, TacticAction.Taunt),
-            TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        WeaponStyle.Staff =>
-        [
-            TacticRule.AllyHpBelow(0.45, TacticAction.HealAlly),
-            TacticRule.SelfHpBelow(0.40, TacticAction.MoveBack),
-            TacticRule.EnemyHpBelow(0.30, TacticAction.AttackBackRow),
-            TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        WeaponStyle.Bow or WeaponStyle.Crossbow =>
-        [
-            TacticRule.SelfHpBelow(0.45, TacticAction.MoveBack),
-            TacticRule.Always(TacticAction.AttackBackRow)
-        ],
-
-        WeaponStyle.TwoHanded =>
-        [
-            TacticRule.SelfHpBelow(0.25, TacticAction.UsePotion),
-            TacticRule.EnemyHpBelow(0.30, TacticAction.AttackWeakest),
-            TacticRule.Always(TacticAction.AttackAll)
-        ],
-
-        WeaponStyle.DualWield =>
-        [
-            TacticRule.SelfHpBelow(0.30, TacticAction.UsePotion),
-            TacticRule.SelfHpBelow(0.20, TacticAction.MoveBack),
             TacticRule.EnemyHpBelow(0.35, TacticAction.AttackWeakest),
             TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        WeaponStyle.Polearm =>
-        [
-            TacticRule.SelfHpBelow(0.35, TacticAction.MoveBack),
-            TacticRule.EnemyHpBelow(0.30, TacticAction.AttackWeakest),
-            TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        _ => [TacticRule.Always(TacticAction.AttackNearest)]
-    };
+        ];
+    }
 
     /// <summary>
     /// 모험가 파티를 전투 대형으로 배치합니다.
@@ -149,7 +172,7 @@ public static class CombatantFactory
         var members = party.ToList();
         var rows = members.ToDictionary(
             a => a.Id,
-            a => WeaponStyles.CapabilityOf(a.EquippedStyle).CanActFromBackRow ? Row.Back : Row.Front);
+            a => a.Loadout.CanActFromBackRow ? Row.Back : Row.Front);
 
         if (members.Count > 0 && rows.Values.All(r => r == Row.Back))
         {

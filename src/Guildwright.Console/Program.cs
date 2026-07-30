@@ -158,9 +158,7 @@ internal sealed class Guild(IRandomSource rng)
 
     private double GuildAppraisalSkill()
     {
-        double fromMembers = _members.Count == 0
-            ? 0.0
-            : _members.Max(m => m.Support[SupportSkill.Appraisal]) / 100.0;
+        double fromMembers = 0.0;
 
         double fromMentors = _retired.Count == 0
             ? 0.0
@@ -354,24 +352,16 @@ internal sealed class Guild(IRandomSource rng)
         if (others.Count > 0)
         {
             var picks = Ui.ChooseMany("   함께 보낼 동료",
-                others.Select(o => $"{o.Name} · {o.Title} ({o.EquippedStyle.ToKorean()})").ToList(), 3);
+                others.Select(o => $"{o.Name} · {o.Title} ({o.Loadout})").ToList(), 3);
             party.AddRange(picks.Select(i => others[i]));
         }
 
-        int rolePick = Ui.Choose("   맡길 비전투 역할",
-            SupportSkills.All.Select(sk => $"{sk.ToKorean()} (현재 {member.Support[sk]})").Append("없음").ToList());
+        int load = party.Sum(p => p.Loadout.Load);
+        if (load > 0) Ui.Note($"파티 적재량 {load} — 가방을 든 사람이 있습니다");
 
-        SupportSkill? role = rolePick < SupportSkills.All.Count ? SupportSkills.All[rolePick] : null;
+        var result = RunFieldYear(party, contract, Quota);
 
-        var support = ContractResolver.Evaluate(contract, party.Select(p => p.Support).ToList());
-
-        Ui.Line();
-        Ui.Note($"파티 역량 반영 — 위험 {support.RiskMultiplier:P0}, 보수 {support.IncomeMultiplier:P0}, " +
-                $"추가 회복약 {support.ExtraPotions}");
-
-        var result = RunFieldYear(party, contract, Quota, support);
-
-        ApplyDeploymentResults(member, party, contract, support, role, result);
+        ApplyDeploymentResults(member, party, contract, result);
     }
 
     /// <summary>
@@ -382,11 +372,11 @@ internal sealed class Guild(IRandomSource rng)
     /// </para>
     /// </summary>
     private FieldYearOutcome RunFieldYear(
-        List<Adventurer> party, Contract contract, int quota, ContractSupport support)
+        List<Adventurer> party, Contract contract, int quota)
     {
         var session = new FieldYearSession(
             party, contract, quota, rng.Fork($"field:{_year}"),
-            potionsEach: 2 + support.ExtraPotions);
+            potionsEach: 2 + party.Sum(a => a.Loadout.Load) / 6);
 
         bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
         var commander = manual ? new ConsoleCommander() : null;
@@ -458,8 +448,6 @@ internal sealed class Guild(IRandomSource rng)
         Adventurer leader,
         List<Adventurer> party,
         Contract contract,
-        ContractSupport support,
-        SupportSkill? role,
         FieldYearOutcome fought)
     {
         // 목표를 채웠으면 승리로, 못 채웠으면 미완/실패로 봅니다.
@@ -476,8 +464,7 @@ internal sealed class Guild(IRandomSource rng)
             var record = CareerSimulator.ResolveDeploymentYear(
                 fighter, contract.Difficulty, rng.Fork($"deploy:{_year}:{fighter.Id}"),
                 fought.Experience.GetValueOrDefault(fighter.Id),
-                fighter.Id == leader.Id ? role : null,
-                contract, support,
+                contract,
                 new BattleReport(outcome, Downed: fought.Result.Retreated));
 
             totalIncome += record.Income;

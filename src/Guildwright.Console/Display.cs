@@ -1,6 +1,7 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Training;
 using Guildwright.Core.Weapons;
 
@@ -12,18 +13,18 @@ public static class Display
     /// <summary>원천 능력치와 파생 수치를 나란히 보여줍니다.</summary>
     public static void StatSheet(Adventurer a)
     {
-        Ui.Line($"   {a.Name} · {a.Title} ({a.Age}세)  [{a.EquippedStyle.ToKorean()}·{a.EquippedClass.ToKorean()}]");
+        Ui.Line($"   {a.Name} · {a.Title} ({a.Age}세)  [{a.Loadout}]");
         Ui.Line($"   ┌ 원천 ──────────┬ 파생 ─────────────────────────");
         Ui.Line($"   │ 힘   {a.Stats.Strength,3}       │ 물리 위력 {a.PhysicalPower,4}   최대 HP {a.MaxHp,4}");
         Ui.Line($"   │ 민첩 {a.Stats.Agility,3}       │ 마법 위력 {a.MagicPower,4}   최대 MP {DerivedStats.MaxMana(a.Stats, a.Bonuses),4}");
         Ui.Line($"   │ 기교 {a.Stats.Finesse,3}       │ 물리 방어 {a.PhysicalGuard,4}   치명타율 {a.CritChance,4:P0}");
         Ui.Line($"   │ 활력 {a.Stats.Vitality,3}       │ 마법 방어 {a.MagicGuard,4}   회피율   {a.EvasionChance,4:P0}");
-        Ui.Line($"   │ 지능 {a.Stats.Intellect,3}       │ 판단력    {a.Judgement,4}   숙련     {a.Proficiency[a.EquippedStyle],4}");
+        Ui.Line($"   │ 지능 {a.Stats.Intellect,3}       │ 판단력    {a.Judgement,4}   숙련     {a.Proficiency[a.Loadout.MainWeapon],4}");
         Ui.Line($"   │ 정신 {a.Stats.Spirit,3}       │ 연봉      {a.AnnualWage,4}");
         Ui.Line($"   └────────────────┴───────────────────────────────");
 
         if (a.Bonuses.HasAny) Ui.Note($"겪어서 얻은 것: {a.Bonuses}");
-        if (a.Support.ToString() != "") Ui.Note($"비전투 역량: {a.Support}");
+        if (a.Innate.Count > 0) Ui.Note($"타고난 것: {string.Join(", ", a.Innate.Select(id => SkillBook.Of(id).Korean))}");
     }
 
     /// <summary>플레이어가 볼 수 있는 정보만 담긴 평가서.</summary>
@@ -242,7 +243,7 @@ public static class Display
                 foreach (var c in members)
                 {
                     Ui.Line($"     {rowName} {c.Name,-10} {Ui.Bar(c.HpRatio, 10)} {c.Hp,4}/{c.MaxHp,-4} " +
-                            $"{c.Style.ToKorean()}{FormatEffects(c)}");
+                            $"{c.Loadout.ToString()}{FormatEffects(c)}");
                 }
             }
         }
@@ -283,11 +284,5 @@ public static class Display
 
         Ui.Line($"   {index}) [{c.Name}] 난이도 {c.Difficulty} · {kind}");
 
-        if (c.Preferences.Count > 0)
-        {
-            var prefs = c.Preferences.OrderByDescending(kv => kv.Value)
-                .Select(kv => $"{kv.Key.ToKorean()} {new string('●', (int)Math.Round(kv.Value * 3))}");
-            Ui.Line($"        유리: {string.Join("  ", prefs)}");
-        }
     }
 }

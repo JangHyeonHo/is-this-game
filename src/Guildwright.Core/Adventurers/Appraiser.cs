@@ -19,10 +19,10 @@ public sealed record ScoutingReport(
     Temperament TemperamentHint,
     PrimaryStats EstimatedPotential,
     double Confidence,
-    IReadOnlyDictionary<WeaponStyle, AptitudeGrade> AptitudeHints)
+    IReadOnlyDictionary<WeaponKind, AptitudeGrade> AptitudeHints)
 {
     /// <summary>추정상 가장 잘 맞아 보이는 스타일.</summary>
-    public WeaponStyle SuggestedStyle =>
+    public WeaponKind SuggestedWeapon =>
         AptitudeHints.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).First().Key;
 
     public string ConfidenceLabel => Confidence switch
@@ -69,13 +69,13 @@ public static class Appraiser
     /// 평가서를 만듭니다.
     /// </summary>
     /// <param name="adventurer">대상.</param>
-    /// <param name="appraisalSkill">
+    /// <param name="mentorBonus">
     /// 감정 역량 (0.0~1.0). 길드 시설과 멘토가 올려줍니다.
     /// </param>
     /// <param name="rng">난수원.</param>
-    public static ScoutingReport Appraise(Adventurer adventurer, double appraisalSkill, IRandomSource rng)
+    public static ScoutingReport Appraise(Adventurer adventurer, double mentorBonus, IRandomSource rng)
     {
-        double confidence = ComputeConfidence(adventurer.CompletedYears, appraisalSkill);
+        double confidence = ComputeConfidence(adventurer.CompletedYears, mentorBonus);
         double accuracy = BaseAccuracy + (1.0 - BaseAccuracy) * confidence;
 
         var truth = adventurer.Growth;
@@ -104,8 +104,8 @@ public static class Appraiser
         }
 
         // 무기 적성도 같은 확신도를 따릅니다. 등급이 인접 등급으로 흔들립니다.
-        var aptitudeHints = new Dictionary<WeaponStyle, AptitudeGrade>();
-        foreach (var style in WeaponStyles.All)
+        var aptitudeHints = new Dictionary<WeaponKind, AptitudeGrade>();
+        foreach (var style in Weaponry.Trainable)
         {
             var actual = adventurer.Aptitudes[style];
             aptitudeHints[style] = rng.Chance(accuracy) ? actual : Shift(actual, rng);
@@ -139,10 +139,10 @@ public static class Appraiser
     /// 그 이상은 시설과 멘토에 투자해야 올라갑니다.
     /// </para>
     /// </summary>
-    public static double ComputeConfidence(int observedYears, double appraisalSkill)
+    public static double ComputeConfidence(int observedYears, double mentorBonus)
     {
         double fromObservation = 1.0 - Math.Exp(-observedYears / 2.5);
-        double skill = Math.Clamp(appraisalSkill, 0.0, 1.0);
+        double skill = Math.Clamp(mentorBonus, 0.0, 1.0);
 
         // 관찰 60% + 감정 역량 40% 가중.
         return Math.Clamp(fromObservation * 0.6 + skill * 0.4, 0.0, 1.0);

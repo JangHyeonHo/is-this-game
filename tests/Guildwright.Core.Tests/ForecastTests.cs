@@ -32,7 +32,7 @@ public class ForecastTests(ITestOutputHelper output)
         };
 
         return new Adventurer("F", "예측대상", PrimaryStats.Uniform(15), 40, growth, age,
-            WeaponAptitudes.Uniform(AptitudeGrade.B), WeaponStyle.SwordAndShield, WeaponClass.Blade);
+            WeaponAptitudes.Uniform(AptitudeGrade.B));
     }
 
     private static List<TrainingActivity> Plan(TrainingActivity focus, int months)

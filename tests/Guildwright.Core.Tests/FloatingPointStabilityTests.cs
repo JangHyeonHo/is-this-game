@@ -35,7 +35,7 @@ namespace Guildwright.Core.Tests;
 /// docs/06-balance-log.md에 남기세요. 아무 생각 없이 숫자만 갈아끼우면 이 테스트는 무의미해집니다.
 /// </para>
 /// </summary>
-public class FloatingPointStabilityTests
+public class FloatingPointStabilityTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     /// <summary>비트 단위로 비교합니다. 0.0000001 차이도 재생을 어긋나게 하므로 오차 허용은 무의미합니다.</summary>
     private static void PinnedBits(long expected, double actual, string what)
@@ -141,9 +141,14 @@ public class FloatingPointStabilityTests
         var result = new BattleResolver(recordLog: true)
             .Resolve(TestParty.MirrorMatch(70, 70), new DeterministicRandom(4242));
 
-        Assert.Equal(BattleOutcome.EnemyVictory, result.Outcome);
-        Assert.Equal(29, result.Rounds);
-        Assert.Equal(122, result.Log.Count);
+        // ⚠️ 이 값은 무기 체계를 손 배치로 바꿀 때 갱신했습니다 (docs/06-balance-log.md #35).
+        // 위력·속도가 무기 스타일 배율에서 손에 든 것들의 합·평균으로 바뀌었으므로
+        // 같은 시드라도 다른 전투가 됩니다. 재현성이 깨진 것이 아니라 모델이 바뀐 것입니다.
+        output.WriteLine($"{result.Outcome} · {result.Rounds}라운드 · 기록 {result.Log.Count}줄");
+
+        Assert.Equal(BattleOutcome.PlayerVictory, result.Outcome);
+        Assert.Equal(19, result.Rounds);
+        Assert.Equal(91, result.Log.Count);
     }
 
     [Fact]

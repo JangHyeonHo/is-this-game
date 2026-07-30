@@ -1,5 +1,6 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Tests;
@@ -38,10 +39,12 @@ internal static class TestParty
         int judgement,
         IReadOnlyList<TacticRule>? tactics = null,
         PrimaryStats? stats = null,
-        WeaponStyle style = WeaponStyle.SwordAndShield,
+        Loadout? loadout = null,
         Row row = Row.Front,
         double weaponEffectiveness = 1.0,
-        int potions = 2)
+        int potions = 2,
+        IReadOnlyList<SkillId>? actives = null,
+        IReadOnlyList<SkillId>? passives = null)
     {
         return new Combatant(
             id: id,
@@ -49,11 +52,13 @@ internal static class TestParty
             team: team,
             stats: stats ?? BaseStats(),
             judgement: judgement,
-            style: style,
+            loadout: loadout ?? Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield),
             weaponEffectiveness: weaponEffectiveness,
             row: row,
             tactics: tactics ?? SensibleTactics,
-            potions: potions);
+            potions: potions,
+            passives: passives,
+            actives: actives);
     }
 
     /// <summary>
@@ -66,7 +71,7 @@ internal static class TestParty
         IReadOnlyList<TacticRule>? playerTactics = null,
         IReadOnlyList<TacticRule>? enemyTactics = null,
         int partySize = 3,
-        WeaponStyle style = WeaponStyle.SwordAndShield)
+        Loadout? loadout = null)
     {
         var combatants = new List<Combatant>(partySize * 2);
 
@@ -74,8 +79,8 @@ internal static class TestParty
         {
             // 속도를 서로 다르게 주어 턴 순서 동점 상황을 줄입니다.
             var stats = BaseStats(agility: 10 + i);
-            combatants.Add(Make($"P{i}", Team.Player, playerJudgement, playerTactics, stats, style));
-            combatants.Add(Make($"E{i}", Team.Enemy, enemyJudgement, enemyTactics, stats, style));
+            combatants.Add(Make($"P{i}", Team.Player, playerJudgement, playerTactics, stats, loadout));
+            combatants.Add(Make($"E{i}", Team.Enemy, enemyJudgement, enemyTactics, stats, loadout));
         }
 
         return new BattleState(combatants);

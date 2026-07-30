@@ -58,17 +58,9 @@ public static class CareerSimulator
     /// 그래야 <b>파티 편성과 전술 편성이 육성에 반영</b>됩니다.
     /// </para>
     /// </param>
-    /// <param name="supportRole">
-    /// 그 해에 맡은 비전투 역할 (함정 감지·척후·운반·채집·감정).
-    /// 맡은 역할은 크게 늘고 나머지는 어깨너머로 조금 늡니다.
-    /// </param>
     /// <param name="contract">
     /// 수행한 의뢰. 성격에 따라 전투 비중과 위험이 달라집니다.
     /// 생략하면 순수 전투 의뢰로 봅니다.
-    /// </param>
-    /// <param name="support">
-    /// 파티의 비전투 역량이 이 의뢰에 미치는 효과.
-    /// <see cref="ContractResolver.Evaluate"/>로 계산합니다.
     /// </param>
     /// <param name="battle">
     /// 실제로 치른 전투의 결과. 생략하면 전투를 따로 돌리지 않은 것으로 보고 무난한 수행으로 처리합니다.
@@ -82,9 +74,7 @@ public static class CareerSimulator
         int difficulty,
         IRandomSource rng,
         CombatExperience? experience = null,
-        SupportSkill? supportRole = null,
         Contract? contract = null,
-        ContractSupport? support = null,
         BattleReport? battle = null)
     {
         EnsureActive(adventurer);
@@ -99,10 +89,10 @@ public static class CareerSimulator
 
         double multiplier = adventurer.Growth.DeploymentMultiplier;
 
-        // 전투 기록이 없으면 스타일과 위치로 근사합니다.
+        // 전투 기록이 없으면 손에 든 것과 위치로 근사합니다.
         var lived = experience ?? CombatExperience.FromRole(
-            adventurer.EquippedStyle,
-            WeaponStyles.CapabilityOf(adventurer.EquippedStyle).CanActFromBackRow ? Row.Back : Row.Front);
+            adventurer.Loadout.MainWeapon,
+            adventurer.Loadout.CanActFromBackRow ? Row.Back : Row.Front);
 
         var growth = ComputeStatChange(adventurer, multiplier, rng, lived);
 
@@ -111,7 +101,7 @@ public static class CareerSimulator
 
         // 함정 감지와 척후가 사고 위험을 줄입니다. 전투 결과도 여기에 곱해집니다.
         var report = battle ?? BattleReport.NotFought;
-        double riskMultiplier = (support?.RiskMultiplier ?? 1.0) * combatWeight * report.RiskMultiplier;
+        double riskMultiplier = combatWeight * report.RiskMultiplier;
 
         var outcome = RollOutcome(adventurer, difficulty, riskMultiplier, rng);
         var penalty = ComputeMishapPenalty(adventurer, outcome, rng);
@@ -124,11 +114,10 @@ public static class CareerSimulator
             : (int)Math.Round(
                 difficulty * CareerRules.IncomePerDifficulty
                 * SuccessRatio(adventurer, difficulty, combatWeight)
-                * (support?.IncomeMultiplier ?? 1.0)
                 * report.IncomeRatio);
 
         string what = contract?.Name ?? $"난이도 {difficulty} 의뢰";
-        string role = supportRole is { } r ? $" ({r.ToKorean()} 담당)" : "";
+        string role = $" ({adventurer.Title})";
 
         string note = outcome switch
         {
@@ -141,7 +130,7 @@ public static class CareerSimulator
         };
 
         var record = new YearRecord(
-            adventurer.Age, YearActivity.Deployment, change, outcome, income, note, supportRole);
+            adventurer.Age, YearActivity.Deployment, change, outcome, income, note, adventurer.Job);
         adventurer.ApplyYear(record);
 
         if (outcome != DeploymentOutcome.Died)

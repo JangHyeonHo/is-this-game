@@ -29,9 +29,9 @@ public class CritAndEvasionTests(ITestOutputHelper output)
         Vitality: 40, Intellect: 20, Spirit: 25);
 
     private static Combatant Make(
-        string id, Team team, WeaponStyle style = WeaponStyle.SwordAndShield,
+        string id, Team team, WeaponKind weapon = WeaponKind.Sword,
         int agility = 30, int finesse = 30, DerivedBonuses? bonuses = null)
-        => new(id, id, team, Stats(agility, finesse), 60, style, 1.0, Row.Front,
+        => new(id, id, team, Stats(agility, finesse), 60, Loadout.Single(weapon), 1.0, Row.Front,
                TestParty.NaiveTactics, potions: 0, bonuses: bonuses);
 
     /// <summary>공격을 여러 번 해결하고 회피·치명타 빈도를 셉니다.</summary>
@@ -80,8 +80,8 @@ public class CritAndEvasionTests(ITestOutputHelper output)
         // 느린 석궁병이 재빠른 검객을 맞히기 어려운 게 당연합니다.
         var defender = Make("D", Team.Enemy, agility: 60);
 
-        double vsSlow = Sample(Make("Slow", Team.Player, WeaponStyle.Crossbow, agility: 15), defender).EvasionRate;
-        double vsFast = Sample(Make("Fast", Team.Player, WeaponStyle.DualWield, agility: 90), defender).EvasionRate;
+        double vsSlow = Sample(Make("Slow", Team.Player, WeaponKind.Crossbow, agility: 15), defender).EvasionRate;
+        double vsFast = Sample(Make("Fast", Team.Player, WeaponKind.Sword, agility: 90), defender).EvasionRate;
 
         output.WriteLine($"민첩 60 대상의 회피율 · 느린 공격자 상대 {vsSlow:P1} / 빠른 공격자 상대 {vsFast:P1}");
 
@@ -93,8 +93,8 @@ public class CritAndEvasionTests(ITestOutputHelper output)
     {
         // 자동 전투에서 "빗나감"이 연달아 뜨면 답답합니다.
         // 회피는 가끔 터지는 반전이어야지 일상이면 안 됩니다.
-        var attacker = Make("A", Team.Player, WeaponStyle.Crossbow, agility: 5);
-        var evasive = Make("E", Team.Enemy, WeaponStyle.DualWield, agility: 100);
+        var attacker = Make("A", Team.Player, WeaponKind.Crossbow, agility: 5);
+        var evasive = Make("E", Team.Enemy, WeaponKind.Sword, agility: 100);
         evasive.BeginDefending();
 
         double rate = Sample(attacker, evasive).EvasionRate;
@@ -140,28 +140,38 @@ public class CritAndEvasionTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void 쌍수는_자주_터지고_양손은_크게_터진다()
+    public void 치명타_특성은_숙련_패시브에서_갈린다()
     {
-        // ★ 스타일 차별화. 확률과 배율을 반대로 배치했습니다.
-        var defender = Make("D", Team.Enemy);
+        // ⚠️ 예전에는 무기 스타일이 치명타 확률·배율을 물고 있었습니다
+        // (쌍수는 자주, 양손은 크게). 지금은 그게 무기가 아니라 숙련 패시브입니다 —
+        // 초보가 쌍수를 들었다고 바로 자잘하게 잘 터지는 건 이상하기 때문입니다.
+        // 근거: docs/08-design-revision.md §16.2
+        var plain = Make("P", Team.Player);
 
-        var dual = WeaponStyles.CapabilityOf(WeaponStyle.DualWield);
-        var twoHanded = WeaponStyles.CapabilityOf(WeaponStyle.TwoHanded);
+        var twin = new Combatant("TW", "쌍수 숙련자", Team.Player, Stats(30, 30), 60,
+            Loadout.Pair(WeaponKind.Sword, WeaponKind.Sword), 1.0, Row.Front,
+            TestParty.NaiveTactics, potions: 0,
+            passives: [Guildwright.Core.Skills.SkillId.TwinStrike]);
 
-        double dualRate = Sample(Make("DW", Team.Player, WeaponStyle.DualWield), defender).CritRate;
-        double twoRate = Sample(Make("TH", Team.Player, WeaponStyle.TwoHanded), defender).CritRate;
+        var heavy = new Combatant("HV", "양손 숙련자", Team.Player, Stats(30, 30), 60,
+            Loadout.Single(WeaponKind.Greatsword), 1.0, Row.Front,
+            TestParty.NaiveTactics, potions: 0,
+            passives: [Guildwright.Core.Skills.SkillId.HeavyBlow]);
 
-        output.WriteLine($"쌍수 : 치명타율 {dualRate:P1}, 배율 {dual.CritMultiplier:F1}");
-        output.WriteLine($"양손 : 치명타율 {twoRate:P1}, 배율 {twoHanded.CritMultiplier:F1}");
+        output.WriteLine($"기본 확률 {plain.CritChance:P1} 배율 {plain.CritMultiplier:F2}");
+        output.WriteLine($"쌍수 숙달 확률 {twin.CritChance:P1} 배율 {twin.CritMultiplier:F2}");
+        output.WriteLine($"양손 숙달 확률 {heavy.CritChance:P1} 배율 {heavy.CritMultiplier:F2}");
 
-        Assert.True(dualRate > twoRate, "쌍수가 더 자주 터져야 합니다.");
-        Assert.True(twoHanded.CritMultiplier > dual.CritMultiplier, "양손이 더 크게 터져야 합니다.");
+        // 쌍수 숙달은 확률을, 양손 숙달은 배율을 올립니다.
+        Assert.True(twin.CritChance > plain.CritChance, "쌍수 숙달이 확률을 안 올립니다.");
+        Assert.True(heavy.CritMultiplier > twin.CritMultiplier, "양손 숙달이 배율을 안 올립니다.");
+        Assert.True(twin.CritChance > heavy.CritChance, "확률과 배율이 반대로 배치되지 않았습니다.");
     }
 
     [Fact]
     public void 치명타는_실제로_피해를_키운다()
     {
-        var attacker = Make("A", Team.Player, WeaponStyle.TwoHanded, finesse: 100);
+        var attacker = Make("A", Team.Player, WeaponKind.Greatsword, finesse: 100);
         var defender = Make("D", Team.Enemy, agility: 5);
 
         var rng = new DeterministicRandom(Seed);
@@ -221,7 +231,7 @@ public class CritAndEvasionTests(ITestOutputHelper output)
 
         var tank = new Adventurer(
             "T", "탱커", PrimaryStats.Uniform(30), 50, growth, 20,
-            WeaponAptitudes.Uniform(AptitudeGrade.B), WeaponStyle.SwordAndShield, WeaponClass.Blade);
+            WeaponAptitudes.Uniform(AptitudeGrade.B));
 
         var rng = new DeterministicRandom(Seed);
         CareerSimulator.ResolveTrainingYear(tank, rng.Fork("warm"));
@@ -267,7 +277,7 @@ public class CritAndEvasionTests(ITestOutputHelper output)
 
         for (int t = 0; t < 300; t++)
         {
-            var attacker = Make("A", Team.Player, WeaponStyle.DualWield, agility: 60, finesse: 70);
+            var attacker = Make("A", Team.Player, WeaponKind.Sword, agility: 60, finesse: 70);
             var defender = Make("D", Team.Enemy, agility: 60, finesse: 30);
 
             var rng = new DeterministicRandom(Seed).Fork($"t:{t}");

@@ -63,6 +63,11 @@ public static class DamageModel
     /// <summary>광역 공격은 피하기 어렵습니다.</summary>
     public const double AreaEvasionPenalty = 0.5;
 
+    /// <summary>
+    /// 치명타 기본 배율. <b>숙련 패시브가 여기에 더합니다</b> — 무기가 아닙니다.
+    /// </summary>
+    public const double BaseCritMultiplier = 1.6;
+
     private const double Variance = 0.2;
 
     /// <summary>
@@ -100,7 +105,7 @@ public static class DamageModel
         }
 
         bool critical = rng.Chance(attacker.CritChance);
-        double critMultiplier = critical ? attacker.Capability.CritMultiplier : 1.0;
+        double critMultiplier = critical ? attacker.CritMultiplier : 1.0;
 
         double variance = 1.0 + (rng.NextDouble() * 2.0 - 1.0) * Variance;
 
@@ -139,7 +144,7 @@ public static class DamageModel
         if (area) chance *= AreaEvasionPenalty;
 
         // 후열에서 근접 무기를 휘두르면 제대로 닿지 않으니 더 잘 피합니다.
-        if (attacker.Row == Row.Back && !attacker.Capability.CanActFromBackRow) chance *= 1.4;
+        if (attacker.Row == Row.Back && !attacker.CanActFromBackRow) chance *= 1.4;
 
         return Math.Clamp(chance, 0.0, MaxEvasionChance);
     }
@@ -152,7 +157,7 @@ public static class DamageModel
         double critMultiplier,
         List<string>? steps = null)
     {
-        bool magic = attacker.Capability.UsesMagic;
+        bool magic = attacker.UsesMagicPower;
 
         double offense = attacker.EffectiveOffense;
         double guard = magic ? defender.EffectiveMagicGuard : defender.EffectivePhysicalGuard;
@@ -160,12 +165,12 @@ public static class DamageModel
         double raw = offense - guard * 0.5;
         steps?.Add($"{(magic ? "마법" : "물리")}위력 {offense} − 방어 {guard}×0.5 = {raw:F1}");
 
-        raw = Step(raw, attacker.Capability.DamageModifier, "무기", steps);
+        raw = Step(raw, attacker.Loadout.Power, "무기", steps);
         raw = Step(raw, attacker.WeaponEffectiveness, "숙련", steps);
         raw = Step(raw, critMultiplier, "치명타", steps);
 
         // 근접 무기가 후열에서 휘두르면 제대로 닿지 않습니다.
-        if (attacker.Row == Row.Back && !attacker.Capability.CanActFromBackRow)
+        if (attacker.Row == Row.Back && !attacker.CanActFromBackRow)
         {
             raw = Step(raw, MeleeFromBackRowPenalty, "후열에서 근접", steps);
         }

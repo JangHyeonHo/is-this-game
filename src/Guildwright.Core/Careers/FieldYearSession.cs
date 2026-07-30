@@ -264,11 +264,11 @@ public sealed class FieldYearSession
     }
 
     /// <summary>
-    /// 빠져나갈 확률. 파티가 빠를수록, 척후 역량이 좋을수록 높습니다.
+    /// 빠져나갈 확률. 파티가 빠를수록 높습니다.
     /// </summary>
     private double AvoidChanceAgainst(IReadOnlyList<Adventurer> enemies)
     {
-        double ours = _party.Max(a => a.Stats.Agility + a.Support[SupportSkill.Scouting] * 0.4);
+        double ours = _party.Max(a => (double)a.Stats.Agility);
         double theirs = enemies.Average(e => (double)e.Stats.Agility);
 
         return Math.Clamp(

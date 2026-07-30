@@ -309,7 +309,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
                 var targets = state.ReachableTargets(actor);
                 if (targets.Count == 0) return;
 
-                bool areaMagic = actor.Capability.UsesMagic;
+                bool areaMagic = actor.UsesMagicPower;
                 foreach (var target in targets.ToList())
                 {
                     if (!target.IsAlive) continue;
@@ -340,7 +340,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
                 var result = DamageModel.ResolveAttack(actor, target, rng, explain: explainAttacks);
 
                 // ⚠️ 부작용이 있는 호출을 log?.Add(...)의 인자로 넣지 마세요. 위 주석 참조.
-                string line = ApplyHit(actor, target, result, actor.Capability.UsesMagic);
+                string line = ApplyHit(actor, target, result, actor.UsesMagicPower);
                 log?.Add(line);
                 Explain(result, log);
                 return;

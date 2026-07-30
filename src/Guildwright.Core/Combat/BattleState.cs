@@ -60,7 +60,7 @@ public sealed class BattleState
             if (taunter is not null) return [taunter];
         }
 
-        if (attacker.Capability.CanStrikeBackRow) return enemies;
+        if (attacker.CanStrikeBackRow) return enemies;
 
         var front = enemies.Where(e => e.Row == Row.Front).ToList();
         return front.Count > 0 ? front : enemies;

@@ -1,4 +1,5 @@
 using Guildwright.Core.Adventurers;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Weapons;
 
 namespace Guildwright.Core.Combat;
@@ -25,12 +26,14 @@ public sealed class Combatant
         Team team,
         PrimaryStats stats,
         int judgement,
-        WeaponStyle style,
+        Loadout loadout,
         double weaponEffectiveness,
         Row row,
         IReadOnlyList<TacticRule> tactics,
         int potions = 2,
-        DerivedBonuses? bonuses = null)
+        DerivedBonuses? bonuses = null,
+        IReadOnlyList<SkillId>? passives = null,
+        IReadOnlyList<SkillId>? actives = null)
     {
         Id = id;
         Name = name;
@@ -38,13 +41,16 @@ public sealed class Combatant
         Stats = stats;
         Bonuses = bonuses;
         Judgement = Math.Clamp(judgement, 0, 100);
-        Style = style;
+        Loadout = loadout;
         WeaponEffectiveness = weaponEffectiveness;
+        Passives = passives ?? [];
+        Actives = actives ?? [];
         Row = row;
         Tactics = tactics;
         Potions = potions;
 
-        MaxHp = DerivedStats.MaxHp(stats, bonuses);
+        MaxHp = DerivedStats.MaxHp(stats, bonuses)
+            + (int)Math.Round(PassiveBonusOf(passives, DerivedStat.MaxHp));
         Hp = MaxHp;
         MaxMana = DerivedStats.MaxMana(stats, bonuses);
         Mana = MaxMana;
@@ -73,12 +79,89 @@ public sealed class Combatant
     /// </summary>
     public int Judgement { get; }
 
-    public WeaponStyle Style { get; }
+    /// <summary>장착 4칸. <b>손에 무엇을 들었는지가 곧 스타일입니다.</b></summary>
+    public Loadout Loadout { get; }
+
+    /// <summary>
+    /// 가진 패시브. <b>슬롯 없이 전부 적용됩니다.</b>
+    /// <para>파티 오라(태생 패시브)는 파티를 조립할 때 여기에 합쳐서 넣습니다.</para>
+    /// </summary>
+    public IReadOnlyList<SkillId> Passives { get; }
+
+    /// <summary>장착한 액티브. 슬롯 수는 직업이 정합니다.</summary>
+    public IReadOnlyList<SkillId> Actives { get; }
 
     /// <summary>무기 숙련도에서 오는 전투 효율 배율.</summary>
     public double WeaponEffectiveness { get; }
 
-    public StyleCapability Capability => WeaponStyles.CapabilityOf(Style);
+    // ---- 무기가 정하는 것 — 위력 · 속도 · 사거리. 그게 전부입니다 ----
+
+    public bool CanStrikeBackRow => Loadout.CanStrikeBackRow;
+    public bool CanActFromBackRow => Loadout.CanActFromBackRow;
+    public bool UsesMagicPower => Loadout.UsesMagicPower;
+
+    // ---- 스킬이 정하는 것 — 무기가 아니라 여기입니다 ----
+
+    /// <summary>그 행동을 여는 액티브를 장착하고 있고, 요구 무기도 들고 있는가.</summary>
+    public bool CanDo(TacticAction action) => SkillFor(action) is not null;
+
+    /// <summary>
+    /// 그 행동을 여는 스킬. 없으면 null.
+    /// <para>순회 순서는 <see cref="Actives"/>의 순서이므로 결정적입니다.</para>
+    /// </summary>
+    public Skill? SkillFor(TacticAction action)
+    {
+        foreach (var id in Actives)
+        {
+            var skill = SkillBook.Of(id);
+            if (skill.Action == action && skill.UsableWith(Loadout) && !OnCooldown(id)) return skill;
+        }
+        return null;
+    }
+
+    /// <summary>패시브가 그 파생 수치에 더하는 양.</summary>
+    private double PassiveBonus(DerivedStat stat)
+    {
+        double sum = 0.0;
+        foreach (var id in Passives)
+        {
+            var skill = SkillBook.Of(id);
+            if (skill.Boosts == stat) sum += skill.BoostAmount;
+            if (skill.Costs == stat) sum -= skill.CostAmount;
+        }
+        return sum;
+    }
+
+    /// <summary>치명타 배율. 숙련 패시브가 좌우합니다 — 무기가 아닙니다.</summary>
+    public double CritMultiplier
+    {
+        get
+        {
+            double bonus = 0.0;
+            foreach (var id in Passives) bonus += SkillBook.Of(id).CritMultiplierBonus;
+            return DamageModel.BaseCritMultiplier + bonus;
+        }
+    }
+
+    // ---- 쿨다운 ----
+
+    private readonly Dictionary<SkillId, int> _cooldowns = [];
+
+    public bool OnCooldown(SkillId id) => _cooldowns.TryGetValue(id, out int left) && left > 0;
+
+    internal void StartCooldown(SkillId id, int rounds)
+    {
+        if (rounds > 0) _cooldowns[id] = rounds;
+    }
+
+    internal void TickCooldowns()
+    {
+        // 키 목록을 먼저 고정합니다 — 순회 중 수정을 피하고 순서를 정합니다.
+        foreach (var id in _cooldowns.Keys.OrderBy(k => k).ToList())
+        {
+            if (_cooldowns[id] > 0) _cooldowns[id]--;
+        }
+    }
 
     /// <summary>
     /// 현재 위치. <b>전투 중에 바뀝니다.</b>
@@ -114,28 +197,38 @@ public sealed class Combatant
 
     // ---- 상태 효과가 반영된 실효 수치 ----
 
-    public int EffectivePhysicalPower => Shifted(BasePhysicalPower, ShiftTarget.Power);
-    public int EffectiveMagicPower => Shifted(BaseMagicPower, ShiftTarget.Power);
-    public int EffectivePhysicalGuard => Shifted(BasePhysicalGuard, ShiftTarget.Guard);
-    public int EffectiveMagicGuard => Shifted(BaseMagicGuard, ShiftTarget.Guard);
+    public int EffectivePhysicalPower =>
+        Shifted(BasePhysicalPower + PassiveBonus(DerivedStat.PhysicalPower), ShiftTarget.Power);
 
-    /// <summary>공격 위력. 마법 무기면 마법 위력을 씁니다.</summary>
+    public int EffectiveMagicPower =>
+        Shifted(BaseMagicPower + PassiveBonus(DerivedStat.MagicPower), ShiftTarget.Power);
+
+    public int EffectivePhysicalGuard =>
+        Shifted(BasePhysicalGuard + PassiveBonus(DerivedStat.PhysicalGuard), ShiftTarget.Guard);
+
+    public int EffectiveMagicGuard =>
+        Shifted(BaseMagicGuard + PassiveBonus(DerivedStat.MagicGuard), ShiftTarget.Guard);
+
+    /// <summary>공격 위력. 지팡이를 들면 마법 위력을 씁니다.</summary>
     public int EffectiveOffense =>
-        Capability.UsesMagic ? EffectiveMagicPower : EffectivePhysicalPower;
+        UsesMagicPower ? EffectiveMagicPower : EffectivePhysicalPower;
 
-    /// <summary>치명타 확률. 무기 스타일이 크게 좌우합니다.</summary>
+    /// <summary>치명타 확률. <b>숙련 패시브가 좌우합니다</b> — 무기가 아닙니다.</summary>
     public double CritChance =>
-        Math.Clamp(BaseCritChance * Capability.CritChanceModifier, 0.0, 0.45);
+        Math.Clamp(BaseCritChance + PassiveBonus(DerivedStat.CritChance), 0.0, 0.45);
 
     /// <summary>회피 확률.</summary>
-    public double EvasionChance => BaseEvasionChance * ShiftFactor(ShiftTarget.Evasion);
+    public double EvasionChance =>
+        Math.Max(0.0, BaseEvasionChance + PassiveBonus(DerivedStat.EvasionChance))
+        * ShiftFactor(ShiftTarget.Evasion);
 
     /// <summary>명중 보정 배율. 상태 효과만 반영합니다.</summary>
     public double AccuracyFactor => ShiftFactor(ShiftTarget.Accuracy);
 
     /// <summary>행동 순서에 쓰이는 실효 속도. 무기 무게와 상태 효과가 반영됩니다.</summary>
     public double EffectiveSpeed =>
-        BaseActionSpeed * Capability.SpeedModifier * ShiftFactor(ShiftTarget.Speed);
+        Math.Max(0.1, BaseActionSpeed + PassiveBonus(DerivedStat.ActionSpeed))
+        * Loadout.Speed * ShiftFactor(ShiftTarget.Speed);
 
     /// <summary>
     /// 그 수치에 걸린 증감을 모아 배율로 만듭니다.
@@ -160,7 +253,7 @@ public sealed class Combatant
         return Math.Max(0.1, 1.0 + sum);
     }
 
-    private int Shifted(int baseValue, ShiftTarget target) =>
+    private int Shifted(double baseValue, ShiftTarget target) =>
         Math.Max(1, (int)Math.Round(baseValue * ShiftFactor(target)));
 
     /// <summary>도발당한 대상의 Id. 없으면 null.</summary>
@@ -231,6 +324,21 @@ public sealed class Combatant
 
     /// <summary>남은 보호막. HP 위에 얹혀 있습니다.</summary>
     public int Barrier { get; private set; }
+
+    /// <summary>생성자에서 쓰기 위한 정적 판본 — 최대 HP를 정할 때는 인스턴스가 아직 없습니다.</summary>
+    private static double PassiveBonusOf(IReadOnlyList<SkillId>? passives, DerivedStat stat)
+    {
+        if (passives is null) return 0.0;
+
+        double sum = 0.0;
+        foreach (var id in passives)
+        {
+            var skill = SkillBook.Of(id);
+            if (skill.Boosts == stat) sum += skill.BoostAmount;
+            if (skill.Costs == stat) sum -= skill.CostAmount;
+        }
+        return sum;
+    }
 
     /// <summary>피해를 입고 그 사실을 기록합니다. 어떤 종류로 맞았는지가 성장에 영향을 줍니다.</summary>
     internal void TakeDamage(int amount, bool magic)
@@ -355,5 +463,5 @@ public sealed class Combatant
     }
 
     public override string ToString() =>
-        $"{Name}({Style.ToKorean()}, {(Row == Row.Front ? "전열" : "후열")}) HP {Hp}/{MaxHp}";
+        $"{Name}({Loadout}, {(Row == Row.Front ? "전열" : "후열")}) HP {Hp}/{MaxHp}";
 }

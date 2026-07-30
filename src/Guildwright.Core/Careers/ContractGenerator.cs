@@ -47,28 +47,11 @@ public static class ContractGenerator
         };
 
         string name = pool[rng.NextInt(0, pool.Length)];
-        var preferences = new Dictionary<SupportSkill, double>();
 
-        switch (kind)
-        {
-            case ContractKind.Combat:
-                // 전투 의뢰라고 다 같지 않습니다. 함정투성이일 수도, 전리품이 무거울 수도 있습니다.
-                if (rng.Chance(0.45)) preferences[SupportSkill.TrapSense] = 0.6 + rng.NextDouble() * 0.4;
-                if (rng.Chance(0.35)) preferences[SupportSkill.Portering] = 0.3 + rng.NextDouble() * 0.4;
-                break;
-
-            case ContractKind.Gathering:
-                preferences[SupportSkill.Gathering] = 0.7 + rng.NextDouble() * 0.3;
-                preferences[SupportSkill.Portering] = 0.4 + rng.NextDouble() * 0.4;
-                break;
-
-            case ContractKind.Exploration:
-                preferences[SupportSkill.Scouting] = 0.7 + rng.NextDouble() * 0.3;
-                if (rng.Chance(0.6)) preferences[SupportSkill.TrapSense] = 0.4 + rng.NextDouble() * 0.4;
-                break;
-        }
-
-        return new Contract(name, kind, difficulty, preferences);
+        // ⚠️ 의뢰의 성격을 정하는 축은 재설계 대상입니다 — 형태 4종(토벌·지킴·수집·발견)으로
+        // 바뀝니다. 지금 ContractKind 3종은 소재 분류라 그 표와 대응하지 않습니다.
+        // 근거: docs/08-design-revision.md §17.3
+        return new Contract(name, kind, difficulty);
     }
 
     /// <summary>
