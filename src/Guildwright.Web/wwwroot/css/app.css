@@ -21,12 +21,15 @@ html, body {
 }
 #blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; top: .5rem; }
 
-/* ── 뷰포트: 검은 레터박스 가운데에 스테이지를 놓는다 ── */
-.viewport { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
+/* ── 뷰포트: 검은 레터박스, 스테이지는 항상 화면 정중앙 ──
+   그리드/플렉스의 center는 컨테이너보다 큰 요소를 시작점으로 붙여 버리므로
+   (overflow 시 safe-center 동작), 좌표 고정 + translate로 중앙을 보장한다. */
+.viewport { position: fixed; inset: 0; background: #000; overflow: hidden; }
 .stage {
-    width: 1920px; height: 1080px; position: relative; overflow: hidden;
+    width: 1920px; height: 1080px; overflow: hidden;
     background: #1c1916; font-size: 24px;
-    transform: scale(var(--stage-scale, 0.5));
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(var(--stage-scale, 0.5));
 }
 
 /* ── 공통 부품 (1080p 기준 px) ── */
@@ -55,6 +58,15 @@ html, body {
     justify-content: center; gap: 2px; font-size: 22px; color: #cfc8ba; cursor: pointer;
 }
 .nav:hover { border-color: #6a5f48; }
+.nav.on { border-color: #8a7434; color: #eadfc0; }
+
+/* 푸터 버튼 위로 펼쳐지는 상세 행동 메뉴 (가운데 모달이 아니다 — §21) */
+.navwrap { position: relative; }
+.navmenu {
+    position: absolute; bottom: 104px; left: 0; min-width: 340px;
+    display: flex; flex-direction: column; gap: 10px; z-index: 30;
+}
+.navmenu .btn { text-align: left; background: rgba(38, 33, 26, .97); }
 .nav .ico { font-size: 34px; line-height: 1; }
 .gobtn {
     margin-left: auto; height: 88px; padding: 0 60px; border-radius: 12px;

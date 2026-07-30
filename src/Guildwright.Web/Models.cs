@@ -1,4 +1,5 @@
 using Guildwright.Core.Adventurers;
+using Guildwright.Core.Careers;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Skills;
 using Guildwright.Core.Training;
@@ -11,6 +12,7 @@ public enum Screen
 {
     Title,
     Opening,
+    Recruit,
     Main,
     Prep,
     MonthResult
@@ -18,8 +20,7 @@ public enum Screen
 
 /// <summary>
 /// 단원 하나 — 코어 <see cref="Adventurer"/>를 감싸고, 화면 상태(배정·파견 잠금)만 얹는다.
-/// 능력치·성장·예보는 전부 코어가 계산한다. 파견은 아직 코어와 연결 전이라
-/// 남은 달수만 표시용으로 든다.
+/// 능력치·성장·예보는 전부 코어가 계산한다.
 /// </summary>
 public sealed class MemberVm
 {
@@ -28,7 +29,7 @@ public sealed class MemberVm
     /// <summary>진행 중인 훈련 세션. 12달을 채우면 결산하고 비운다.</summary>
     public TrainingYearSession? Session { get; set; }
 
-    /// <summary>0이면 자유. 1 이상이면 파견 중(잠김)이고 남은 달수다. ⚠️ 표시용 자리표시.</summary>
+    /// <summary>0이면 자유. 1 이상이면 파견 중(잠김)이고 남은 달수다. 파견은 아직 코어 연결 전.</summary>
     public int DeployedMonthsLeft { get; set; }
     public string? DeploymentName { get; set; }
 
@@ -54,51 +55,58 @@ public sealed class MemberVm
 }
 
 /// <summary>
-/// 화면 전환과 월 루프의 겉면. 성장 계산은 전부 코어(<see cref="TrainingYearSession"/>)가 한다.
-/// 파견·정산·소식은 아직 연결 전이다.
+/// 화면 전환과 월 루프의 겉면. 성장 계산은 코어(<see cref="TrainingYearSession"/>)가 하고,
+/// 시작 조건(자금 2,000 · 평판 0 · 1년 1월 · 단원 0명 · 매년 1월 모집 · 계약금 150 ·
+/// 정원 8)은 콘솔(Guildwright.Console)의 확정 흐름을 그대로 따른다.
+/// 파견·정산·의뢰는 아직 연결 전이다.
 /// </summary>
 public sealed class GameSession
 {
+    // 콘솔과 같은 시작 조건 (Program.cs StartingFunds 등).
+    private const int StartingFunds = 2_000;
+    private const int RecruitCost = 150;
+    private const int CandidateCount = 3;
+
     // ⚠️ 자리표시 시드 — 본 게임에서는 새 게임마다 시드를 뽑고 저장 파일에 든다.
-    private readonly DeterministicRandom _rng = new("guildwright-web-prototype");
+    private DeterministicRandom _rng = new("guildwright-web-prototype");
+    private int _nextId = 1;
+    private int _recruitDoneForYear;
 
     public Screen Screen { get; private set; } = Screen.Title;
     public event Action? Changed;
 
     public string GuildName { get; set; } = "";
-    public bool TutorialChosen { get; set; }
 
-    public int Year { get; private set; } = 1274;
-    public int Month { get; private set; } = 4;
-    public int Gold { get; private set; } = 320;
-    public int Fame { get; private set; } = 12;
-    public int Capacity { get; } = 4;
+    public int Year { get; private set; } = 1;
+    public int Month { get; private set; } = 1;
+    public int Gold { get; private set; } = StartingFunds;
+    public int Fame { get; private set; }
 
-    public List<MemberVm> Members { get; }
+    /// <summary>정원 — 콘솔의 RosterCapacity(8 + 랭크×7). 지금은 랭크 F 고정.</summary>
+    public int Capacity => 8;
+
+    public string RankLabel => "F";
+
+    /// <summary>연말에 나갈 유지비 — 1인당 정액 (docs/07 §7, CareerRules.AnnualUpkeep).</summary>
+    public int UpkeepDue => Members.Count * CareerRules.AnnualUpkeep;
+
+    public List<MemberVm> Members { get; } = [];
+    public List<string> Chronicle { get; } = [];
     public MemberVm? Selected { get; set; }
 
     /// <summary>훈련 카드 위에 포커스된 활동 — 오른쪽 전체 스탯에 예상 수치를 만든다.</summary>
     public TrainingActivity? Focused { get; set; }
 
-    public GameSession()
-    {
-        Members =
-        [
-            new() { Adventurer = Adventurer.Recruit("web-1", "세라", _rng.Fork("recruit:1")) },
-            new() { Adventurer = Adventurer.Recruit("web-2", "리안", _rng.Fork("recruit:2")) },
-            new()
-            {
-                Adventurer = Adventurer.Recruit("web-3", "브렌", _rng.Fork("recruit:3")),
-                DeployedMonthsLeft = 2, DeploymentName = "가도 호위"
-            }
-        ];
-    }
+    /// <summary>이번 모집의 후보들. 모집 화면에 들어올 때 만든다.</summary>
+    public List<Adventurer> Candidates { get; } = [];
 
     public string Season => Month switch { <= 3 => "봄", <= 6 => "여름", <= 9 => "가을", _ => "겨울" };
     public IEnumerable<MemberVm> FreeMembers => Members.Where(m => m.Free);
     public int AssignedCount => FreeMembers.Count(m => m.Assigned is not null);
     public int FreeCount => FreeMembers.Count();
-    public bool AllAssigned => FreeCount > 0 && AssignedCount == FreeCount;
+
+    /// <summary>업무 시작 조건 — 단원이 있고, 자유로운 전원의 이번 달이 정해졌다.</summary>
+    public bool CanStart => Members.Count > 0 && FreeMembers.All(m => m.Assigned is not null);
 
     public void Go(Screen screen)
     {
@@ -108,9 +116,91 @@ public sealed class GameSession
 
     public void Raise() => Changed?.Invoke();
 
-    /// <summary>
-    /// 이 단원의 훈련 세션. 없으면 연다 — 콘솔과 같은 포크 라벨 방식이라 결정적이다.
-    /// </summary>
+    /// <summary>새 게임 — 0에서 시작한다. 단원도, 평판도, 이름도 없다.</summary>
+    public void NewGame()
+    {
+        _rng = new DeterministicRandom("guildwright-web-prototype");
+        _nextId = 1;
+        _recruitDoneForYear = 0;
+        GuildName = "";
+        Year = 1; Month = 1;
+        Gold = StartingFunds; Fame = 0;
+        Members.Clear();
+        Chronicle.Clear();
+        Candidates.Clear();
+        Selected = null;
+        Focused = null;
+        Go(Screen.Opening);
+    }
+
+    // ── 모집 — 매년 1월 (콘솔 RecruitPhase와 같은 규칙) ──────────
+
+    public bool RecruitOpen => Month == 1 && _recruitDoneForYear != Year;
+    public int RecruitRoom => Math.Max(0, Capacity - Members.Count);
+    public int RecruitAffordable => Math.Min(RecruitRoom, Math.Max(0, Gold / RecruitCost));
+    public int RecruitPrice => RecruitCost;
+
+    // 콘솔의 이름 풀과 같다 (Program.cs Names). 이름 표는 나중에 한 곳으로 모은다.
+    private static readonly string[] FirstNames =
+    [
+        "아스카르", "미렌", "도르한", "셀비아", "카이엔", "루베르", "타냐", "그림", "이졸데",
+        "베르난", "샤이엔", "오르한", "리케", "무단", "엘리아", "가웨인", "노라", "테오"
+    ];
+
+    private static readonly string[] Epithets =
+    [
+        "몰락 귀족", "떠돌이", "전직 병사", "고아", "밀렵꾼", "수도원 출신", "광부의 아들",
+        "이방인", "빚쟁이", "탈영병"
+    ];
+
+    private string UniqueName(IRandomSource rng)
+    {
+        for (int tries = 0; tries < 40; tries++)
+        {
+            string name = $"{FirstNames[rng.NextInt(0, FirstNames.Length)]}({Epithets[rng.NextInt(0, Epithets.Length)]})";
+            bool taken = Members.Any(m => m.Name == name) || Candidates.Any(c => c.Name == name);
+            if (!taken) return name;
+        }
+        return $"{FirstNames[rng.NextInt(0, FirstNames.Length)]}({Epithets[rng.NextInt(0, Epithets.Length)]})";
+    }
+
+    /// <summary>모집을 연다 — 후보를 만들고 화면을 띄운다.</summary>
+    public void OpenRecruit()
+    {
+        Candidates.Clear();
+        var nameRng = _rng.Fork($"names:{Year}");
+        for (int i = 0; i < CandidateCount; i++)
+        {
+            Candidates.Add(Adventurer.Recruit($"W{_nextId++}", UniqueName(nameRng), _rng.Fork($"recruit:{Year}:{i}")));
+        }
+        Go(Screen.Recruit);
+    }
+
+    /// <summary>영입 확정. 선택이 없어도 모집은 끝난 것으로 친다 (연 1회).</summary>
+    public void Hire(IReadOnlyList<Adventurer> picked)
+    {
+        _recruitDoneForYear = Year;
+        foreach (var candidate in picked)
+        {
+            Members.Add(new MemberVm { Adventurer = candidate });
+            Gold -= RecruitCost;
+            Chronicle.Add($"{Year}년: {candidate.Name} 영입");
+        }
+        Candidates.Clear();
+        Go(Screen.Main);
+    }
+
+    /// <summary>단원 0명에 아무도 안 뽑음 — 길드는 문을 닫는다 (콘솔과 같은 결말).</summary>
+    public void CloseGuild()
+    {
+        _recruitDoneForYear = Year;
+        Candidates.Clear();
+        Go(Screen.Title);
+    }
+
+    // ── 월 루프 ──────────────────────────────────────────────
+
+    /// <summary>이 단원의 훈련 세션. 없으면 연다 — 콘솔과 같은 포크 라벨 방식이라 결정적이다.</summary>
     public TrainingYearSession SessionFor(MemberVm member)
     {
         if (member.Session is { } existing) return existing;
@@ -121,17 +211,11 @@ public sealed class GameSession
         return session;
     }
 
-    /// <summary>
-    /// 예상 성장 — 코어의 기대값 계산을 그대로 쓴다. 성공/실패에 따라 실제 값은
-    /// 달라지지만, 얼마나 오르는 활동인지는 이 수치가 말해 준다.
-    /// </summary>
+    /// <summary>예상 성장 — 코어의 기대값 계산을 그대로 쓴다.</summary>
     public IReadOnlyDictionary<PrimaryStat, double> Preview(MemberVm member, TrainingActivity activity) =>
         SessionFor(member).PreviewMonth(activity).ToDictionary(p => p.Stat, p => p.Gain);
 
-    /// <summary>
-    /// 한 달을 실행한다 — 배정된 훈련을 코어 세션으로 돌리고 결과를 남긴다.
-    /// 파견 경과는 아직 표시용 감산만 한다.
-    /// </summary>
+    /// <summary>한 달을 실행한다 — 배정된 훈련을 코어 세션으로 돌리고 결과를 남긴다.</summary>
     public void RunMonth()
     {
         foreach (var member in Members)
@@ -158,7 +242,7 @@ public sealed class GameSession
         Go(Screen.MonthResult);
     }
 
-    /// <summary>월 결과 확인 — 달력을 넘기고 배정을 비운다.</summary>
+    /// <summary>월 결과 확인 — 달력을 넘기고 배정을 비운다. 새해 1월이면 모집이 열린다.</summary>
     public void ConfirmMonth()
     {
         foreach (var member in Members) member.Assigned = null;
@@ -167,6 +251,7 @@ public sealed class GameSession
         Month++;
         if (Month > 12) { Month = 1; Year++; }
 
-        Go(Screen.Main);
+        if (RecruitOpen) OpenRecruit();
+        else Go(Screen.Main);
     }
 }

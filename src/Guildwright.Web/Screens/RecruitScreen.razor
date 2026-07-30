@@ -1,0 +1,93 @@
+@* 모집 — 매년 1월 (콘솔 RecruitPhase와 같은 규칙: 후보 3명 · 계약금 150 · 정원 8).
+   평가서는 없다 (docs/07 §19) — 보이는 것은 지금의 능력치와 희망 직업뿐이고,
+   성장 곡선은 키워 보기 전에는 알 수 없다. *@
+
+<div class="topbar">
+    <div>@Session.GuildName 길드 <span class="badge">랭크 @Session.RankLabel</span></div>
+    <div class="mid">@(Session.Year)년 1월 · 모집</div>
+    <div class="res">
+        <span>자금 <b>@Session.Gold</b></span>
+        <span>단원 <b>@Session.Members.Count/@Session.Capacity</b></span>
+    </div>
+</div>
+
+<div style="position:absolute; top:110px; left:120px; right:120px; display:flex; gap:24px; justify-content:center">
+    @foreach (var candidate in Session.Candidates)
+    {
+        var picked = _picked.Contains(candidate);
+        <div class="card @(picked ? "sel" : "")" style="width:520px; position:relative" @onclick="() => Toggle(candidate)">
+            @if (picked)
+            {
+                <div class="check">✓</div>
+            }
+            <div style="display:flex; gap:20px">
+                <div class="portrait" style="width:150px; height:200px; font-size:34px">@ShortName(candidate.Name)</div>
+                <div>
+                    <div class="t" style="font-size:28px">@candidate.Name</div>
+                    <div class="m" style="font-size:23px">@(candidate.Age)세 · 희망 직업: @Jobs.Of(candidate.Job).Korean</div>
+                    <div style="margin-top:10px; font-size:23px; line-height:1.7">
+                        힘 @candidate.Stats.Strength · 민첩 @candidate.Stats.Agility · 기교 @candidate.Stats.Finesse<br />
+                        활력 @candidate.Stats.Vitality · 지능 @candidate.Stats.Intellect · 정신 @candidate.Stats.Spirit
+                    </div>
+                    <div style="margin-top:10px"><span class="tag">계약금 @Session.RecruitPrice</span></div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<div style="position:absolute; bottom:150px; left:0; right:0; text-align:center; font-size:24px; color:#8a8378">
+    올해 영입 가능: <b style="color:#c9b98a">@(Session.RecruitAffordable)명</b>
+    (정원 여유 @Session.RecruitRoom · 자금 @Session.Gold) · 모집은 매년 1월에 한 번이다
+</div>
+
+<div class="footer">
+    <div style="font-size:26px; color:#8a8378">선택 @_picked.Count/@Session.RecruitAffordable · 계약금 합계 <b style="color:#d6b45a">@(_picked.Count * Session.RecruitPrice)</b></div>
+    <button class="btn" style="margin-left:auto" @onclick="SkipAttempt">아무도 뽑지 않는다</button>
+    <div class="gobtn @(_picked.Count > 0 ? "" : "dis")" style="margin-left:20px" @onclick="Confirm">영입 확정</div>
+</div>
+
+@if (_confirmClose)
+{
+    <div class="dim-layer">
+        <div class="modal">
+            <h4>정말 아무도 뽑지 않습니까</h4>
+            <div class="mrow">단원이 없는 길드는 문을 닫습니다. 게임이 끝납니다.</div>
+            <div style="margin-top:24px; display:flex; gap:14px; justify-content:flex-end">
+                <button class="btn" @onclick="() => _confirmClose = false">돌아가서 뽑는다</button>
+                <button class="btn" style="border-color:#7a4a3a; color:#c79c9c" @onclick="Session.CloseGuild">문을 닫는다</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter] public required GameSession Session { get; set; }
+
+    private readonly List<Adventurer> _picked = [];
+    private bool _confirmClose;
+
+    private void Toggle(Adventurer candidate)
+    {
+        if (_picked.Remove(candidate)) return;
+        if (_picked.Count < Session.RecruitAffordable) _picked.Add(candidate);
+    }
+
+    private void Confirm()
+    {
+        if (_picked.Count > 0) Session.Hire(_picked);
+    }
+
+    private void SkipAttempt()
+    {
+        // 단원 0명에서 아무도 안 뽑으면 길드가 문을 닫는다 — 클릭 한 번으로 갈 결말이 아니다.
+        if (Session.Members.Count == 0) _confirmClose = true;
+        else Session.Hire([]);
+    }
+
+    private static string ShortName(string name)
+    {
+        int cut = name.IndexOf('(');
+        return cut > 0 ? name[..cut] : name;
+    }
+}

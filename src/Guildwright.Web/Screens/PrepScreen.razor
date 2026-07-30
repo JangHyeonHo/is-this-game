@@ -129,7 +129,7 @@
                     @(previewProfile.ProficiencyPerMonth > 0 ? $"무기 숙련 +{previewProfile.ProficiencyPerMonth:F1} " : "")@(previewProfile.JudgementPerMonth > 0 ? $"판단력 +{previewProfile.JudgementPerMonth:F1}" : "")
                 </div>
             }
-            <h3 style="padding-left:0">태생 패시브</h3>
+            <h3 style="padding-left:0">패시브</h3>
             <div style="font-size:24px">
                 @(selected.InnateLabels.Any() ? string.Join(" · ", selected.InnateLabels) : "없음")
                 <span style="color:#635c50; font-size:20px"> (해금 시스템은 §20.6 구현 전)</span>
@@ -148,7 +148,7 @@
     <div style="font-size:26px; color:#8a8378">
         전원의 이번 달을 정하면 시작할 수 있다 — <b style="color:#c9b98a">배정 @Session.AssignedCount/@Session.FreeCount</b>
     </div>
-    <div class="gobtn @(Session.AllAssigned ? "" : "dis")" @onclick="StartMonth">업무 시작</div>
+    <div class="gobtn @(Session.CanStart ? "" : "dis")" @onclick="StartMonth">업무 시작</div>
 </div>
 
 @code {
@@ -203,6 +203,6 @@
 
     private void StartMonth()
     {
-        if (Session.AllAssigned) Session.RunMonth();
+        if (Session.CanStart) Session.RunMonth();
     }
 }

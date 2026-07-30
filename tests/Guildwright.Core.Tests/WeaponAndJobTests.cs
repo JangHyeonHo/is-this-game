@@ -467,4 +467,29 @@ public class WeaponAndJobTests(ITestOutputHelper output)
             foreach (var id in job.Grants) Assert.NotNull(SkillBook.Of(id));
         }
     }
+
+    [Fact]
+    public void 모집_후보의_희망_직업은_열린_직업만_나온다()
+    {
+        // docs/07 §20.5 — 당장 여는 직업은 한손검+방패 계열 하나뿐입니다.
+        // 풀을 넓힐 때는 OpenForRecruit에 넣는 것으로 충분해야 하고,
+        // 다른 경로로 닫힌 직업이 새어 나오면 여기서 잡힙니다.
+        var rng = new DeterministicRandom("open-jobs");
+        for (int i = 0; i < 30; i++)
+        {
+            var recruit = Adventurer.Recruit($"R{i}", $"후보{i}", rng.Fork($"r:{i}"));
+            Assert.Contains(recruit.Job, Jobs.OpenForRecruit);
+        }
+    }
+
+    [Fact]
+    public void 열린_직업은_요구_숙련이_없는_시작_직업이다()
+    {
+        // 모집 후보는 숙련 0으로 옵니다. 요구 숙련이 있는 직업이 풀에 들어가면
+        // 태어나자마자 자격 미달인 캐릭터가 생깁니다.
+        foreach (var id in Jobs.OpenForRecruit)
+        {
+            Assert.Contains(id, Jobs.Starting);
+        }
+    }
 }

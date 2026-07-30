@@ -1,4 +1,5 @@
-@* 오프닝 — 정적 삽화 + 내레이션 끝에 길드명을 짓고, 튜토리얼 여부를 고른다 (docs/07 §21). *@
+@* 오프닝 — 정적 삽화 + 내레이션 끝에 길드명을 짓는다 (docs/07 §21).
+   게임은 0에서 시작한다: 단원도 평판도 없고, 1월 모집에서 첫 사람을 직접 뽑는다. *@
 
 <div class="art full">오프닝 삽화 자리 (정적 그림)</div>
 
@@ -6,8 +7,8 @@
     @if (!_named)
     {
         <div style="font-size:30px; line-height:1.8; margin-bottom:40px">
-            변경의 작은 길드를 물려받았다. 남은 것은 낡은 건물과 장부 한 권,<br />
-            그리고 문을 두드린 떠돌이 한 명 — 이제 이 길드에 이름을 붙일 차례다.
+            변경의 작은 길드를 물려받았다. 남은 것은 낡은 건물과 장부 한 권뿐 —<br />
+            사람도, 이름도, 아직 없다. 이 길드에 이름을 붙일 차례다.
         </div>
         <div style="display:flex; gap:20px; align-items:center; justify-content:center">
             <input class="name-input" @bind="_name" @bind:event="oninput" placeholder="길드의 이름" maxlength="16" />
@@ -20,20 +21,17 @@
     {
         <div style="font-size:30px; line-height:1.8; margin-bottom:40px; text-align:center">
             <b style="color:#eadfc0">@Session.GuildName 길드</b>의 문을 연다.<br />
-            첫 해를 어떻게 시작할까.
+            1월 — 길드 문 앞에 모험가 지망생들이 와 있다.
         </div>
         <div style="display:flex; gap:24px; justify-content:center">
-            <div class="card" style="width:420px" @onclick="() => Start(tutorial: true)">
+            <div class="card dis" style="width:420px">
                 <div class="t">첫 해를 함께 시작한다</div>
-                <div class="m">튜토리얼 — 신입 한 명을 1년 키우고 첫 의뢰까지</div>
+                <div class="m">튜토리얼 — 코어 연결 단계에서 열린다 (준비 중)</div>
             </div>
-            <div class="card" style="width:420px" @onclick="() => Start(tutorial: false)">
-                <div class="t">바로 운영에 들어간다</div>
-                <div class="m">튜토리얼 건너뛰기</div>
+            <div class="card" style="width:420px" @onclick="Start">
+                <div class="t">운영을 시작한다</div>
+                <div class="m">모집부터 — 아무것도 없는 길드에서</div>
             </div>
-        </div>
-        <div style="margin-top:24px; text-align:center; font-size:20px; color:#8a8378">
-            ※ 튜토리얼 흐름은 코어 연결 단계에서 이어진다 — 지금은 두 선택 모두 메인으로 간다.
         </div>
     }
 </div>
@@ -50,9 +48,5 @@
         _named = true;
     }
 
-    private void Start(bool tutorial)
-    {
-        Session.TutorialChosen = tutorial;
-        Session.Go(Screen.Main);
-    }
+    private void Start() => Session.OpenRecruit();
 }
