@@ -1,7 +1,13 @@
 # Guildwright — 에이전트 작업 지침
 
 이 저장소에서 작업하기 전에 [docs/00-charter.md](docs/00-charter.md)와
-[docs/04-game-design.md](docs/04-game-design.md)를 먼저 읽으세요.
+[docs/08-design-revision.md](docs/08-design-revision.md)를 먼저 읽으세요.
+
+> ⚠️ **[docs/04-game-design.md](docs/04-game-design.md)는 일부가 폐기되었습니다.**
+> 예전에는 이 자리가 04였는데, 무기·직업·스킬·상태 효과·지휘·의뢰·파티·달력이
+> 08에서 재설계됐습니다. **판단이 갈리면 08이 이깁니다.** 04에는 낡은 절을 지우고
+> 대체 절만 가리켜 두었지만, 순서를 08로 바꾸는 게 안전합니다.
+> [docs/07-formulas.md](docs/07-formulas.md)도 같습니다 — 수치는 **코드가 정본**입니다.
 
 **"그 기능 있나요?"는 [docs/09-systems.generated.md](docs/09-systems.generated.md)로 답합니다.**
 어셈블리에서 생성되므로 낡지 않습니다 — **목록에 없으면 없는 것입니다.**

@@ -149,7 +149,15 @@ public static class SystemInventory
         return text.Replace("\r", "").Replace("\n", " ").Replace("⚠️", "⚠").Trim();
     }
 
-    /// <summary>테스트 실행 위치에서 저장소 루트를 찾습니다.</summary>
+    /// <summary>
+    /// 테스트 실행 위치에서 저장소 루트를 찾습니다. <c>CLAUDE.md</c>가 있는 곳입니다.
+    /// <para>
+    /// ⚠️ 못 찾으면 <b>왜 못 찾았는지</b>를 말해야 합니다. 예전에는 그냥 "저장소 루트를
+    /// 찾지 못했습니다"라고만 던졌고, Docker 빌드에서 <c>.dockerignore</c>가 문서를
+    /// 제외해 실패했을 때 <b>"인벤토리가 코드와 어긋났습니다"</b>로 보였습니다 —
+    /// 실제로 어긋난 게 아니라 비교 대상이 없었던 것입니다 (docs/06 #58).
+    /// </para>
+    /// </summary>
     public static string RepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -159,7 +167,11 @@ public static class SystemInventory
             dir = dir.Parent;
         }
 
-        return dir?.FullName ?? throw new InvalidOperationException("저장소 루트를 찾지 못했습니다.");
+        return dir?.FullName ?? throw new InvalidOperationException(
+            $"저장소 루트를 찾지 못했습니다 — {AppContext.BaseDirectory} 위로 올라가며 " +
+            "CLAUDE.md를 찾았지만 없었습니다.\n" +
+            "Docker 안이라면 .dockerignore가 CLAUDE.md나 docs/를 제외했는지 확인하세요. " +
+            "인벤토리 테스트는 docs/09-systems.generated.md를 어셈블리와 대조하므로 둘 다 필요합니다.");
     }
 
     public static string DocumentPath() => Path.Combine(RepositoryRoot(), "docs", FileName);

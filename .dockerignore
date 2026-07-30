@@ -5,5 +5,13 @@
 
 .git/
 .github/
-docs/
-*.md
+
+# ⚠️ docs/ 와 CLAUDE.md 를 제외하지 마세요.
+#
+# SystemInventoryTests가 `docs/09-systems.generated.md`를 어셈블리와 대조하고,
+# 저장소 루트를 CLAUDE.md의 위치로 찾습니다. 둘을 빼면 Dockerfile의
+# `RUN dotnet test`가 "인벤토리가 코드와 어긋났습니다"로 실패합니다 —
+# 실제로 어긋난 게 아니라 비교 대상이 이미지에 없어서 나는 실패라
+# 원인을 짚기 어렵습니다. 실제로 그 사고가 났습니다 (docs/06 #58).
+#
+# 런타임 이미지는 /app 만 복사하므로 문서가 최종 이미지에 남지는 않습니다.
