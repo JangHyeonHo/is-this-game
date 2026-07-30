@@ -1,5 +1,6 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
+using Guildwright.Core.Parties;
 using Guildwright.Core.Combat;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Skills;
@@ -248,8 +249,7 @@ public class WeaponAndJobTests(ITestOutputHelper output)
     [Fact]
     public void 계급이_직업_표에_흡수되었다()
     {
-        // 예전에는 JobRank 열거형(견습~대가)이 따로 있었고 연봉·수주 난이도까지
-        // 거기 걸려 있었습니다. 지금은 요구 숙련만 다른 직업 행입니다.
+        // 계급은 별도 축이 아니라 요구 숙련만 다른 직업 행입니다.
         var apprentice = Jobs.Of(JobId.SwordApprentice);
         var saint = Jobs.Of(JobId.SwordSaint);
 
@@ -257,21 +257,35 @@ public class WeaponAndJobTests(ITestOutputHelper output)
         Assert.NotEmpty(saint.Requires);
 
         Assert.True(saint.MaxContractDifficulty > apprentice.MaxContractDifficulty);
-        Assert.True(saint.Upkeep > apprentice.Upkeep);
         Assert.True(saint.ActiveSlots > apprentice.ActiveSlots);
     }
 
     [Fact]
-    public void 유지비는_그_등급의_최대_수주_보수보다_낮다()
+    public void 유지비는_등급_무관_정액이고_최저_보수보다_낮다()
     {
-        // 예전에 최고 등급을 1,300으로 잡았다가 최대 보수 1,200을 넘겨
-        // 최고 등급이 순수 적자가 되는 문제가 있었습니다. 테스트로 고정합니다.
-        foreach (var job in Jobs.Catalogue)
-        {
-            int maxIncome = job.MaxContractDifficulty * CareerRules.IncomePerDifficulty;
-            Assert.True(job.Upkeep < maxIncome,
-                $"{job.Korean}: 유지비 {job.Upkeep} ≥ 최대 보수 {maxIncome}. 순수 적자가 됩니다.");
-        }
+        // docs/07 §7 — 유지비는 1인당 연 40, 등급 무관. 직업이 유지비를 정하면
+        // 그것이 이름만 바뀐 연봉이 되어, §7이 없앤 "몸값 절벽"이 되살아납니다.
+        Assert.Equal(40, CareerRules.AnnualUpkeep);
+        Assert.True(CareerRules.AnnualUpkeep < CareerRules.IncomePerDifficulty,
+            "유지비가 난이도 1 의뢰 보수보다 크면 신입은 순수 적자입니다.");
+    }
+
+    [Fact]
+    public void 보수_분배는_평균_등급에_따라_30에서_60퍼센트다()
+    {
+        // docs/07 §7 — 모험가 몫 30%(최하)~60%(최상). 파티 평균 등급이 높을수록 커집니다.
+        var floor = CareerRules.AdventurerShare([Rank.F, Rank.F]);
+        var ceiling = CareerRules.AdventurerShare([Rank.SS, Rank.SS]);
+        var middle = CareerRules.AdventurerShare([Rank.F, Rank.SS]);
+
+        Assert.Equal(0.30, floor, 3);
+        Assert.Equal(0.60, ceiling, 3);
+        Assert.True(floor < middle && middle < ceiling, "몫이 평균 등급에 단조 증가해야 합니다.");
+
+        // 길드 몫 + 모험가 몫 = 전체
+        int pay = 1000;
+        int guild = CareerRules.GuildTake(pay, [Rank.F, Rank.F]);
+        Assert.Equal(700, guild);
     }
 
     [Fact]

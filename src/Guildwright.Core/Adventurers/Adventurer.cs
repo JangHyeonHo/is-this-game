@@ -278,14 +278,10 @@ public sealed class Adventurer
             .Take(JobProfile.ActiveSlots)
             .ToArray();
 
-    /// <summary>연간 유지비. 직업 데이터에서 나옵니다 — 예전 JobRank.AnnualWage를 흡수했습니다.</summary>
-    public int AnnualWage => JobProfile.Upkeep;
 
     /// <summary>수주할 수 있는 의뢰 난이도 상한. 실력이 아니라 자격입니다.</summary>
     public int MaxContractDifficulty => JobProfile.MaxContractDifficulty;
 
-    /// <summary>길드 평판에 기여하는 정도. 수주 자격에 비례합니다.</summary>
-    public int ReputationValue => JobProfile.MaxContractDifficulty * 2;
 
     public IReadOnlyList<YearRecord> History => _history;
 
@@ -460,5 +456,5 @@ public sealed class Adventurer
 
     public override string ToString() =>
         $"{Name} · {Title} ({Age}세, {Status}) {Stats} 판단력 {Judgement} " +
-        $"[{Loadout} 숙련 {Proficiency[Loadout.MainWeapon]}, 유지비 {AnnualWage}]";
+        $"[{Loadout} 숙련 {Proficiency[Loadout.MainWeapon]}]";
 }
