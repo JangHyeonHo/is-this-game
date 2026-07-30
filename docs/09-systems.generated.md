@@ -9,7 +9,7 @@
 > 수치(상수)는 일부러 넣지 않았습니다 — 코드를 직접 보세요.
 > 설계 맥락·미구현 목록·막혀 있는 기능은 [09-systems.md](09-systems.md)에 있습니다.
 
-공개 타입 101개
+공개 타입 111개
 
 ## Adventurers
 
@@ -84,6 +84,19 @@
 - `struct TacticRule` — FF12 감빗과 유사한 조건-행동 규칙
 - `static class TacticalBrain` — 전투 중 한 캐릭터가 무엇을 할지 결정하는 Utility AI
 - `enum Team`<br>　└ `Player` · `Enemy`
+
+## Parties
+
+- `enum AdmissionProblem` — 증원이 안 되는 이유<br>　└ `None` · `NotEnoughMonths` · `AlreadyInRegularParty` · `Disbanded` · `AlreadyMember` · `RankTooLow` · `InvalidComposition`
+- `enum FormationProblem` — 조합이 성립하지 않는 이유<br>　└ `None` · `TooFewMembers` · `SoloingLocked` · `TooManyPorters` · `NoCombatant` · `NotDeployable`
+- `class Party` — 정규 파티 — 등록된 조합
+- `class PartyComposition` — 한 조합 — 누가 같이 나갔는가
+- `static class PartyFormation` — 조합이 성립하는지 판정합니다
+- `class PartyLedger` — 파티 장부 — 가상 파티의 누적과 정규 파티의 소속을 함께 관리합니다
+- `static class PartyRules` — 파티 규칙의 수치
+- `enum Rank` — 등급 F ~ SS<br>　└ `F` · `E` · `D` · `C` · `B` · `A` · `S` · `SS`
+- `static class Ranks` — 등급 눈금을 다루는 헬퍼
+- `enum RegistrationProblem` — 정규 등록이 안 되는 이유<br>　└ `None` · `NotEnoughMonths` · `AlreadyInRegularParty` · `InvalidComposition`
 
 ## Rng
 

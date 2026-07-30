@@ -1,4 +1,5 @@
 using Guildwright.Core.Careers;
+using Guildwright.Core.Parties;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Skills;
 using Guildwright.Core.Weapons;
@@ -169,6 +170,31 @@ public sealed class Adventurer
 
     /// <summary>현재 칭호. 직업 이름이 그대로 칭호입니다 — 계급이라는 별도 축이 없습니다.</summary>
     public string Title => JobProfile.Korean;
+
+    /// <summary>
+    /// 개인 등급 F ~ SS. <b>모두 F로 시작합니다.</b>
+    /// <para>
+    /// 직업·숙련과는 다른 축입니다 — 직업은 <b>무엇을 할 수 있는가</b>, 등급은
+    /// <b>무엇을 맡길 수 있는가</b>입니다. 그래서 검성인 F등급이 이론상 가능합니다.
+    /// </para>
+    /// <para>
+    /// 저절로 오르지 않습니다. <b>승급 의뢰</b>를 완수해야 오릅니다 (docs/08 §6.5) —
+    /// 그래서 <see cref="Promote"/>는 여기 있고 판정은 의뢰 쪽에 있습니다.
+    /// </para>
+    /// </summary>
+    public Rank Rank { get; private set; } = Ranks.Lowest;
+
+    /// <summary>
+    /// 한 단 승급합니다. <b>승급 의뢰를 완수했을 때만</b> 불립니다.
+    /// </summary>
+    /// <returns>실제로 올랐는지. 최고 등급이면 <c>false</c>.</returns>
+    public bool Promote()
+    {
+        if (Rank == Ranks.Highest) return false;
+
+        Rank = Rank.Above(1);
+        return true;
+    }
 
     /// <summary>
     /// 전직합니다. <b>조건도 비용도 없습니다.</b>
