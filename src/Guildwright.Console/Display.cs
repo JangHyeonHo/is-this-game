@@ -1,6 +1,7 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Parties;
 using Guildwright.Core.Skills;
 using Guildwright.Core.Training;
 using Guildwright.Core.Weapons;
@@ -13,7 +14,7 @@ public static class Display
     /// <summary>원천 능력치와 파생 수치를 나란히 보여줍니다.</summary>
     public static void StatSheet(Adventurer a)
     {
-        Ui.Line($"   {a.Name} · {a.Title} ({a.Age}세)  [{a.Loadout}]");
+        Ui.Line($"   {a.Name} · {a.Title} · {a.Rank.Label()} ({a.Age}세, {a.MonthsElapsed}달)  [{a.Loadout}]");
         Ui.Line($"   ┌ 원천 ──────────┬ 파생 ─────────────────────────");
         Ui.Line($"   │ 힘   {a.Stats.Strength,3}       │ 물리 위력 {a.PhysicalPower,4}   최대 HP {a.MaxHp,4}");
         Ui.Line($"   │ 민첩 {a.Stats.Agility,3}       │ 마법 위력 {a.MagicPower,4}   최대 MP {DerivedStats.MaxMana(a.Stats, a.Bonuses),4}");
@@ -22,6 +23,11 @@ public static class Display
         Ui.Line($"   │ 지능 {a.Stats.Intellect,3}       │ 판단력    {a.Judgement,4}   숙련     {a.Proficiency[a.Loadout.MainWeapon],4}");
         Ui.Line($"   │ 정신 {a.Stats.Spirit,3}       │ 연봉      {a.AnnualWage,4}");
         Ui.Line($"   └────────────────┴───────────────────────────────");
+
+        if (a.Actives.Count > 0)
+        {
+            Ui.Note($"장착 액티브: {string.Join(", ", a.Actives.Select(id => SkillBook.Of(id).Korean))}");
+        }
 
         if (a.Bonuses.HasAny) Ui.Note($"겪어서 얻은 것: {a.Bonuses}");
         if (a.Innate.Count > 0) Ui.Note($"타고난 것: {string.Join(", ", a.Innate.Select(id => SkillBook.Of(id).Korean))}");
@@ -214,6 +220,42 @@ public static class Display
             string state = hp <= 0 ? "  전투 불능" : "";
             Ui.Line($"     {a.Name,-16} {Ui.Bar((double)hp / a.MaxHp, 10)} {hp,4}/{a.MaxHp,-4} " +
                     $"마나 {session.Mana[a.Id],3} · 회복약 {session.Potions[a.Id]}{state}");
+        }
+    }
+
+    /// <summary>파티 장부 — 가상 파티 누적과 정규 파티.</summary>
+    public static void Parties(PartyLedger ledger, IReadOnlyList<Adventurer> roster)
+    {
+        Ui.Line();
+        Ui.Line("   ── 파티 ──");
+
+        var regular = ledger.ActiveParties.ToList();
+        if (regular.Count == 0) Ui.Note("정규 파티가 없습니다.");
+        foreach (var party in regular)
+        {
+            Ui.Line($"     [정규] {party}  {string.Join(" · ", party.Members.Select(m => m.Name))}");
+        }
+
+        // 가상 파티 — 누적이 쌓이는 조합. 쌓이는 과정이 보여야 "어느새 채웠네"가 됩니다.
+        var registrable = ledger.RegistrableCompositions(roster).ToHashSet();
+        var virtuals = ledger.VirtualParties
+            .Where(v => v.Composition.MemberIds.All(id => roster.Any(r => r.Id == id)))
+            .ToList();
+
+        if (virtuals.Count == 0)
+        {
+            Ui.Note($"같이 나간 조합이 없습니다. 함께 {PartyRules.MonthsToRegister}달을 채우면 등록할 수 있습니다.");
+            return;
+        }
+
+        foreach (var (composition, months) in virtuals)
+        {
+            var names = composition.MemberIds.Select(id => roster.First(r => r.Id == id).Name);
+            string tag = registrable.Contains(composition) ? "[등록 가능]" : "[가상]    ";
+
+            Ui.Line($"     {tag} {string.Join(" · ", names)}  " +
+                    $"{Ui.Bar(Math.Min(1.0, (double)months / PartyRules.MonthsToRegister), 6)} " +
+                    $"{months}/{PartyRules.MonthsToRegister}달");
         }
     }
 

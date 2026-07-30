@@ -45,6 +45,15 @@ internal sealed class Guild(IRandomSource rng)
     private readonly List<Adventurer> _members = [];
 
     /// <summary>
+    /// 파티 장부. <b>가상 파티 누적과 정규 파티</b>가 여기 있습니다 (docs/08 §6).
+    /// <para>
+    /// 코어에 있어도 여기에 연결되지 않으면 <b>플레이어는 파티를 만질 수 없습니다.</b>
+    /// 실제로 그 상태였습니다 — 층·누적·자격·등급이 전부 있는데 인게임에 없었습니다.
+    /// </para>
+    /// </summary>
+    private readonly PartyLedger _parties = new();
+
+    /// <summary>
     /// 평가서 캐시.
     /// <para>
     /// <b>같은 상황에서 다시 보면 같은 내용이어야 합니다.</b> 볼 때마다 새로 굴리면
@@ -338,10 +347,19 @@ internal sealed class Guild(IRandomSource rng)
         // 게시판에서 고릅니다. 그 달에 안 받으면 사라집니다 (지속 의뢰만 남습니다).
         // 승급 의뢰는 지속 의뢰이므로 자격이 되면 붙여 둡니다 — 등급이 오르는 유일한 길입니다.
         var promotion = ContractBoard.PromotionFor(member);
-        var posted = promotion is null ? board : [.. board, promotion];
+        IReadOnlyList<Contract> posted = promotion is null ? board : [.. board, promotion];
+
+        // 정규 파티에 속해 있으면 파티 전용 의뢰가 열립니다 (§6.3).
+        var regular = _parties.RegularPartyOf(member.Id);
+        if (regular is not null)
+        {
+            var partyQuest = ContractBoard.PromotionFor(regular);
+            if (partyQuest is not null) posted = [.. posted, partyQuest];
+        }
 
         var open = ContractBoard.AvailableTo(
-            posted, member.Rank, asRegularParty: false, member.MaxContractDifficulty);
+            posted, regular?.Rank ?? member.Rank,
+            asRegularParty: regular is not null, member.MaxContractDifficulty);
 
         if (open.Count == 0)
         {
@@ -373,10 +391,67 @@ internal sealed class Guild(IRandomSource rng)
         int capacity = Supplies.CapacityOf(party);
         Ui.Note($"짐 한도 {capacity}개 — 가방을 든 사람이 있으면 늘어납니다");
 
+        // 조합이 성립하지 않으면 애초에 나갈 수 없습니다 (§6.0 — 자격이 조합의 전제).
+        var problem = PartyFormation.Check(party);
+        if (problem != FormationProblem.None)
+        {
+            Ui.Note($"이 조합으로는 나갈 수 없습니다 — {problem.ToKorean()}");
+            return;
+        }
+
         var (session, result) = RunDeployment(party, contract);
 
         ApplyDeploymentResults(party, session, result);
+
+        // 함께 나간 달을 장부에 쌓습니다. 의뢰 기간만큼 누적됩니다 —
+        // 이것이 정규 파티 등록 조건(함께 나간 6개월)의 유일한 입력원입니다.
+        for (int m = 0; m < result.MonthsSpent; m++) _parties.RecordMonth(party);
+
+        PartyPhase(party, result);
     }
+
+    /// <summary>
+    /// 파견이 끝난 뒤의 파티 처리 — 평가 배분, 등록 제안, 증원.
+    /// </summary>
+    private void PartyPhase(List<Adventurer> party, DeploymentResult result)
+    {
+        var existing = _parties.RegularPartyOf(party);
+
+        // 정규 파티로 나갔으면 그 파티가 평가를 쌓습니다 (§6.2 — 독립적으로 쌓임).
+        if (existing is not null && result.Succeeded)
+        {
+            _parties.RecordEvaluation(existing, result.Contract.Difficulty * EvaluationPerDifficulty);
+            Ui.Note($"{existing}");
+        }
+
+        Display.Parties(_parties, _members);
+
+        // 등록은 강제가 아닙니다 (§6.0). 조건을 채웠을 때만 물어봅니다.
+        var options = _parties.RegistrableCompositions(_members);
+        if (options.Count == 0) return;
+
+        var labels = options
+            .Select(c => string.Join(" · ", c.MemberIds.Select(id => _members.First(m => m.Id == id).Name))
+                         + $" (함께 {_parties.MonthsTogether(c)}달)")
+            .Append("등록하지 않는다")
+            .ToList();
+
+        int pick = Ui.Choose("   정규 파티로 등록하시겠습니까", labels);
+        if (pick >= options.Count) return;
+
+        var chosenComposition = options[pick];
+        var members = chosenComposition.MemberIds.Select(id => _members.First(m => m.Id == id)).ToList();
+
+        var registered = _parties.Register($"P{_parties.Parties.Count}", $"{members[0].Name}의 파티", members);
+        if (registered is not null)
+        {
+            Record($"{_year}년: 정규 파티 등록 — {string.Join(" · ", members.Select(m => m.Name))}");
+            Ui.Note($"등록되었습니다. {registered}");
+        }
+    }
+
+    /// <summary>난이도 1당 파티 평가. ⚠️ 임시값 — docs/06 #41.</summary>
+    private const int EvaluationPerDifficulty = 4;
 
     /// <summary>
     /// 파견 한 건을 달 단위로 진행합니다.
@@ -463,6 +538,17 @@ internal sealed class Guild(IRandomSource rng)
         _funds += totalIncome;
         _reputation = Math.Max(0, _reputation + reputationGain);
         Ui.Note($"보수 {totalIncome}, 평판 {(reputationGain >= 0 ? "+" : "")}{reputationGain}");
+
+        // 죽거나 불구가 되면 파티에서 빠지고, 1명 남으면 자동 해체됩니다 (§6.1).
+        foreach (var lost in _members.Where(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled))
+        {
+            var theirs = _parties.RegularPartyOf(lost.Id);
+            if (_parties.Leave(lost.Id) && theirs is { Disbanded: true })
+            {
+                Record($"{_year}년: {theirs.Name} 해체 — 남은 인원이 1명");
+                Ui.Note($"{theirs.Name}이(가) 해체되었습니다. 빈자리는 다시 6개월이 걸립니다.");
+            }
+        }
 
         _members.RemoveAll(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled);
     }

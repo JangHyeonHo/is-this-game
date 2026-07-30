@@ -136,6 +136,19 @@ public sealed class PartyLedger
     public int MonthsTogether(IReadOnlyList<Adventurer> members) =>
         MonthsTogether(PartyComposition.Of(members));
 
+    /// <summary>
+    /// 누적이 쌓여 있는 조합 전부 — <b>가상 파티 목록</b>입니다.
+    /// <para>
+    /// 등록 가능한 것만 보여주면 플레이어는 <b>조건을 채우는 순간까지 아무것도 못 봅니다.</b>
+    /// "어느새 이 셋이 조건을 채웠네"가 되려면 쌓이는 과정이 보여야 합니다 (§6.0).
+    /// </para>
+    /// <para>많이 나간 조합부터, 동수면 서수 정렬 — 순서가 흔들리면 화면이 매번 달라집니다.</para>
+    /// </summary>
+    public IReadOnlyList<(PartyComposition Composition, int Months)> VirtualParties =>
+        [.. _months.Select(e => (e.Key, e.Value))
+                   .OrderByDescending(e => e.Item2)
+                   .ThenBy(e => e.Item1.Key, StringComparer.Ordinal)];
+
     /// <summary>그 사람이 속한 정규 파티. 없으면 <c>null</c>. 한 사람은 정규 파티 하나입니다.</summary>
     public Party? RegularPartyOf(string adventurerId) =>
         ActiveParties.FirstOrDefault(p =>
