@@ -45,30 +45,62 @@ public static class CareerSimulator
     }
 
     /// <summary>
-    /// 실전으로 한 해를 보냅니다. <b>죽을 수 있습니다.</b>
+    /// 파견 한 건을 결산합니다. <b>의뢰 기간만큼만 시간이 갑니다</b> — 1달 의뢰면 1달입니다.
+    /// <para>
+    /// 이것이 <see cref="DeploymentSession"/>과 육성 파트를 잇는 다리입니다.
+    /// 예전에는 파견이 곧 1년이라 이 다리가 필요 없었습니다.
+    /// </para>
+    /// </summary>
+    /// <param name="adventurer">결산할 모험가. 파견에 나갔던 사람이어야 합니다.</param>
+    /// <param name="session">진행이 끝난 파견.</param>
+    /// <param name="result">그 파견의 결과.</param>
+    /// <param name="rng">난수원.</param>
+    public static YearRecord ResolveDeployment(
+        Adventurer adventurer,
+        DeploymentSession session,
+        DeploymentResult result,
+        IRandomSource rng)
+    {
+        bool downed = session.Hp.GetValueOrDefault(adventurer.Id, adventurer.MaxHp) <= 0;
+
+        // 승급은 여기서만 일어납니다 (§6.5) — 문턱을 넘어 조용히 오르는 것이 아니라
+        // 승급 의뢰를 받아 통과해야 합니다. 이 배선이 빠져 있으면 등급이 영원히 F입니다.
+        if (result.Succeeded && result.Contract.PromotionTo is { } target && adventurer.Rank < target)
+        {
+            adventurer.Promote();
+        }
+
+        return ResolveDeploymentYear(
+            adventurer,
+            result.Contract.Difficulty,
+            rng,
+            experience: session.Experience.GetValueOrDefault(adventurer.Id),
+            contract: result.Contract,
+            battle: BattleReport.From(result, downed),
+            months: Math.Max(1, result.MonthsSpent));
+    }
+
+    /// <summary>
+    /// 실전으로 <b>한 해를</b> 보냅니다. 죽을 수 있습니다.
+    /// <para>
+    /// 달 단위 파견에서는 <see cref="ResolveDeployment"/>를 쓰세요. 이쪽은 배치
+    /// 시뮬레이션처럼 <b>전투를 따로 돌리지 않고 연 단위로 요약</b>할 때 씁니다.
+    /// </para>
     /// </summary>
     /// <param name="adventurer">대상 모험가.</param>
     /// <param name="difficulty">의뢰 난이도. 높을수록 보수가 크고 위험합니다.</param>
     /// <param name="rng">난수원.</param>
     /// <param name="experience">
-    /// 그 해에 실제로 무엇을 겪었는지. 어느 능력치가 자랄지를 정합니다.
+    /// 그 기간에 실제로 무엇을 겪었는지. 어느 능력치가 자랄지를 정합니다.
     /// <para>
     /// 생략하면 장착 무기와 위치로 근사합니다. 실제 전투를 돌렸다면
     /// <see cref="CombatExperience.From"/>으로 만든 값을 넘기세요 —
     /// 그래야 <b>파티 편성과 전술 편성이 육성에 반영</b>됩니다.
     /// </para>
     /// </param>
-    /// <param name="supportRole">
-    /// 그 해에 맡은 비전투 역할 (함정 감지·척후·운반·채집·감정).
-    /// 맡은 역할은 크게 늘고 나머지는 어깨너머로 조금 늡니다.
-    /// </param>
     /// <param name="contract">
-    /// 수행한 의뢰. 성격에 따라 전투 비중과 위험이 달라집니다.
+    /// 수행한 의뢰. 형태에 따라 전투 비중과 위험이 달라집니다.
     /// 생략하면 순수 전투 의뢰로 봅니다.
-    /// </param>
-    /// <param name="support">
-    /// 파티의 비전투 역량이 이 의뢰에 미치는 효과.
-    /// <see cref="ContractResolver.Evaluate"/>로 계산합니다.
     /// </param>
     /// <param name="battle">
     /// 실제로 치른 전투의 결과. 생략하면 전투를 따로 돌리지 않은 것으로 보고 무난한 수행으로 처리합니다.
@@ -77,15 +109,18 @@ public static class CareerSimulator
     /// 보수를 받고 승급하는 일이 생기고, 그 순간 전투를 보는 의미가 사라집니다.
     /// </para>
     /// </param>
+    /// <param name="months">
+    /// 이 파견이 걸린 달. 성장·보수·위험·숙련이 전부 이 비율만큼만 들어옵니다.
+    /// <b>이게 없으면 1달 의뢰만 반복하는 것이 최적해가 됩니다.</b>
+    /// </param>
     public static YearRecord ResolveDeploymentYear(
         Adventurer adventurer,
         int difficulty,
         IRandomSource rng,
         CombatExperience? experience = null,
-        SupportSkill? supportRole = null,
         Contract? contract = null,
-        ContractSupport? support = null,
-        BattleReport? battle = null)
+        BattleReport? battle = null,
+        int months = Adventurer.MonthsPerYear)
     {
         EnsureActive(adventurer);
 
@@ -96,13 +131,17 @@ public static class CareerSimulator
         }
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(difficulty);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(months);
 
-        double multiplier = adventurer.Growth.DeploymentMultiplier;
+        // 1달 의뢰가 1년치 성장·보수·위험을 주면 짧은 의뢰만 반복하는 게 최적해가 됩니다.
+        double share = (double)months / Adventurer.MonthsPerYear;
 
-        // 전투 기록이 없으면 스타일과 위치로 근사합니다.
+        double multiplier = adventurer.Growth.DeploymentMultiplier * share;
+
+        // 전투 기록이 없으면 손에 든 것과 위치로 근사합니다.
         var lived = experience ?? CombatExperience.FromRole(
-            adventurer.EquippedStyle,
-            WeaponStyles.CapabilityOf(adventurer.EquippedStyle).CanActFromBackRow ? Row.Back : Row.Front);
+            adventurer.Loadout.MainWeapon,
+            adventurer.Loadout.CanActFromBackRow ? Row.Back : Row.Front);
 
         var growth = ComputeStatChange(adventurer, multiplier, rng, lived);
 
@@ -111,7 +150,9 @@ public static class CareerSimulator
 
         // 함정 감지와 척후가 사고 위험을 줄입니다. 전투 결과도 여기에 곱해집니다.
         var report = battle ?? BattleReport.NotFought;
-        double riskMultiplier = (support?.RiskMultiplier ?? 1.0) * combatWeight * report.RiskMultiplier;
+
+        // 짧은 의뢰는 위험도 짧습니다 — 노출 시간이 곧 사고 확률입니다.
+        double riskMultiplier = combatWeight * report.RiskMultiplier * share;
 
         var outcome = RollOutcome(adventurer, difficulty, riskMultiplier, rng);
         var penalty = ComputeMishapPenalty(adventurer, outcome, rng);
@@ -119,16 +160,21 @@ public static class CareerSimulator
         // 사망한 해에는 성장이 없습니다.
         var change = outcome == DeploymentOutcome.Died ? penalty : growth + penalty;
 
-        int income = outcome == DeploymentOutcome.Died
+        // 길드 자체 의뢰는 보수가 없습니다 — 길드가 자기 돈을 들이는 투자이고
+        // 돌아오는 것은 명성입니다 (§17.2). 예전에는 보수까지 받아서 길드 의뢰가
+        // "보수 + 명성 2배"로 가장 이득인 역설이 있었습니다.
+        bool paysMoney = contract is null || contract.Reward == RewardKind.Pay;
+
+        int income = outcome == DeploymentOutcome.Died || !paysMoney
             ? 0
             : (int)Math.Round(
                 difficulty * CareerRules.IncomePerDifficulty
                 * SuccessRatio(adventurer, difficulty, combatWeight)
-                * (support?.IncomeMultiplier ?? 1.0)
-                * report.IncomeRatio);
+                * report.IncomeRatio
+                * share);
 
         string what = contract?.Name ?? $"난이도 {difficulty} 의뢰";
-        string role = supportRole is { } r ? $" ({r.ToKorean()} 담당)" : "";
+        string role = $" ({adventurer.Title})";
 
         string note = outcome switch
         {
@@ -141,18 +187,28 @@ public static class CareerSimulator
         };
 
         var record = new YearRecord(
-            adventurer.Age, YearActivity.Deployment, change, outcome, income, note, supportRole);
+            adventurer.Age, YearActivity.Deployment, change, outcome, income, note, adventurer.Job,
+            Months: months);
         adventurer.ApplyYear(record);
 
         if (outcome != DeploymentOutcome.Died)
         {
-            adventurer.GainJudgement(CareerRules.JudgementFromDeployment);
+            // 판단력도 기간에 비례합니다. 이게 빠져 있어서 1달 의뢰를 열두 번 하면
+            // 판단력이 42→100이 되고 12달 의뢰 한 번은 42→48이었습니다 — 사고 위험을
+            // 최대 45% 깎는 값이므로 짧은 의뢰 반복이 명확한 최적해였습니다.
+            int judgement = Math.Max(1, (int)Math.Round(CareerRules.JudgementFromDeployment * share));
+            adventurer.GainJudgement(judgement);
 
             // ★ 겪은 것이 파생 수치에 직접 붙습니다.
             //   계속 맞다 보면 몸이 단단해지고, 급소를 노리다 보면 손에 익습니다.
+            // 실제 전투를 돌렸으면 사건 수(맞은 양·치명타 수)에서 나오므로 이미 기간에
+            // 비례합니다 — 여기서 또 곱하면 이중 감쇠입니다. 요약 경로(FromRole)만
+            // 고정값이라 기간을 곱해야 합니다.
+            double bonusShare = experience is null ? share : 1.0;
+
             foreach (var (stat, amount) in lived.Bonuses)
             {
-                adventurer.ApplyDerivedBonus(stat, amount);
+                adventurer.ApplyDerivedBonus(stat, amount * bonusShare);
             }
         }
 

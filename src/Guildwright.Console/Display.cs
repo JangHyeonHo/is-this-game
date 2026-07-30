@@ -1,6 +1,8 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Parties;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Training;
 using Guildwright.Core.Weapons;
 
@@ -12,18 +14,23 @@ public static class Display
     /// <summary>원천 능력치와 파생 수치를 나란히 보여줍니다.</summary>
     public static void StatSheet(Adventurer a)
     {
-        Ui.Line($"   {a.Name} · {a.Title} ({a.Age}세)  [{a.EquippedStyle.ToKorean()}·{a.EquippedClass.ToKorean()}]");
+        Ui.Line($"   {a.Name} · {a.Title} · {a.Rank.Label()} ({a.Age}세, {a.MonthsElapsed}달)  [{a.Loadout}]");
         Ui.Line($"   ┌ 원천 ──────────┬ 파생 ─────────────────────────");
         Ui.Line($"   │ 힘   {a.Stats.Strength,3}       │ 물리 위력 {a.PhysicalPower,4}   최대 HP {a.MaxHp,4}");
         Ui.Line($"   │ 민첩 {a.Stats.Agility,3}       │ 마법 위력 {a.MagicPower,4}   최대 MP {DerivedStats.MaxMana(a.Stats, a.Bonuses),4}");
         Ui.Line($"   │ 기교 {a.Stats.Finesse,3}       │ 물리 방어 {a.PhysicalGuard,4}   치명타율 {a.CritChance,4:P0}");
         Ui.Line($"   │ 활력 {a.Stats.Vitality,3}       │ 마법 방어 {a.MagicGuard,4}   회피율   {a.EvasionChance,4:P0}");
-        Ui.Line($"   │ 지능 {a.Stats.Intellect,3}       │ 판단력    {a.Judgement,4}   숙련     {a.Proficiency[a.EquippedStyle],4}");
+        Ui.Line($"   │ 지능 {a.Stats.Intellect,3}       │ 판단력    {a.Judgement,4}   숙련     {a.Proficiency[a.Loadout.MainWeapon],4}");
         Ui.Line($"   │ 정신 {a.Stats.Spirit,3}       │ 연봉      {a.AnnualWage,4}");
         Ui.Line($"   └────────────────┴───────────────────────────────");
 
+        if (a.Actives.Count > 0)
+        {
+            Ui.Note($"장착 액티브: {string.Join(", ", a.Actives.Select(id => SkillBook.Of(id).Korean))}");
+        }
+
         if (a.Bonuses.HasAny) Ui.Note($"겪어서 얻은 것: {a.Bonuses}");
-        if (a.Support.ToString() != "") Ui.Note($"비전투 역량: {a.Support}");
+        if (a.Innate.Count > 0) Ui.Note($"타고난 것: {string.Join(", ", a.Innate.Select(id => SkillBook.Of(id).Korean))}");
     }
 
     /// <summary>플레이어가 볼 수 있는 정보만 담긴 평가서.</summary>
@@ -198,32 +205,66 @@ public static class Display
 
     public static TrainingActivity FocusFromIndex(int index) => (TrainingActivity)index;
 
-    /// <summary>파견 중 현재 상태 — 진행도, 파티 HP, 회복약, 피로.</summary>
-    public static void FieldStatus(FieldYearSession session, IReadOnlyList<Adventurer> party)
+    /// <summary>파견 중 현재 상태 — 진척, 파티 HP·마나·회복약.</summary>
+    public static void FieldStatus(DeploymentSession session, IReadOnlyList<Adventurer> party)
     {
+        var contract = session.Contract;
+
         Ui.Line();
-        Ui.Line($"   ── {session.CurrentMonth}월 · 처치 {session.Killed}/{session.Quota} · 피로 {session.Fatigue} ──");
+        Ui.Line($"   ── {session.CurrentMonth}/{contract.Months}달 · " +
+                $"진척 {session.Progress}/{contract.Intensity}{contract.Form.IntensityLabel()} ──");
 
         foreach (var a in party)
         {
             int hp = session.Hp[a.Id];
             string state = hp <= 0 ? "  전투 불능" : "";
             Ui.Line($"     {a.Name,-16} {Ui.Bar((double)hp / a.MaxHp, 10)} {hp,4}/{a.MaxHp,-4} " +
-                    $"회복약 {session.Potions[a.Id]}{state}");
+                    $"마나 {session.Mana[a.Id],3} · 회복약 {session.Potions[a.Id]}{state}");
         }
     }
 
-    /// <summary>파견 월별 행동 메뉴. 조우 확률과 피로를 라벨에 적습니다.</summary>
-    public static IReadOnlyList<string> FieldMenu() =>
-        Enum.GetValues<FieldAction>()
-            .Select(a =>
-            {
-                int fatigue = FieldRules.FatigueOf(a);
-                string cost = fatigue >= 0 ? $"피로 +{fatigue}" : $"피로 −{-fatigue}, HP 회복";
-                return $"{FieldRules.NameOf(a)} ({FieldRules.FlavorOf(a)}) — " +
-                       $"조우 {FieldRules.EncounterChanceOf(a):P0} · {cost}";
-            })
+    /// <summary>파티 장부 — 가상 파티 누적과 정규 파티.</summary>
+    public static void Parties(PartyLedger ledger, IReadOnlyList<Adventurer> roster)
+    {
+        Ui.Line();
+        Ui.Line("   ── 파티 ──");
+
+        var regular = ledger.ActiveParties.ToList();
+        if (regular.Count == 0) Ui.Note("정규 파티가 없습니다.");
+        foreach (var party in regular)
+        {
+            Ui.Line($"     [정규] {party}  {string.Join(" · ", party.Members.Select(m => m.Name))}");
+        }
+
+        // 가상 파티 — 누적이 쌓이는 조합. 쌓이는 과정이 보여야 "어느새 채웠네"가 됩니다.
+        var registrable = ledger.RegistrableCompositions(roster).ToHashSet();
+        var virtuals = ledger.VirtualParties
+            .Where(v => v.Composition.MemberIds.All(id => roster.Any(r => r.Id == id)))
             .ToList();
+
+        if (virtuals.Count == 0)
+        {
+            Ui.Note($"같이 나간 조합이 없습니다. 함께 {PartyRules.MonthsToRegister}달을 채우면 등록할 수 있습니다.");
+            return;
+        }
+
+        foreach (var (composition, months) in virtuals)
+        {
+            var names = composition.MemberIds.Select(id => roster.First(r => r.Id == id).Name);
+            string tag = registrable.Contains(composition) ? "[등록 가능]" : "[가상]    ";
+
+            Ui.Line($"     {tag} {string.Join(" · ", names)}  " +
+                    $"{Ui.Bar(Math.Min(1.0, (double)months / PartyRules.MonthsToRegister), 6)} " +
+                    $"{months}/{PartyRules.MonthsToRegister}달");
+        }
+    }
+
+    /// <summary>의뢰 한 줄. 게시판에 그대로 씁니다.</summary>
+    public static string ContractLine(Contract c) =>
+        $"[{c.Form.ToKorean()}] {c.Name} — 난이도 {c.Difficulty} · {c.Months}달 · " +
+        $"{c.Intensity}{c.Form.IntensityLabel()} · {c.Source.ToKorean()}" +
+        (c.PartyOnly ? " · 파티 전용" : "") +
+        (c.Persists ? " · 지속" : "");
 
     /// <summary>전투 한 라운드의 진영 상태.</summary>
     public static void Formation(BattleState state)
@@ -242,7 +283,7 @@ public static class Display
                 foreach (var c in members)
                 {
                     Ui.Line($"     {rowName} {c.Name,-10} {Ui.Bar(c.HpRatio, 10)} {c.Hp,4}/{c.MaxHp,-4} " +
-                            $"{c.Style.ToKorean()}{FormatEffects(c)}");
+                            $"{c.Loadout.ToString()}{FormatEffects(c)}");
                 }
             }
         }
@@ -251,7 +292,7 @@ public static class Display
     private static string FormatEffects(Combatant c)
     {
         if (c.Effects.Count == 0) return "";
-        return "  <" + string.Join(",", c.Effects.Select(e => StatusEffect.ToKorean(e.Kind))) + ">";
+        return "  <" + string.Join(",", c.Effects.Select(e => e.ToString())) + ">";
     }
 
     public static string ActionName(TacticAction action) => action switch
@@ -272,22 +313,6 @@ public static class Display
         _ => action.ToString()
     };
 
-    public static void Contract(Contract c, int index)
-    {
-        string kind = c.Kind switch
-        {
-            ContractKind.Combat => "전투형",
-            ContractKind.Gathering => "채집형",
-            _ => "탐색형"
-        };
-
-        Ui.Line($"   {index}) [{c.Name}] 난이도 {c.Difficulty} · {kind}");
-
-        if (c.Preferences.Count > 0)
-        {
-            var prefs = c.Preferences.OrderByDescending(kv => kv.Value)
-                .Select(kv => $"{kv.Key.ToKorean()} {new string('●', (int)Math.Round(kv.Value * 3))}");
-            Ui.Line($"        유리: {string.Join("  ", prefs)}");
-        }
-    }
+    public static void Contract(Contract c, int index) =>
+        Ui.Line($"   {index}) {ContractLine(c)}");
 }

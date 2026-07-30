@@ -22,13 +22,14 @@ public sealed class WeaponProficiency
     /// <summary>실전 1년으로 오르는 기본 숙련도. 무기는 실전이 가르칩니다.</summary>
     public const double PerDeploymentYear = 15.0;
 
-    private readonly Dictionary<WeaponStyle, double> _points =
-        WeaponStyles.All.ToDictionary(s => s, _ => 0.0);
+    private readonly Dictionary<WeaponKind, double> _points =
+        Weaponry.Trainable.ToDictionary(k => k, _ => 0.0);
 
-    public int this[WeaponStyle style] => (int)Math.Round(_points[style]);
+    public int this[WeaponKind kind] =>
+        _points.TryGetValue(kind, out double p) ? (int)Math.Round(p) : 0;
 
     /// <summary>가장 많이 익힌 스타일.</summary>
-    public WeaponStyle Best =>
+    public WeaponKind Best =>
         _points.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).First().Key;
 
     /// <summary>
@@ -38,22 +39,25 @@ public sealed class WeaponProficiency
     /// 플레이어가 아예 바꾸지 않게 되어 선택지가 죽기 때문입니다.
     /// </para>
     /// </summary>
-    public double EffectivenessOf(WeaponStyle style) =>
-        0.75 + _points[style] / Max * 0.55;
+    public double EffectivenessOf(WeaponKind kind) =>
+        0.75 + this[kind] / (double)Max * 0.55;
 
-    internal void Advance(WeaponStyle style, AptitudeGrade aptitude, double baseGain)
+    internal void Advance(WeaponKind kind, AptitudeGrade aptitude, double baseGain)
     {
+        // 빈손으로는 아무것도 익힐 수 없습니다.
+        if (!_points.ContainsKey(kind)) return;
+
         double gain = baseGain * aptitude.GrowthMultiplier();
 
         // 상한에 가까울수록 느려집니다. 100에 도달하는 데 시간이 걸려야 이력이 의미를 갖습니다.
-        double remaining = Max - _points[style];
+        double remaining = Max - _points[kind];
         double scaled = gain * Math.Clamp(remaining / Max, 0.12, 1.0);
 
-        _points[style] = Math.Min(Max, _points[style] + scaled);
+        _points[kind] = Math.Min(Max, _points[kind] + scaled);
     }
 
-    public IEnumerable<KeyValuePair<WeaponStyle, int>> All =>
-        _points.OrderBy(kv => kv.Key).Select(kv => new KeyValuePair<WeaponStyle, int>(kv.Key, (int)Math.Round(kv.Value)));
+    public IEnumerable<KeyValuePair<WeaponKind, int>> All =>
+        _points.OrderBy(kv => kv.Key).Select(kv => new KeyValuePair<WeaponKind, int>(kv.Key, (int)Math.Round(kv.Value)));
 
     public override string ToString() =>
         string.Join(" ", All.Where(kv => kv.Value > 0).Select(kv => $"{kv.Key.ToKorean()}:{kv.Value}"));

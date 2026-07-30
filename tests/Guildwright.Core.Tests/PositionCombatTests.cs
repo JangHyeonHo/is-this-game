@@ -1,6 +1,7 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Weapons;
 using Xunit;
@@ -30,9 +31,9 @@ public class PositionCombatTests(ITestOutputHelper output)
     {
         var state = new BattleState(
         [
-            TestParty.Make("P0", Team.Player, 60, style: WeaponStyle.TwoHanded, row: Row.Front),
-            TestParty.Make("E0", Team.Enemy, 60, style: WeaponStyle.SwordAndShield, row: Row.Front),
-            TestParty.Make("E1", Team.Enemy, 60, style: WeaponStyle.Staff, row: Row.Back)
+            TestParty.Make("P0", Team.Player, 60, loadout: Loadout.Single(WeaponKind.Greatsword), row: Row.Front),
+            TestParty.Make("E0", Team.Enemy, 60, loadout: Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield), row: Row.Front),
+            TestParty.Make("E1", Team.Enemy, 60, loadout: Loadout.Single(WeaponKind.Staff), row: Row.Back)
         ]);
 
         var reachable = state.ReachableTargets(state.All[0]);
@@ -47,9 +48,9 @@ public class PositionCombatTests(ITestOutputHelper output)
         // 이 규칙이 있어야 전열 유지가 방어 행위가 되고, 후퇴가 공짜가 아니게 됩니다.
         var state = new BattleState(
         [
-            TestParty.Make("P0", Team.Player, 60, style: WeaponStyle.TwoHanded, row: Row.Front),
-            TestParty.Make("E0", Team.Enemy, 60, style: WeaponStyle.Staff, row: Row.Back),
-            TestParty.Make("E1", Team.Enemy, 60, style: WeaponStyle.Staff, row: Row.Back)
+            TestParty.Make("P0", Team.Player, 60, loadout: Loadout.Single(WeaponKind.Greatsword), row: Row.Front),
+            TestParty.Make("E0", Team.Enemy, 60, loadout: Loadout.Single(WeaponKind.Staff), row: Row.Back),
+            TestParty.Make("E1", Team.Enemy, 60, loadout: Loadout.Single(WeaponKind.Staff), row: Row.Back)
         ]);
 
         var reachable = state.ReachableTargets(state.All[0]);
@@ -60,13 +61,13 @@ public class PositionCombatTests(ITestOutputHelper output)
     [Fact]
     public void 활과_석궁과_지팡이는_후열을_직접_노린다()
     {
-        foreach (var style in new[] { WeaponStyle.Bow, WeaponStyle.Crossbow, WeaponStyle.Staff })
+        foreach (var kind in new[] { WeaponKind.Bow, WeaponKind.Crossbow, WeaponKind.Staff })
         {
             var state = new BattleState(
             [
-                TestParty.Make("P0", Team.Player, 60, style: style, row: Row.Back),
-                TestParty.Make("E0", Team.Enemy, 60, style: WeaponStyle.SwordAndShield, row: Row.Front),
-                TestParty.Make("E1", Team.Enemy, 60, style: WeaponStyle.Staff, row: Row.Back)
+                TestParty.Make("P0", Team.Player, 60, loadout: Loadout.Single(kind), row: Row.Back),
+                TestParty.Make("E0", Team.Enemy, 60, loadout: Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield), row: Row.Front),
+                TestParty.Make("E1", Team.Enemy, 60, loadout: Loadout.Single(WeaponKind.Staff), row: Row.Back)
             ]);
 
             var reachable = state.ReachableTargets(state.All[0]);
@@ -81,7 +82,7 @@ public class PositionCombatTests(ITestOutputHelper output)
     [Fact]
     public void 후열에_있으면_피해를_덜_받는다()
     {
-        var attacker = TestParty.Make("A", Team.Player, 60, style: WeaponStyle.Bow);
+        var attacker = TestParty.Make("A", Team.Player, 60, loadout: Loadout.Single(WeaponKind.Bow));
         var front = TestParty.Make("F", Team.Enemy, 60, row: Row.Front);
         var back = TestParty.Make("B", Team.Enemy, 60, row: Row.Back);
 
@@ -99,8 +100,8 @@ public class PositionCombatTests(ITestOutputHelper output)
     {
         var target = TestParty.Make("T", Team.Enemy, 60, row: Row.Front);
 
-        var atFront = TestParty.Make("A", Team.Player, 60, style: WeaponStyle.TwoHanded, row: Row.Front);
-        var atBack = TestParty.Make("B", Team.Player, 60, style: WeaponStyle.TwoHanded, row: Row.Back);
+        var atFront = TestParty.Make("A", Team.Player, 60, loadout: Loadout.Single(WeaponKind.Greatsword), row: Row.Front);
+        var atBack = TestParty.Make("B", Team.Player, 60, loadout: Loadout.Single(WeaponKind.Greatsword), row: Row.Back);
 
         int fromFront = DamageModel.ExpectedDamage(atFront, target);
         int fromBack = DamageModel.ExpectedDamage(atBack, target);
@@ -116,8 +117,8 @@ public class PositionCombatTests(ITestOutputHelper output)
     {
         var target = TestParty.Make("T", Team.Enemy, 60, row: Row.Front);
 
-        var atFront = TestParty.Make("A", Team.Player, 60, style: WeaponStyle.Bow, row: Row.Front);
-        var atBack = TestParty.Make("B", Team.Player, 60, style: WeaponStyle.Bow, row: Row.Back);
+        var atFront = TestParty.Make("A", Team.Player, 60, loadout: Loadout.Single(WeaponKind.Bow), row: Row.Front);
+        var atBack = TestParty.Make("B", Team.Player, 60, loadout: Loadout.Single(WeaponKind.Bow), row: Row.Back);
 
         Assert.Equal(
             DamageModel.ExpectedDamage(atFront, target),
@@ -142,14 +143,14 @@ public class PositionCombatTests(ITestOutputHelper output)
                 // 빈사 상태의 창병. 후열에서도 제 몫을 하므로 물러나는 게 합리적입니다.
                 var wounded = TestParty.Make(
                     "P0", Team.Player, judgement, TestParty.RetreatingTactics,
-                    style: WeaponStyle.Polearm, row: Row.Front);
+                    loadout: Loadout.Single(WeaponKind.Spear), row: Row.Front);
                 wounded.TakeDamage((int)(wounded.MaxHp * 0.85));
 
                 var state = new BattleState(
                 [
                     wounded,
-                    TestParty.Make("P1", Team.Player, judgement, style: WeaponStyle.SwordAndShield, row: Row.Front),
-                    TestParty.Make("P2", Team.Player, judgement, style: WeaponStyle.SwordAndShield, row: Row.Front),
+                    TestParty.Make("P1", Team.Player, judgement, loadout: Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield), row: Row.Front),
+                    TestParty.Make("P2", Team.Player, judgement, loadout: Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield), row: Row.Front),
                     TestParty.Make("E0", Team.Enemy, 50, row: Row.Front),
                     TestParty.Make("E1", Team.Enemy, 50, row: Row.Front)
                 ]);
@@ -185,7 +186,7 @@ public class PositionCombatTests(ITestOutputHelper output)
 
                 var wounded = TestParty.Make(
                     "P0", Team.Player, 95, TestParty.RetreatingTactics,
-                    style: WeaponStyle.Polearm, row: Row.Front);
+                    loadout: Loadout.Single(WeaponKind.Spear), row: Row.Front);
                 wounded.TakeDamage((int)(wounded.MaxHp * 0.85));
                 members.Add(wounded);
 
@@ -194,7 +195,7 @@ public class PositionCombatTests(ITestOutputHelper output)
                     members.Add(TestParty.Make($"P{i}", Team.Player, 95, row: Row.Front));
                 }
 
-                members.Add(TestParty.Make("PB", Team.Player, 95, style: WeaponStyle.Staff, row: Row.Back));
+                members.Add(TestParty.Make("PB", Team.Player, 95, loadout: Loadout.Single(WeaponKind.Staff), row: Row.Back));
                 members.Add(TestParty.Make("E0", Team.Enemy, 50, row: Row.Front));
 
                 var state = new BattleState(members);
@@ -268,7 +269,7 @@ public class PositionCombatTests(ITestOutputHelper output)
         var allRanged = Enumerable.Range(0, 3).Select(i =>
         {
             var a = Adventurer.Recruit($"R{i}", $"궁수{i}", rng.Fork($"r:{i}"));
-            a.Equip(WeaponStyle.Bow, WeaponClass.Pierce);
+            a.Equip(WeaponSet.Primary, Hand.Right, WeaponKind.Bow);
             return a;
         }).ToList();
 
@@ -302,11 +303,15 @@ public class PositionCombatTests(ITestOutputHelper output)
     // ---------------------------------------------------------------
 
     [Fact]
-    public void 지팡이만_회복할_수_있다()
+    public void 회복에는_치유_스킬과_지팡이가_둘_다_필요하다()
     {
+        // ⚠️ 예전에는 "지팡이를 들면 회복할 수 있다"였습니다(StyleCapability.CanHeal).
+        // 지금은 스킬이 회복을 정하고, 무기는 그 스킬을 쓸 수 있는 조건일 뿐입니다.
+        // 근거: docs/08-design-revision.md §16.2
         var healer = TestParty.Make("H", Team.Player, 90,
             [TacticRule.AllyHpBelow(0.5, TacticAction.HealAlly), TacticRule.Always(TacticAction.AttackNearest)],
-            style: WeaponStyle.Staff, row: Row.Back);
+            loadout: Loadout.Single(WeaponKind.Staff), row: Row.Back,
+            actives: [SkillId.Cure]);
 
         var wounded = TestParty.Make("W", Team.Player, 60, row: Row.Front);
         wounded.TakeDamage((int)(wounded.MaxHp * 0.7));
@@ -316,43 +321,53 @@ public class PositionCombatTests(ITestOutputHelper output)
 
         Assert.Equal(TacticAction.HealAlly, choice.Action);
 
-        // 같은 상황에서 검사는 회복할 수 없습니다.
-        var swordsman = TestParty.Make("S", Team.Player, 90,
+        // 치유 스킬을 가졌어도 지팡이를 놓으면 못 씁니다.
+        var disarmed = TestParty.Make("D", Team.Player, 90,
             [TacticRule.AllyHpBelow(0.5, TacticAction.HealAlly), TacticRule.Always(TacticAction.AttackNearest)],
-            style: WeaponStyle.SwordAndShield);
+            loadout: Loadout.Single(WeaponKind.Spear), row: Row.Back,
+            actives: [SkillId.Cure]);
 
-        var state2 = new BattleState([swordsman, wounded, TestParty.Make("E1", Team.Enemy, 50)]);
-        var choice2 = TacticalBrain.Decide(swordsman, state2, new DeterministicRandom(Seed));
+        var state2 = new BattleState([disarmed, wounded, TestParty.Make("E1", Team.Enemy, 50)]);
+        Assert.NotEqual(TacticAction.HealAlly,
+            TacticalBrain.Decide(disarmed, state2, new DeterministicRandom(Seed)).Action);
 
-        Assert.NotEqual(TacticAction.HealAlly, choice2.Action);
+        // 지팡이를 들었어도 스킬이 없으면 못 씁니다.
+        var unskilled = TestParty.Make("U", Team.Player, 90,
+            [TacticRule.AllyHpBelow(0.5, TacticAction.HealAlly), TacticRule.Always(TacticAction.AttackNearest)],
+            loadout: Loadout.Single(WeaponKind.Staff), row: Row.Back);
+
+        var state3 = new BattleState([unskilled, wounded, TestParty.Make("E2", Team.Enemy, 50)]);
+        Assert.NotEqual(TacticAction.HealAlly,
+            TacticalBrain.Decide(unskilled, state3, new DeterministicRandom(Seed)).Action);
     }
 
     [Fact]
     public void 상태효과는_지속시간이_지나면_사라진다()
     {
         var target = TestParty.Make("T", Team.Player, 60);
-        target.ApplyEffect(new StatusEffect(StatusEffectKind.Empowered, 2, 0.3, "X"));
+        target.ApplyEffect(StatusEffects.Create(EffectName.PowerUp, 2, "X"));
 
-        int boosted = target.EffectivePhysicalPower;
-        Assert.True(boosted > target.Stats.Strength);
-
-        target.TickEffects();
-        Assert.True(target.HasEffect(StatusEffectKind.Empowered));
+        Assert.True(target.EffectivePhysicalPower > target.BasePhysicalPower);
 
         target.TickEffects();
-        Assert.False(target.HasEffect(StatusEffectKind.Empowered));
+        Assert.True(target.HasEffect(EffectName.PowerUp));
+
+        target.TickEffects();
+        Assert.False(target.HasEffect(EffectName.PowerUp));
         Assert.Equal(target.BasePhysicalPower, target.EffectivePhysicalPower);
     }
 
     [Fact]
-    public void 같은_효과는_중첩되지_않는다()
+    public void 쌓이지_않는_효과는_덮어쓴다()
     {
-        // 중첩을 허용하면 조합 폭발로 밸런싱이 불가능해집니다.
+        // 무엇이든 쌓이게 두면 긴 전투에서 감당이 안 됩니다.
+        // 쌓이는 것은 GrowthMode로 명시한 것만입니다.
         var target = TestParty.Make("T", Team.Player, 60);
 
-        target.ApplyEffect(new StatusEffect(StatusEffectKind.Empowered, 3, 0.3, "X"));
-        target.ApplyEffect(new StatusEffect(StatusEffectKind.Empowered, 3, 0.3, "Y"));
+        target.ApplyEffect(StatusEffects.Create(EffectName.PowerUp, 3, "X"));
+        target.ApplyEffect(StatusEffects.Create(EffectName.PowerUp, 3, "Y"));
 
         Assert.Single(target.Effects);
+        Assert.Equal(1, target.Effects[0].Stacks);
     }
 }

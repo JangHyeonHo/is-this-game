@@ -60,10 +60,16 @@ public sealed class BattleState
             if (taunter is not null) return [taunter];
         }
 
-        if (attacker.Capability.CanStrikeBackRow) return enemies;
+        // 짐꾼은 표적 최후순위입니다 — 다른 아군이 하나라도 서 있으면 노려지지 않습니다 (§16.8b).
+        // "마물이 짐꾼만 노리는 형태는 없는 게 낫다"가 근거입니다. 가장 안전한 위치에서
+        // 서포팅하는 것이 짐꾼의 규칙이므로, 무방비인 것이 곧 표적이 되면 안 됩니다.
+        var fighters = enemies.Where(e => !e.Loadout.CarryingPack).ToList();
+        var candidates = fighters.Count > 0 ? fighters : enemies;
 
-        var front = enemies.Where(e => e.Row == Row.Front).ToList();
-        return front.Count > 0 ? front : enemies;
+        if (attacker.CanStrikeBackRow) return candidates;
+
+        var front = candidates.Where(e => e.Row == Row.Front).ToList();
+        return front.Count > 0 ? front : candidates;
     }
 
     /// <summary>

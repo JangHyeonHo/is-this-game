@@ -2,7 +2,9 @@ using Guildwright.Cli;
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Parties;
 using Guildwright.Core.Rng;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Training;
 using Guildwright.Core.Weapons;
 
@@ -44,6 +46,15 @@ internal sealed class Guild(IRandomSource rng)
     private readonly List<Adventurer> _members = [];
 
     /// <summary>
+    /// 파티 장부. <b>가상 파티 누적과 정규 파티</b>가 여기 있습니다 (docs/08 §6).
+    /// <para>
+    /// 코어에 있어도 여기에 연결되지 않으면 <b>플레이어는 파티를 만질 수 없습니다.</b>
+    /// 실제로 그 상태였습니다 — 층·누적·자격·등급이 전부 있는데 인게임에 없었습니다.
+    /// </para>
+    /// </summary>
+    private readonly PartyLedger _parties = new();
+
+    /// <summary>
     /// 평가서 캐시.
     /// <para>
     /// <b>같은 상황에서 다시 보면 같은 내용이어야 합니다.</b> 볼 때마다 새로 굴리면
@@ -58,42 +69,262 @@ internal sealed class Guild(IRandomSource rng)
     private int _funds = StartingFunds;
     private int _reputation;
     private int _year = 1;
+    private int _month = 1;
     private int _nextId;
 
+    /// <summary>
+    /// 달력 잠금 — 그 사람이 <b>몇 월까지 예약되어 있는가</b> (모험가 Id → 마지막 잠긴 달).
+    /// <para>
+    /// 이것이 §17.4의 유일한 브레이크입니다: <b>"다섯을 보내면 그 다섯의 그 기간이 잠기고,
+    /// 그 사이에 뜬 의뢰는 못 받습니다. 기회비용이 유일한 브레이크입니다."</b>
+    /// 연 단위 루프에서는 이 압력이 아예 성립하지 않았습니다.
+    /// </para>
+    /// <para>구속이 아니라 예약입니다 — 중도 이탈하면 칸이 풀립니다 (§17.7).</para>
+    /// </summary>
+    private readonly Dictionary<string, int> _bookedUntil = [];
+
+    /// <summary>진행 중인 훈련. 달마다 한 달씩 전진하고, 연말이나 파견 전에 결산합니다.</summary>
+    private readonly Dictionary<string, TrainingYearSession> _training = [];
+
+    /// <summary>지난 달에서 넘어온 지속 의뢰 (승급 의뢰 · 전개상 필수).</summary>
+    private IReadOnlyList<Contract> _carriedOver = [];
+
+    /// <summary>지금까지 흐른 절대 달 수. 잠금 계산에 씁니다.</summary>
+    private int AbsoluteMonth => (_year - 1) * Calendar.MonthsPerYear + _month;
+
+    /// <summary>길드 랭크. 아직 평판이 대신합니다.</summary>
+    private Rank GuildRank => Ranks.Lowest.Above(Math.Clamp(_reputation / 12, 0, 7));
+
+    /// <summary>
+    /// <b>달 단위로 굴러갑니다.</b> 매달 정책을 정하고, 의뢰를 받으면 그 기간만큼 칸이 잠깁니다.
+    /// <para>
+    /// 예전에는 <b>연 1회 루프</b>였습니다 — 한 사람이 한 해에 의뢰 하나만 받고, 1달 의뢰를
+    /// 받아도 그 해가 끝났습니다. 그러면 §17.4가 과잉 전력을 막는 <b>유일한 브레이크</b>로
+    /// 지목한 기회비용이 성립하지 않고, 계절도 파티 6개월 누적도 도달할 수 없습니다.
+    /// </para>
+    /// 근거: docs/08-design-revision.md §15, §17.4, §17.10
+    /// </summary>
     public void Run()
     {
         while (true)
         {
-            Ui.Title($"{_year}년차   자금 {_funds}   평판 {_reputation}   단원 {_members.Count}명");
-
-            RecruitPhase();
+            // 매년 1월에 길드원 모집이 열립니다 (§17.10).
+            if (Calendar.IsRecruitmentMonth(_month))
+            {
+                Ui.Title($"{_year}년 {_month}월   자금 {_funds}   평판 {_reputation}({GuildRank.Label()})   " +
+                         $"단원 {_members.Count}/{RosterCapacity}명");
+                RecruitPhase();
+            }
 
             if (_members.Count == 0)
             {
                 Ui.Note("단원이 없습니다. 길드는 문을 닫았습니다.");
+                ShowChronicle();
                 return;
             }
 
-            PlanAndExecutePhase();
-            YearEndPhase();
+            if (!MonthPhase()) { ShowChronicle(); return; }
 
-            if (_funds < 0)
+            if (_month == Calendar.MonthsPerYear)
             {
-                Ui.Section("파산");
-                Ui.Note("자금이 바닥났습니다. 길드는 해산되었습니다.");
-                ShowChronicle();
-                return;
+                YearEndPhase();
+
+                if (_funds < 0)
+                {
+                    Ui.Section("파산");
+                    Ui.Note("자금이 바닥났습니다. 길드는 해산되었습니다.");
+                    ShowChronicle();
+                    return;
+                }
+
+                _year++;
+                _month = 1;
+            }
+            else
+            {
+                _month++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 랭크별 최대 단원 수 (§17.10). ⚠️ 임시값 — "실제 가능수는 아직은 미정입니다.
+    /// 게임의 루즈함과 밸런스에 따라 조절을 고려하고 있습니다."
+    /// </summary>
+    private int RosterCapacity => 8 + (int)GuildRank * 7;
+
+    /// <summary>그 사람이 지금 예약되어 있는가.</summary>
+    private bool IsBooked(Adventurer a) =>
+        _bookedUntil.TryGetValue(a.Id, out int until) && until >= AbsoluteMonth;
+
+    private int BookedMonthsLeft(Adventurer a) =>
+        _bookedUntil.TryGetValue(a.Id, out int until) ? Math.Max(0, until - AbsoluteMonth + 1) : 0;
+
+    /// <summary>
+    /// 한 달을 진행합니다. <b>매달 정책을 정합니다</b> — 연초에 1년치를 짜는 방식은 폐기됐습니다 (§17.10).
+    /// </summary>
+    /// <returns>계속 진행할지.</returns>
+    private bool MonthPhase()
+    {
+        var season = Calendar.SeasonOf(_month);
+
+        Ui.Section($"{_year}년 {_month}월 · {season.ToKorean()}");
+
+        // 게시판은 매달 새로 뜨고, 안 받으면 사라집니다. 지속 의뢰만 남습니다 (§17.8).
+        var board = ContractBoard.Post(
+            rng.Fork($"board:{_year}:{_month}"), _month, GuildRank, _carriedOver);
+        _carriedOver = board;
+
+        Ui.Note($"게시판 {board.Count}건 · {season.ToKorean()}에는 " +
+                $"{string.Join(" ", ContractBoard.WeightsIn(season).OrderByDescending(w => w.Value).Take(2).Select(w => w.Key.ToKorean()))}이 많습니다");
+
+        foreach (var member in _members.ToList())
+        {
+            if (member.Status != AdventurerStatus.Active) continue;
+
+            // 예약된 사람은 그 달에 손댈 수 없습니다. 이것이 기회비용입니다.
+            if (IsBooked(member))
+            {
+                Ui.Line($"   {member.Name} — 의뢰 중 ({BookedMonthsLeft(member)}달 남음)");
+                continue;
             }
 
             Ui.Line();
-            if (!Ui.Confirm("다음 해로 넘어가시겠습니까?"))
+            Display.StatSheet(member);
+
+            var choices = new List<string> { "훈련 (1달)", "휴식 (1달)" };
+            bool canDeploy = member.CanDeploy;
+
+            if (canDeploy) choices.Insert(0, "의뢰를 받는다");
+            else Ui.Note("아직 실전에 나갈 수 없습니다 — 12달을 채워야 합니다.");
+
+            // 전직은 자유이고 비용도 없습니다 (§16.4). 대가는 규칙이 아니라
+            // 새 무기 숙련이 0부터라는 것입니다.
+            var upgrades = UpgradesFor(member);
+            // 사다리를 오를 수 있을 때만 눈에 띄게 알립니다. 계열을 바꾸는 전향은 언제나 가능합니다.
+            int better = upgrades.Count(j => j.MaxContractDifficulty > member.MaxContractDifficulty);
+            if (upgrades.Count > 0)
             {
-                ShowChronicle();
-                return;
+                choices.Add(better > 0
+                    ? $"전직 (상위 {better}개 해금)"
+                    : $"전직 (계열 전향 {upgrades.Count}개)");
             }
 
-            _year++;
+            choices.Add("은퇴시킨다");
+
+            int choice = Ui.Choose($"   {_month}월에 무엇을 시킬까요", choices);
+            string picked = choices[choice];
+
+            if (picked.StartsWith("의뢰")) DeploymentMonth(member, board);
+            else if (picked.StartsWith("훈련")) TrainMonth(member);
+            else if (picked.StartsWith("휴식")) RestMonth(member);
+            else if (picked.StartsWith("전직")) ChangeJob(member, upgrades);
+            else Retire(member);
         }
+
+        Ui.Line();
+        return Ui.Confirm("다음 달로 넘어가시겠습니까?");
+    }
+
+    /// <summary>
+    /// 지금 갈 수 있는 다른 직업. <b>지금 직업은 빼고</b> 보여줍니다.
+    /// <para>
+    /// 이것이 없으면 사다리를 오를 수 없어 <b>영구히 견습</b>입니다. 그러면 수주 난이도
+    /// 상한이 2에 고정되고, 그 위에 얹힌 승급 의뢰·상위 의뢰가 통째로 잠깁니다 —
+    /// 실제로 E급에서 더 오르지 않는 것으로 관측됐습니다.
+    /// </para>
+    /// </summary>
+    private static List<Job> UpgradesFor(Adventurer member) =>
+        // 수주 난이도가 높은 것부터. 사다리의 다음 단이 맨 위에 오도록 하는 것이 목적입니다 —
+        // 요구 숙련 0인 견습이 열한 개나 있어서 정렬이 없으면 다음 단이 목록에 묻힙니다.
+        [.. member.AvailableJobs
+                  .Where(j => j.Id != member.Job)
+                  .OrderByDescending(j => j.MaxContractDifficulty)
+                  .ThenByDescending(j => j.ActiveSlots)
+                  .ThenBy(j => j.Id)];
+
+    /// <summary>전직합니다. 고집을 타고났으면 다른 계열로는 가지 않습니다 (§16.8).</summary>
+    private void ChangeJob(Adventurer member, List<Job> upgrades)
+    {
+        var labels = upgrades
+            .Select(j => $"{j.Korean} — 슬롯 {j.ActiveSlots} · 수주 난이도 {j.MaxContractDifficulty} · " +
+                         $"유지비 {j.Upkeep}" +
+                         (j.Grants.Count > 0
+                             ? $" · {string.Join(", ", j.Grants.Select(g => SkillBook.Of(g).Korean))}"
+                             : ""))
+            .Append("그대로 둔다")
+            .ToList();
+
+        int pick = Ui.Choose($"   {member.Name}을(를) 어느 직업으로", labels);
+        if (pick >= upgrades.Count) return;
+
+        var target = upgrades[pick];
+        string was = member.Title;
+
+        if (!member.ChangeJob(target.Id))
+        {
+            Ui.Note($"{member.Name}은(는) 듣지 않습니다 — 고집을 타고났습니다.");
+            return;
+        }
+
+        Record($"{_year}년 {_month}월: {member.Name} 전직 — {was} → {member.Title}");
+        Ui.Note($"{was} → {member.Title}. 수주 난이도 {member.MaxContractDifficulty} · " +
+                $"액티브 {string.Join(", ", member.Actives.Select(id => SkillBook.Of(id).Korean))}");
+    }
+
+    /// <summary>한 달 훈련합니다. 세션은 연말까지 이어지고 그때 결산합니다.</summary>
+    private void TrainMonth(Adventurer member)
+    {
+        var session = SessionFor(member);
+
+        Ui.Note($"컨디션 {session.Condition.ToKorean()} · 피로 {session.Fatigue}" +
+                (session.FailureChance > 0 ? $" · 실패 확률 {session.FailureChance:P0}" : ""));
+
+        int pick = Ui.Choose("   무엇을 훈련할까요", Display.FocusMenu());
+        var outcome = session.AdvanceMonth(Display.FocusFromIndex(pick));
+
+        Ui.Line($"     {_month}월: {Display.FocusName(outcome.Activity)} · {outcome.Grade.ToKorean()} " +
+                $"(피로 {session.Fatigue})");
+
+        // 12달을 채우면 그 자리에서 결산하고 새 세션을 엽니다.
+        if (session.IsComplete) SettleTraining(member);
+    }
+
+    private void RestMonth(Adventurer member)
+    {
+        var session = SessionFor(member);
+        var outcome = session.AdvanceMonth(TrainingActivity.Rest);
+
+        Ui.Line($"     {_month}월: 휴식 · {outcome.Grade.ToKorean()} (피로 {session.Fatigue})");
+        if (session.IsComplete) SettleTraining(member);
+    }
+
+    private TrainingYearSession SessionFor(Adventurer member)
+    {
+        if (_training.TryGetValue(member.Id, out var existing)) return existing;
+
+        var mentorship = BestMentor();
+        if (mentorship is not null) Ui.Note($"멘토: {mentorship.MentorName} (훈련 배율 {mentorship.TrainingMultiplier:F2})");
+
+        var session = new TrainingYearSession(
+            member, rng.Fork($"train:{_year}:{_month}:{member.Id}"), mentorship);
+
+        _training[member.Id] = session;
+        return session;
+    }
+
+    /// <summary>훈련한 달만 결산합니다. 12달을 안 채워도 됩니다 — 달력이 달 단위이므로.</summary>
+    private void SettleTraining(Adventurer member)
+    {
+        if (!_training.TryGetValue(member.Id, out var session)) return;
+        _training.Remove(member.Id);
+
+        if (session.MonthsCompleted == 0) return;
+
+        var before = member.Stats;
+        var record = session.Settle();
+
+        Ui.Note($"{record.Note} — {(member.Stats - before)}");
     }
 
     // ── 모집 ────────────────────────────────────────────────
@@ -124,7 +355,12 @@ internal sealed class Guild(IRandomSource rng)
             labels.Add($"{candidates[i].Name} 영입 (계약금 {RecruitCost})");
         }
 
-        int affordable = Math.Max(0, _funds / RecruitCost);
+        // 길드 랭크가 최대 인원을 정합니다 (§17.10).
+        int room = Math.Max(0, RosterCapacity - _members.Count);
+        int affordable = Math.Min(room, Math.Max(0, _funds / RecruitCost));
+
+        if (room == 0) Ui.Note($"정원이 찼습니다 ({RosterCapacity}명). 랭크가 올라야 늘어납니다.");
+
         var picked = Ui.ChooseMany("영입할 사람", labels, affordable);
 
         foreach (int index in picked)
@@ -158,9 +394,7 @@ internal sealed class Guild(IRandomSource rng)
 
     private double GuildAppraisalSkill()
     {
-        double fromMembers = _members.Count == 0
-            ? 0.0
-            : _members.Max(m => m.Support[SupportSkill.Appraisal]) / 100.0;
+        double fromMembers = 0.0;
 
         double fromMentors = _retired.Count == 0
             ? 0.0
@@ -171,87 +405,10 @@ internal sealed class Guild(IRandomSource rng)
 
     // ── 연간 계획과 실행 ────────────────────────────────────
 
-    private void PlanAndExecutePhase()
-    {
-        var board = ContractGenerator.GenerateBoard(
-            rng.Fork($"board:{_year}"), 4, Math.Max(2, _reputation / 8 + 2));
-
-        foreach (var member in _members.ToList())
-        {
-            if (member.Status != AdventurerStatus.Active) continue;
-
-            Ui.Section($"{member.Name}의 {_year}년");
-            Display.StatSheet(member);
-
-            if (!member.CanDeploy)
-            {
-                Ui.Note("등록 첫 해입니다. 실전에 내보낼 수 없습니다.");
-                TrainingYear(member);
-                continue;
-            }
-
-            int choice = Ui.Choose("올해 무엇을 시킬까요", ["육성 (안전하지만 수입 없음)", "실전 파견 (수입과 경험, 죽을 수 있음)", "은퇴시킨다"]);
-
-            switch (choice)
-            {
-                case 0: TrainingYear(member); break;
-                case 1: DeploymentYear(member, board); break;
-                case 2: Retire(member); break;
-            }
-        }
-    }
 
     // ── 육성: 계획 → 하이브리드 실행 ────────────────────────
 
-    private void TrainingYear(Adventurer member)
-    {
-        var mentorship = BestMentor();
-        if (mentorship is not null) Ui.Note($"멘토: {mentorship.MentorName} (훈련 배율 {mentorship.TrainingMultiplier:F2})");
 
-        var report = ReportFor(member);
-
-        var plan = BuildYearPlan(member, report, mentorship);
-        ExecuteYearPlan(member, plan, mentorship);
-    }
-
-    /// <summary>연초에 12개월 계획을 짭니다. 예상 성장을 보면서 고칠 수 있습니다.</summary>
-    private List<TrainingActivity> BuildYearPlan(Adventurer member, ScoutingReport report, Mentorship? mentorship)
-    {
-        Ui.Line();
-        Ui.Line("   ── 1년 계획 ──");
-        Ui.Note("12개월을 미리 짭니다. 실행 중 상황이 바뀌면 그때 고칠 수 있습니다.");
-
-        var plan = new List<TrainingActivity>();
-        var menu = Display.FocusMenu().Append("이후 전부 휴식").ToList();
-
-        for (int month = 1; month <= TrainingRules.MonthsPerYear; month++)
-        {
-            if (plan.Count > 0)
-            {
-                var preview = TrainingForecaster.Forecast(member, report, PadPlan(plan), mentorship);
-                Ui.Line();
-                Display.Forecast(preview, report.Confidence, decidedMonths: plan.Count);
-            }
-
-            int pick = Ui.Choose($"   {month}월", menu);
-
-            if (pick == menu.Count - 1)
-            {
-                while (plan.Count < TrainingRules.MonthsPerYear) plan.Add(TrainingActivity.Rest);
-                break;
-            }
-
-            plan.Add(Display.FocusFromIndex(pick));
-        }
-
-        Ui.Line();
-        Ui.Line("   확정된 계획: " + string.Join(" ", plan.Select(Display.FocusName)));
-
-        var final = TrainingForecaster.Forecast(member, report, plan, mentorship);
-        Display.Forecast(final, report.Confidence);
-
-        return plan;
-    }
 
     private static List<TrainingActivity> PadPlan(List<TrainingActivity> plan)
     {
@@ -260,51 +417,6 @@ internal sealed class Guild(IRandomSource rng)
         return padded;
     }
 
-    /// <summary>
-    /// 계획대로 자동 진행하되, <b>상황이 바뀌는 달에만 멈춰서</b> 물어봅니다.
-    /// <para>계획의 재미와 대응의 재미를 둘 다 얻기 위한 절충입니다.</para>
-    /// </summary>
-    private void ExecuteYearPlan(Adventurer member, List<TrainingActivity> plan, Mentorship? mentorship)
-    {
-        Ui.Line();
-        Ui.Line("   ── 실행 ──");
-
-        var before = member.Stats;
-        var session = new TrainingYearSession(member, rng.Fork($"train:{_year}:{member.Id}"), mentorship);
-
-        while (!session.IsComplete)
-        {
-            int month = session.CurrentMonth;
-            var planned = plan[month - 1];
-
-            if (ShouldInterrupt(session, planned))
-            {
-                Ui.Line();
-                Ui.Note($"{month}월 · 컨디션 {session.Condition.ToKorean()} · 피로 {session.Fatigue}" +
-                        (session.FailureChance > 0 ? $" · 실패 확률 {session.FailureChance:P0}" : ""));
-                Ui.Note($"계획은 [{Display.FocusLabel(planned)}] 입니다.");
-
-                if (Ui.Confirm("   계획을 바꾸시겠습니까?"))
-                {
-                    int pick = Ui.Choose($"   {month}월 변경", Display.FocusMenu());
-                    planned = Display.FocusFromIndex(pick);
-                    plan[month - 1] = planned;
-                }
-            }
-
-            var outcome = session.AdvanceMonth(planned);
-            Ui.Line($"     {outcome.Note}");
-
-            // 월별 성장치는 표시하지 않습니다. 내부적으로는 실수로 누적하고 연말에 한 번만
-            // 반올림하므로, 월별 반올림값을 더해도 연간 합계와 맞지 않아 오히려 혼란스럽습니다.
-        }
-
-        session.Complete();
-
-        Ui.Line();
-        Ui.Note($"1년 결과: {FormatGain(member.Stats - before)}");
-        Display.StatSheet(member);
-    }
 
     /// <summary>계획을 다시 물어볼 만한 순간인가.</summary>
     private static bool ShouldInterrupt(TrainingYearSession session, TrainingActivity planned)
@@ -333,60 +445,150 @@ internal sealed class Guild(IRandomSource rng)
 
     // ── 실전 파견 ───────────────────────────────────────────
 
-    private void DeploymentYear(Adventurer member, IReadOnlyList<Contract> board)
+    /// <summary>
+    /// 그 달에 의뢰를 받습니다. <b>받으면 그 기간만큼 칸이 잠깁니다</b> — 동행자도 같이.
+    /// </summary>
+    private void DeploymentMonth(Adventurer member, IReadOnlyList<Contract> board)
     {
-        // 지금은 목표 수치형 의뢰 하나만 있습니다.
-        // 「난이도 N짜리 전투 한 판」 구조를 걷어내는 중이라 옛 의뢰는 잠시 내렸습니다.
-        var contract = Contract.Combat("가도 정리", difficulty: 1);
-        const int Quota = 10;
+        // 게시판에서 고릅니다. 그 달에 안 받으면 사라집니다 (지속 의뢰만 남습니다).
+        // 승급 의뢰는 지속 의뢰이므로 자격이 되면 붙여 둡니다 — 등급이 오르는 유일한 길입니다.
+        var promotion = ContractBoard.PromotionFor(member);
+        IReadOnlyList<Contract> posted = promotion is null ? board : [.. board, promotion];
+
+        // 정규 파티에 속해 있으면 파티 전용 의뢰가 열립니다 (§6.3).
+        var regular = _parties.RegularPartyOf(member.Id);
+        if (regular is not null)
+        {
+            var partyQuest = ContractBoard.PromotionFor(regular);
+            if (partyQuest is not null) posted = [.. posted, partyQuest];
+        }
+
+        var open = ContractBoard.AvailableTo(
+            posted, regular?.Rank ?? member.Rank,
+            asRegularParty: regular is not null, member.MaxContractDifficulty);
+
+        if (open.Count == 0)
+        {
+            Ui.Note("받을 수 있는 의뢰가 없습니다. 아직 자격이 모자랍니다.");
+            return;
+        }
 
         Ui.Line();
-        Ui.Line("   ── 의뢰 ──");
-        Ui.Line($"   [{contract.Name}] 난이도 {contract.Difficulty}");
-        Ui.Note($"마을 근처 가도에 고블린이 늘었습니다. 1년 안에 {Quota}마리를 정리하십시오.");
+        Ui.Line("   ── 의뢰 게시판 ──");
+        int chosen = Ui.Choose("   무엇을 받겠습니까", [.. open.Select(Display.ContractLine)]);
+        var contract = open[chosen];
+
+        Ui.Note($"{contract.Months}달 동안 {contract.Name}. " +
+                $"강도 {contract.Intensity}{contract.Form.IntensityLabel()} — 기간은 고정입니다.");
 
         var party = new List<Adventurer> { member };
 
+        // 예약된 사람은 못 데려갑니다 — 그 사람의 그 기간은 이미 다른 의뢰에 잠겨 있습니다.
         var others = _members
-            .Where(m => m.Id != member.Id && m.Status == AdventurerStatus.Active && m.CanDeploy)
+            .Where(m => m.Id != member.Id && m.Status == AdventurerStatus.Active
+                        && m.CanDeploy && !IsBooked(m))
             .ToList();
 
         if (others.Count > 0)
         {
             var picks = Ui.ChooseMany("   함께 보낼 동료",
-                others.Select(o => $"{o.Name} · {o.Title} ({o.EquippedStyle.ToKorean()})").ToList(), 3);
+                others.Select(o => $"{o.Name} · {o.Title} · {o.Rank.Label()} ({o.Loadout})").ToList(), 3);
             party.AddRange(picks.Select(i => others[i]));
         }
+        else
+        {
+            Ui.Note("함께 보낼 사람이 없습니다 — 다른 이들은 이미 의뢰 중입니다.");
+        }
 
-        int rolePick = Ui.Choose("   맡길 비전투 역할",
-            SupportSkills.All.Select(sk => $"{sk.ToKorean()} (현재 {member.Support[sk]})").Append("없음").ToList());
+        int capacity = Supplies.CapacityOf(party);
+        Ui.Note($"짐 한도 {capacity}개 — 가방을 든 사람이 있으면 늘어납니다");
 
-        SupportSkill? role = rolePick < SupportSkills.All.Count ? SupportSkills.All[rolePick] : null;
+        // 조합이 성립하지 않으면 애초에 나갈 수 없습니다 (§6.0 — 자격이 조합의 전제).
+        var problem = PartyFormation.Check(party);
+        if (problem != FormationProblem.None)
+        {
+            Ui.Note($"이 조합으로는 나갈 수 없습니다 — {problem.ToKorean()}");
+            return;
+        }
 
-        var support = ContractResolver.Evaluate(contract, party.Select(p => p.Support).ToList());
+        // 파견 전에 훈련을 결산합니다 — 그러지 않으면 훈련한 달이 이력에서 사라집니다.
+        foreach (var fighter in party) SettleTraining(fighter);
 
-        Ui.Line();
-        Ui.Note($"파티 역량 반영 — 위험 {support.RiskMultiplier:P0}, 보수 {support.IncomeMultiplier:P0}, " +
-                $"추가 회복약 {support.ExtraPotions}");
+        var (session, result) = RunDeployment(party, contract);
 
-        var result = RunFieldYear(party, contract, Quota, support);
+        ApplyDeploymentResults(party, session, result);
 
-        ApplyDeploymentResults(member, party, contract, support, role, result);
+        // 실제로 보낸 달만큼 칸을 잠급니다. 중도 이탈했으면 그만큼만 잠기고 나머지는 풀립니다 —
+        // 달력 잠금은 구속이 아니라 예약입니다 (§17.7).
+        int until = AbsoluteMonth + result.MonthsSpent - 1;
+        foreach (var fighter in party) _bookedUntil[fighter.Id] = until;
+
+        Ui.Note($"{string.Join(" · ", party.Select(p => p.Name))} — {result.MonthsSpent}달 예약" +
+                (result.MonthsSpent < contract.Months ? $" (의뢰 {contract.Months}달 중 조기 복귀)" : ""));
+
+        // 함께 나간 달을 장부에 쌓습니다. 의뢰 기간만큼 누적됩니다 —
+        // 이것이 정규 파티 등록 조건(함께 나간 6개월)의 유일한 입력원입니다.
+        for (int m = 0; m < result.MonthsSpent; m++) _parties.RecordMonth(party);
+
+        PartyPhase(party, result);
     }
 
     /// <summary>
-    /// 파견 1년을 월 단위로 진행합니다.
+    /// 파견이 끝난 뒤의 파티 처리 — 평가 배분, 등록 제안, 증원.
+    /// </summary>
+    private void PartyPhase(List<Adventurer> party, DeploymentResult result)
+    {
+        var existing = _parties.RegularPartyOf(party);
+
+        // 정규 파티로 나갔으면 그 파티가 평가를 쌓습니다 (§6.2 — 독립적으로 쌓임).
+        if (existing is not null && result.Succeeded)
+        {
+            _parties.RecordEvaluation(existing, result.Contract.Difficulty * EvaluationPerDifficulty);
+            Ui.Note($"{existing}");
+        }
+
+        Display.Parties(_parties, _members);
+
+        // 등록은 강제가 아닙니다 (§6.0). 조건을 채웠을 때만 물어봅니다.
+        var options = _parties.RegistrableCompositions(_members);
+        if (options.Count == 0) return;
+
+        var labels = options
+            .Select(c => string.Join(" · ", c.MemberIds.Select(id => _members.First(m => m.Id == id).Name))
+                         + $" (함께 {_parties.MonthsTogether(c)}달)")
+            .Append("등록하지 않는다")
+            .ToList();
+
+        int pick = Ui.Choose("   정규 파티로 등록하시겠습니까", labels);
+        if (pick >= options.Count) return;
+
+        var chosenComposition = options[pick];
+        var members = chosenComposition.MemberIds.Select(id => _members.First(m => m.Id == id)).ToList();
+
+        var registered = _parties.Register($"P{_parties.Parties.Count}", $"{members[0].Name}의 파티", members);
+        if (registered is not null)
+        {
+            Record($"{_year}년: 정규 파티 등록 — {string.Join(" · ", members.Select(m => m.Name))}");
+            Ui.Note($"등록되었습니다. {registered}");
+        }
+    }
+
+    /// <summary>난이도 1당 파티 평가. ⚠️ 임시값 — docs/06 #41.</summary>
+    private const int EvaluationPerDifficulty = 4;
+
+    /// <summary>
+    /// 파견 한 건을 달 단위로 진행합니다.
     /// <para>
-    /// 훈련 연도와 같은 리듬입니다 — 매달 무엇을 할지 고르고, 조우하면 싸울지 피할지 고릅니다.
-    /// <b>HP와 회복약이 전투 사이에 저절로 회복되지 않아서</b> 매 판단에 무게가 생깁니다.
+    /// <b>플레이어가 고르는 것은 편성과 보급뿐</b>입니다. 일할지 쉴지는 모험가가 판단하고,
+    /// 플레이어가 끼어드는 곳은 전투 안입니다 (docs/08 §17.5).
     /// </para>
     /// </summary>
-    private FieldYearOutcome RunFieldYear(
-        List<Adventurer> party, Contract contract, int quota, ContractSupport support)
+    private (DeploymentSession Session, DeploymentResult Result) RunDeployment(
+        List<Adventurer> party, Contract contract)
     {
-        var session = new FieldYearSession(
-            party, contract, quota, rng.Fork($"field:{_year}"),
-            potionsEach: 2 + support.ExtraPotions);
+        var session = new DeploymentSession(
+            party, contract, rng.Fork($"deploy:{_year}:{contract.Id}"),
+            Supplies.UpTo(party, Supplies.CapacityOf(party)));
 
         bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
         var commander = manual ? new ConsoleCommander() : null;
@@ -398,87 +600,44 @@ internal sealed class Guild(IRandomSource rng)
         {
             Display.FieldStatus(session, party);
 
-            int pick = Ui.Choose($"   {session.CurrentMonth}월", Display.FieldMenu());
-            var action = (FieldAction)pick;
-
-            var encounter = session.StartMonth(action);
-
-            if (encounter is null)
-            {
-                Ui.Line($"     {session.Months[^1].Note}");
-                continue;
-            }
-
-            Ui.Line();
-            Ui.Note($"고블린 {encounter.Enemies.Count}마리와 마주쳤습니다. " +
-                    $"빠져나갈 가능성 {encounter.AvoidChance:P0}");
-
-            bool fight = Ui.Choose("   어떻게 할까요",
-                [$"교전한다", $"피한다 (성공 {encounter.AvoidChance:P0} · 실패하면 기습당함)"]) == 0;
-
-            if (!fight && session.Avoid())
-            {
-                Ui.Line($"     {session.Months[^1].Note}");
-                continue;
-            }
-
-            if (!fight) Ui.Note("빠져나가지 못했습니다. 기습당한 채로 싸웁니다.");
-
-            var battle = session.Fight(
-                rng.Fork($"battle:{_year}:{session.CurrentMonth}"),
+            var month = session.AdvanceMonth(
+                rng.Fork($"battle:{_year}:{contract.Id}:{session.CurrentMonth}"),
                 commander,
                 manual ? line => Ui.Line("       " + line) : null);
 
-            if (!manual)
-            {
-                foreach (var line in battle.Log) Ui.Line("       " + line);
-            }
+            Ui.Line($"     {month.Note}");
 
-            Ui.Line($"     {session.Months[^1].Note}");
+            // 손절할 기회를 줍니다 — 끝까지 밀어서 무너지느냐, 빈손이라도 사람을 지키느냐.
+            if (!session.IsComplete && session.HealthRatio < 0.4
+                && Ui.Confirm("   상태가 좋지 않습니다. 의뢰를 포기하고 돌아오겠습니까?"))
+            {
+                session.Abandon();
+            }
         }
 
-        var final = session.Complete();
+        var result = session.Complete();
 
         Ui.Line();
-        Ui.Note(final.Achieved
-            ? $"목표 달성 — 고블린 {final.Killed}마리를 정리했습니다."
-            : final.Retreated
-                ? $"더 싸울 수 없어 돌아왔습니다. {final.Killed}/{final.Quota}마리."
-                : $"1년이 끝났습니다. {final.Killed}/{final.Quota}마리에 그쳤습니다.");
+        Ui.Note(result.Succeeded
+            ? $"성공 — {result.Progress}{contract.Form.IntensityLabel()}."
+            : $"실패 ({result.Failure}) — {result.MonthsSpent}/{contract.Months}달.");
 
-        return new FieldYearOutcome(final, session.Experience);
+        return (session, result);
     }
-
-    private sealed record FieldYearOutcome(
-        FieldYearResult Result,
-        IReadOnlyDictionary<string, CombatExperience> Experience);
 
     /// <summary>파견 결과를 각자에게 적용합니다.</summary>
     private void ApplyDeploymentResults(
-        Adventurer leader,
         List<Adventurer> party,
-        Contract contract,
-        ContractSupport support,
-        SupportSkill? role,
-        FieldYearOutcome fought)
+        DeploymentSession session,
+        DeploymentResult result)
     {
-        // 목표를 채웠으면 승리로, 못 채웠으면 미완/실패로 봅니다.
-        var outcome = fought.Result.Achieved
-            ? BattleOutcome.PlayerVictory
-            : fought.Result.Retreated
-                ? BattleOutcome.EnemyVictory
-                : BattleOutcome.Draw;
-
+        var contract = result.Contract;
         int totalIncome = 0;
 
         foreach (var fighter in party)
         {
-            var record = CareerSimulator.ResolveDeploymentYear(
-                fighter, contract.Difficulty, rng.Fork($"deploy:{_year}:{fighter.Id}"),
-                fought.Experience.GetValueOrDefault(fighter.Id),
-                fighter.Id == leader.Id ? role : null,
-                contract, support,
-                new BattleReport(outcome, Downed: fought.Result.Retreated));
+            var record = CareerSimulator.ResolveDeployment(
+                fighter, session, result, rng.Fork($"settle:{_year}:{fighter.Id}"));
 
             totalIncome += record.Income;
             Ui.Line($"     {record.Note}");
@@ -494,16 +653,31 @@ internal sealed class Guild(IRandomSource rng)
             }
         }
 
-        int reputationGain = outcome switch
-        {
-            BattleOutcome.PlayerVictory => contract.Difficulty,
-            BattleOutcome.Draw => 0,
-            _ => -1
-        };
+        // 길드 자체 의뢰는 보수가 아니라 명성으로 돌아옵니다 (§17.2).
+        int reputationGain = result.Succeeded
+            ? contract.Difficulty * (contract.Reward == RewardKind.Renown ? 2 : 1)
+            : -1;
 
         _funds += totalIncome;
         _reputation = Math.Max(0, _reputation + reputationGain);
         Ui.Note($"보수 {totalIncome}, 평판 {(reputationGain >= 0 ? "+" : "")}{reputationGain}");
+
+        // 죽거나 불구가 되면 파티에서 빠지고, 1명 남으면 자동 해체됩니다 (§6.1).
+        foreach (var lost in _members.Where(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled))
+        {
+            var theirs = _parties.RegularPartyOf(lost.Id);
+            if (_parties.Leave(lost.Id) && theirs is { Disbanded: true })
+            {
+                Record($"{_year}년: {theirs.Name} 해체 — 남은 인원이 1명");
+                Ui.Note($"{theirs.Name}이(가) 해체되었습니다. 빈자리는 다시 6개월이 걸립니다.");
+            }
+        }
+
+        foreach (var lost in _members.Where(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled))
+        {
+            _bookedUntil.Remove(lost.Id);
+            _training.Remove(lost.Id);
+        }
 
         _members.RemoveAll(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled);
     }
@@ -512,6 +686,10 @@ internal sealed class Guild(IRandomSource rng)
 
     private void Retire(Adventurer member)
     {
+        SettleTraining(member);
+        _bookedUntil.Remove(member.Id);
+        _parties.Leave(member.Id);
+
         member.Retire();
         _retired.Add(member);
         _members.Remove(member);
@@ -532,6 +710,9 @@ internal sealed class Guild(IRandomSource rng)
 
     private void YearEndPhase()
     {
+        // 해가 끝나면 진행 중인 훈련을 결산합니다 — 몇 달만 훈련했어도 그만큼 반영됩니다.
+        foreach (var member in _members.ToList()) SettleTraining(member);
+
         Ui.Section($"{_year}년 결산");
 
         int wages = _members.Sum(m => m.AnnualWage);

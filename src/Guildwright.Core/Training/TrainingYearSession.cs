@@ -341,9 +341,29 @@ public sealed class TrainingYearSession
             throw new InvalidOperationException($"아직 {TrainingRules.MonthsPerYear - MonthsCompleted}개월이 남았습니다.");
         }
 
-        // 노화는 연 단위로 한 번 적용합니다.
+        return Settle();
+    }
+
+    /// <summary>
+    /// <b>지금까지 훈련한 달만</b> 결산합니다. 12개월을 안 채워도 됩니다.
+    /// <para>
+    /// 달력이 달 단위이므로 한 사람이 <b>몇 달 훈련하고 몇 달 파견</b>을 갑니다.
+    /// 12개월을 강제하면 "훈련을 고르면 그 해가 다 간다"가 되어 매달 정책이 성립하지 않습니다.
+    /// </para>
+    /// <para>노화는 훈련한 달 수만큼만 적용합니다 — 나이 자체는 <see cref="Adventurer"/>가 셉니다.</para>
+    /// </summary>
+    public YearRecord Settle()
+    {
+        if (MonthsCompleted == 0)
+        {
+            throw new InvalidOperationException("훈련한 달이 없습니다.");
+        }
+
+        double share = (double)MonthsCompleted / TrainingRules.MonthsPerYear;
+
+        // 노화는 훈련한 기간만큼.
         // 반올림은 여기서 딱 한 번 — 월 단위로 반올림하면 미세한 차이가 전부 사라집니다.
-        double decline = _adventurer.Growth.DeclineFactorAt(_adventurer.Age);
+        double decline = _adventurer.Growth.DeclineFactorAt(_adventurer.Age) * share;
         var change = PrimaryStats.Zero;
 
         foreach (var kind in PrimaryStats.AllStats)
@@ -353,19 +373,23 @@ public sealed class TrainingYearSession
             change = change.With(kind, (int)Math.Round(total));
         }
 
+        string span = MonthsCompleted == TrainingRules.MonthsPerYear ? "훈련" : $"{MonthsCompleted}달 훈련";
+
         string note = _failedMonths > 0
-            ? $"{_adventurer.Age}세: 훈련 ({_failedMonths}개월 실패)"
+            ? $"{_adventurer.Age}세: {span} ({_failedMonths}개월 실패)"
             : _mentorship.TrainingMultiplier > 1.0
-                ? $"{_adventurer.Age}세: {_mentorship.MentorName}의 지도 아래 훈련"
-                : $"{_adventurer.Age}세: 훈련";
+                ? $"{_adventurer.Age}세: {_mentorship.MentorName}의 지도 아래 {span}"
+                : $"{_adventurer.Age}세: {span}";
 
         var record = new YearRecord(
-            _adventurer.Age, YearActivity.Training, change, null, 0, note, ProficiencyGain: _proficiency);
+            _adventurer.Age, YearActivity.Training, change, null, 0, note,
+            ProficiencyGain: _proficiency, Months: MonthsCompleted);
 
         _adventurer.ApplyYear(record);
 
-        // 훈련 연도의 기본 판단력 + 모의전으로 따로 쌓은 만큼.
-        _adventurer.GainJudgement(CareerRules.JudgementFromTraining + (int)Math.Round(_judgement));
+        // 훈련 기간의 기본 판단력 + 모의전으로 따로 쌓은 만큼. 기본값도 기간에 비례합니다.
+        int baseJudgement = (int)Math.Round(CareerRules.JudgementFromTraining * share);
+        _adventurer.GainJudgement(baseJudgement + (int)Math.Round(_judgement));
         return record;
     }
 }

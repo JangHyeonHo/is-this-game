@@ -46,8 +46,18 @@ public enum TacticAction
     DebuffEnemy,
     /// <summary>도발. 적의 공격을 자신에게 끕니다. 한손+방패만 가능.</summary>
     Taunt,
-    /// <summary>회복약 사용.</summary>
+    /// <summary>회복약을 자신에게 사용.</summary>
     UsePotion,
+    /// <summary>
+    /// 회복약을 <b>아군에게</b> 건넵니다. 짐꾼의 핵심입니다.
+    /// <para>짐은 아무나 들 수 있지만 위기의 순간에 제때 쓰는 것은 다릅니다.</para>
+    /// </summary>
+    GivePotion,
+    /// <summary>
+    /// 주무기와 보조무기를 바꿔 듭니다. <b>턴을 하나 씁니다.</b>
+    /// <para>공짜면 "액티브는 특정 무기를 요구한다"가 무의미해집니다.</para>
+    /// </summary>
+    SwitchWeapon,
     /// <summary>방어 태세.</summary>
     Defend,
     /// <summary>후열로 물러납니다. 그 턴은 공격하지 못합니다.</summary>

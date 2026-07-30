@@ -63,6 +63,11 @@ public static class DamageModel
     /// <summary>광역 공격은 피하기 어렵습니다.</summary>
     public const double AreaEvasionPenalty = 0.5;
 
+    /// <summary>
+    /// 치명타 기본 배율. <b>숙련 패시브가 여기에 더합니다</b> — 무기가 아닙니다.
+    /// </summary>
+    public const double BaseCritMultiplier = 1.6;
+
     private const double Variance = 0.2;
 
     /// <summary>
@@ -100,7 +105,7 @@ public static class DamageModel
         }
 
         bool critical = rng.Chance(attacker.CritChance);
-        double critMultiplier = critical ? attacker.Capability.CritMultiplier : 1.0;
+        double critMultiplier = critical ? attacker.CritMultiplier : 1.0;
 
         double variance = 1.0 + (rng.NextDouble() * 2.0 - 1.0) * Variance;
 
@@ -139,7 +144,7 @@ public static class DamageModel
         if (area) chance *= AreaEvasionPenalty;
 
         // 후열에서 근접 무기를 휘두르면 제대로 닿지 않으니 더 잘 피합니다.
-        if (attacker.Row == Row.Back && !attacker.Capability.CanActFromBackRow) chance *= 1.4;
+        if (attacker.Row == Row.Back && !attacker.CanActFromBackRow) chance *= 1.4;
 
         return Math.Clamp(chance, 0.0, MaxEvasionChance);
     }
@@ -152,7 +157,7 @@ public static class DamageModel
         double critMultiplier,
         List<string>? steps = null)
     {
-        bool magic = attacker.Capability.UsesMagic;
+        bool magic = attacker.UsesMagicPower;
 
         double offense = attacker.EffectiveOffense;
         double guard = magic ? defender.EffectiveMagicGuard : defender.EffectivePhysicalGuard;
@@ -160,12 +165,12 @@ public static class DamageModel
         double raw = offense - guard * 0.5;
         steps?.Add($"{(magic ? "마법" : "물리")}위력 {offense} − 방어 {guard}×0.5 = {raw:F1}");
 
-        raw = Step(raw, attacker.Capability.DamageModifier, "무기", steps);
+        raw = Step(raw, attacker.Loadout.Power, "무기", steps);
         raw = Step(raw, attacker.WeaponEffectiveness, "숙련", steps);
         raw = Step(raw, critMultiplier, "치명타", steps);
 
         // 근접 무기가 후열에서 휘두르면 제대로 닿지 않습니다.
-        if (attacker.Row == Row.Back && !attacker.Capability.CanActFromBackRow)
+        if (attacker.Row == Row.Back && !attacker.CanActFromBackRow)
         {
             raw = Step(raw, MeleeFromBackRowPenalty, "후열에서 근접", steps);
         }
@@ -199,6 +204,20 @@ public static class DamageModel
     public static int MagicHealAmount(Combatant healer) =>
         Math.Max(1, (int)Math.Round(healer.EffectiveMagicPower * MagicHealScale * healer.WeaponEffectiveness));
 
-    public static int PoisonDamage(Combatant victim) =>
-        Math.Max(1, (int)Math.Round(victim.MaxHp * 0.05));
+    /// <summary>
+    /// 지속 피해 한 번. <b>세기 × 스택</b>이 최대 HP 비율로 들어갑니다.
+    /// <para>
+    /// 화상은 세기가 크고 안 쌓이며, 중독은 작지만 쌓이고, 출혈은 행동할 때마다 쌓입니다.
+    /// 그 차이가 전부 <see cref="StatusEffect"/>의 설정에서 나옵니다.
+    /// </para>
+    /// </summary>
+    public static int OverTimeDamage(Combatant victim, StatusEffect effect)
+    {
+        // 스택이 피해를 키우는지는 이름이 아니라 표의 한 칸입니다 — 동상은 스택을
+        // 쌓지만 피해는 안 커집니다(스택은 빙결로 넘어가는 임계에만 쓰입니다).
+        int stacks = StatusEffects.ProfileOf(effect.Name).StacksScaleDamage ? effect.Stacks : 1;
+
+        double ratio = StatusEffects.DamageOverTimeScale * effect.Magnitude * stacks;
+        return Math.Max(1, (int)Math.Round(victim.MaxHp * ratio));
+    }
 }

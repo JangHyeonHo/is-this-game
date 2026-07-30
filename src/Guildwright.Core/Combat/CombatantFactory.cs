@@ -24,13 +24,21 @@ public static class CombatantFactory
     /// 그래야 "지금 싸울까 피할까"가 판단이 되고 야영과 포션이 의미를 갖습니다.
     /// </para>
     /// </param>
+    /// <param name="startingMana">
+    /// 전투 시작 마나. 생략하면 최대치입니다.
+    /// <para>
+    /// <b>파견에서는 반드시 넘겨야 합니다.</b> 마나가 매 전투 채워지면 사실상 무한이라
+    /// 마나라는 자원이 아무것도 제약하지 않습니다 (docs/08 §17.5b).
+    /// </para>
+    /// </param>
     public static Combatant Create(
         Adventurer adventurer,
         Team team,
         Row row,
         IReadOnlyList<TacticRule>? tactics = null,
         int potions = 2,
-        int? startingHp = null)
+        int? startingHp = null,
+        int? startingMana = null)
     {
         if (!adventurer.IsAlive)
         {
@@ -43,12 +51,15 @@ public static class CombatantFactory
             team: team,
             stats: adventurer.Stats,
             judgement: adventurer.Judgement,
-            style: adventurer.EquippedStyle,
+            loadout: adventurer.Loadout,
             weaponEffectiveness: adventurer.WeaponEffectiveness,
             bonuses: adventurer.Bonuses,
             row: row,
-            tactics: tactics ?? DefaultTacticsFor(adventurer.EquippedStyle),
-            potions: potions);
+            tactics: tactics ?? DefaultTacticsFor(adventurer.Loadout),
+            potions: potions,
+            passives: adventurer.Passives,
+            actives: adventurer.Actives,
+            startingMana: startingMana);
 
         if (startingHp is { } hp && hp < combatant.MaxHp)
         {
@@ -59,60 +70,83 @@ public static class CombatantFactory
     }
 
     /// <summary>
-    /// 스타일에 맞는 기본 전술 규칙.
+    /// 손에 든 것에 맞는 기본 전술 규칙.
     /// <para>
     /// 플레이어가 편성하기 전의 출발점입니다. 이것만으로도 그럭저럭 싸워야
     /// 신규 플레이어가 규칙 편집 화면에서 막히지 않습니다.
     /// </para>
+    /// <para>
+    /// ⚠️ 예전에는 <c>WeaponStyle</c> 7종에 대한 <c>switch</c>였습니다. 이제 스타일이라는
+    /// 개념이 없으므로 <b>손에 든 것의 성질</b>로 판단합니다 — 무기를 추가해도
+    /// 이 함수를 안 건드립니다.
+    /// </para>
     /// </summary>
-    public static IReadOnlyList<TacticRule> DefaultTacticsFor(WeaponStyle style) => style switch
+    public static IReadOnlyList<TacticRule> DefaultTacticsFor(Loadout loadout)
     {
-        WeaponStyle.SwordAndShield =>
+        // 가방을 들었으면 싸울 수 없습니다. 살아남는 것과 아군을 돕는 것만 합니다.
+        if (loadout.CarryingPack)
+        {
+            return
+            [
+                TacticRule.AllyHpBelow(0.40, TacticAction.GivePotion),
+                TacticRule.When(TacticCondition.SelfInFrontRow, TacticAction.MoveBack),
+                TacticRule.Always(TacticAction.Defend)
+            ];
+        }
+
+        // 방패를 들었으면 앞에서 버티고 끌어당깁니다.
+        if (loadout.Holding(WeaponKind.Shield))
+        {
+            return
+            [
+                TacticRule.SelfHpBelow(0.30, TacticAction.UsePotion),
+                TacticRule.When(TacticCondition.SelfInBackRow, TacticAction.MoveFront),
+                TacticRule.AllyHpBelow(0.50, TacticAction.Taunt),
+                TacticRule.Always(TacticAction.AttackNearest)
+            ];
+        }
+
+        // 지팡이는 회복을 먼저 봅니다.
+        if (loadout.UsesMagicPower)
+        {
+            return
+            [
+                TacticRule.AllyHpBelow(0.45, TacticAction.HealAlly),
+                TacticRule.SelfHpBelow(0.40, TacticAction.MoveBack),
+                TacticRule.EnemyHpBelow(0.30, TacticAction.AttackBackRow),
+                TacticRule.Always(TacticAction.AttackNearest)
+            ];
+        }
+
+        // 원거리는 뒤에서 적 후열을 노립니다.
+        if (loadout.CanStrikeBackRow)
+        {
+            return
+            [
+                TacticRule.SelfHpBelow(0.45, TacticAction.MoveBack),
+                TacticRule.Always(TacticAction.AttackBackRow)
+            ];
+        }
+
+        // 리치가 길면 뒤에 서서도 칩니다.
+        if (loadout.CanActFromBackRow)
+        {
+            return
+            [
+                TacticRule.SelfHpBelow(0.35, TacticAction.MoveBack),
+                TacticRule.EnemyHpBelow(0.30, TacticAction.AttackWeakest),
+                TacticRule.Always(TacticAction.AttackNearest)
+            ];
+        }
+
+        // 광역을 쓸 수 있으면 그걸 기본으로 둡니다 (대검 숙련이 열어줍니다).
+        return
         [
             TacticRule.SelfHpBelow(0.30, TacticAction.UsePotion),
-            TacticRule.When(TacticCondition.SelfInBackRow, TacticAction.MoveFront),
-            TacticRule.AllyHpBelow(0.50, TacticAction.Taunt),
-            TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        WeaponStyle.Staff =>
-        [
-            TacticRule.AllyHpBelow(0.45, TacticAction.HealAlly),
-            TacticRule.SelfHpBelow(0.40, TacticAction.MoveBack),
-            TacticRule.EnemyHpBelow(0.30, TacticAction.AttackBackRow),
-            TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        WeaponStyle.Bow or WeaponStyle.Crossbow =>
-        [
-            TacticRule.SelfHpBelow(0.45, TacticAction.MoveBack),
-            TacticRule.Always(TacticAction.AttackBackRow)
-        ],
-
-        WeaponStyle.TwoHanded =>
-        [
-            TacticRule.SelfHpBelow(0.25, TacticAction.UsePotion),
-            TacticRule.EnemyHpBelow(0.30, TacticAction.AttackWeakest),
-            TacticRule.Always(TacticAction.AttackAll)
-        ],
-
-        WeaponStyle.DualWield =>
-        [
-            TacticRule.SelfHpBelow(0.30, TacticAction.UsePotion),
-            TacticRule.SelfHpBelow(0.20, TacticAction.MoveBack),
             TacticRule.EnemyHpBelow(0.35, TacticAction.AttackWeakest),
             TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        WeaponStyle.Polearm =>
-        [
-            TacticRule.SelfHpBelow(0.35, TacticAction.MoveBack),
-            TacticRule.EnemyHpBelow(0.30, TacticAction.AttackWeakest),
-            TacticRule.Always(TacticAction.AttackNearest)
-        ],
-
-        _ => [TacticRule.Always(TacticAction.AttackNearest)]
-    };
+        ];
+    }
 
     /// <summary>
     /// 모험가 파티를 전투 대형으로 배치합니다.
@@ -128,32 +162,47 @@ public static class CombatantFactory
     /// 아군이 이어받는 HP (모험가 Id → 남은 HP). 파견 연도에서 씁니다.
     /// </param>
     /// <param name="carriedPotions">아군이 들고 있는 회복약 (Id → 개수).</param>
+    /// <param name="carriedMana">
+    /// 아군이 이어받는 마나 (Id → 남은 마나).
+    /// <b>넘기지 않으면 만땅으로 시작합니다</b> — 파견에서는 반드시 넘겨야 합니다 (§17.5b).
+    /// </param>
     public static BattleState FormParty(
         IEnumerable<Adventurer> playerParty,
         IEnumerable<Adventurer> enemyParty,
         IReadOnlyDictionary<string, int>? carriedHp = null,
-        IReadOnlyDictionary<string, int>? carriedPotions = null)
+        IReadOnlyDictionary<string, int>? carriedPotions = null,
+        IReadOnlyDictionary<string, int>? carriedMana = null)
     {
         var combatants = new List<Combatant>();
-        combatants.AddRange(Arrange(playerParty, Team.Player, carriedHp, carriedPotions));
+        combatants.AddRange(Arrange(playerParty, Team.Player, carriedHp, carriedPotions, carriedMana));
         combatants.AddRange(Arrange(enemyParty, Team.Enemy));
         return new BattleState(combatants);
     }
+
+    /// <summary>이어받은 값. <b>키가 없으면 null</b>이고 그때는 최대치로 시작합니다.</summary>
+    private static int? Carried(IReadOnlyDictionary<string, int>? carried, string id) =>
+        carried is not null && carried.TryGetValue(id, out int value) ? value : null;
 
     private static List<Combatant> Arrange(
         IEnumerable<Adventurer> party,
         Team team,
         IReadOnlyDictionary<string, int>? carriedHp = null,
-        IReadOnlyDictionary<string, int>? carriedPotions = null)
+        IReadOnlyDictionary<string, int>? carriedPotions = null,
+        IReadOnlyDictionary<string, int>? carriedMana = null)
     {
         var members = party.ToList();
+
+        // 짐꾼은 가장 안전한 위치에서 서포팅하는 것이 규칙입니다 (§16.8b). 가방은
+        // 사거리가 Melee라, 사거리만 보면 무방비 짐꾼이 전열에서 시작합니다.
         var rows = members.ToDictionary(
             a => a.Id,
-            a => WeaponStyles.CapabilityOf(a.EquippedStyle).CanActFromBackRow ? Row.Back : Row.Front);
+            a => a.Loadout.CarryingPack || a.Loadout.CanActFromBackRow ? Row.Back : Row.Front);
 
         if (members.Count > 0 && rows.Values.All(r => r == Row.Back))
         {
-            var toughest = members.OrderByDescending(a => a.Stats.Vitality + a.Stats.Strength)
+            // 전열이 빌 때 끌어내는 것도 짐꾼은 마지막입니다 — 때릴 수 있는 사람이 먼저입니다.
+            var toughest = members.OrderBy(a => a.Loadout.CarryingPack ? 1 : 0)
+                                  .ThenByDescending(a => a.Stats.Vitality + a.Stats.Strength)
                                   .ThenBy(a => a.Id, StringComparer.Ordinal)
                                   .First();
             rows[toughest.Id] = Row.Front;
@@ -163,7 +212,12 @@ public static class CombatantFactory
             .Select(a => Create(
                 a, team, rows[a.Id],
                 potions: carriedPotions?.GetValueOrDefault(a.Id, 2) ?? 2,
-                startingHp: carriedHp?.GetValueOrDefault(a.Id)))
+
+                // ⚠️ GetValueOrDefault를 그대로 쓰면 키가 없을 때 0이 들어가고,
+                //    HP는 Math.Max(1, 0) → 1이 됩니다. 조용히 반신불수 파티가 만들어지므로
+                //    "키가 없다"와 "0이다"를 구분해야 합니다.
+                startingHp: Carried(carriedHp, a.Id),
+                startingMana: Carried(carriedMana, a.Id)))
             .ToList();
     }
 }

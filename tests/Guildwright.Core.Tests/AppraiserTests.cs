@@ -64,7 +64,7 @@ public class AppraiserTests(ITestOutputHelper output)
         const int trials = 2_000;
         for (int i = 0; i < trials; i++)
         {
-            var report = Appraiser.Appraise(rookie, appraisalSkill: 0.0, rng.Fork($"t:{i}"));
+            var report = Appraiser.Appraise(rookie, mentorBonus: 0.0, rng.Fork($"t:{i}"));
             if (report.TimingHint == rookie.Growth.Timing) correct++;
         }
 
@@ -84,7 +84,7 @@ public class AppraiserTests(ITestOutputHelper output)
         const int trials = 2_000;
         for (int i = 0; i < trials; i++)
         {
-            var report = Appraiser.Appraise(veteran, appraisalSkill: 1.0, rng.Fork($"t:{i}"));
+            var report = Appraiser.Appraise(veteran, mentorBonus: 1.0, rng.Fork($"t:{i}"));
             if (report.TimingHint == veteran.Growth.Timing) correct++;
         }
 

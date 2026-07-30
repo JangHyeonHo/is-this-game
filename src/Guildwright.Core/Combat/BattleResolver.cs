@@ -54,8 +54,25 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
         Action<string>? onLine = null)
     {
         var log = recordLog ? new BattleLog(onLine) : null;
-        int commandPoints = commander is null ? 0 : CommandRules.BasePoints;
 
+        try
+        {
+            return Fight(state, rng, commander, log);
+        }
+        finally
+        {
+            // 전투가 끝났습니다 — 상황이 만든 것은 풀리고 몸에 난 것은 남습니다.
+            // HP·마나·회복약처럼 상처도 파견 내내 이어집니다.
+            foreach (var combatant in state.All) combatant.EndBattle();
+        }
+    }
+
+    private BattleResult Fight(
+        BattleState state,
+        IRandomSource rng,
+        IBattleCommander? commander,
+        BattleLog? log)
+    {
         for (int round = 1; round <= maxRounds; round++)
         {
             log?.Add($"--- {round}라운드 ---");
@@ -66,25 +83,47 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
 
                 actor.ClearDefending();
 
+                // 마비·빙결·석화 — 지시를 듣든 안 듣든 몸이 안 움직입니다.
+                double blocked = actor.IncapacitateChance;
+                if (blocked > 0.0 && rng.Chance(blocked))
+                {
+                    log?.Add($"{actor.Name}: 움직이지 못함");
+                    continue;
+                }
+
                 var choice = TacticalBrain.Decide(actor, state, rng);
 
-                // 플레이어가 끼어들 기회. 지휘 포인트가 남아 있어야 합니다.
-                if (commander is not null && commander.Team == actor.Team && commandPoints > 0)
+                // 플레이어가 끼어들 기회. 횟수 제한은 없습니다 —
+                // 아끼게 만들면 결국 안 쓰게 되고, 그게 "개입으로 할 게 없다"의 원인이었습니다.
+                // 유일한 제약은 공포·혼란에 걸린 아군에게는 지시가 통하지 않는 것입니다.
+                if (commander is not null && commander.Team == actor.Team)
                 {
-                    var order = commander.Intervene(actor, choice, state, commandPoints);
+                    var order = commander.Intervene(actor, choice, state);
                     if (order is { } given)
                     {
-                        int cost = CommandRules.CostOf(given.Action);
-                        if (cost <= commandPoints)
+                        if (!actor.AcceptsOrders)
                         {
-                            commandPoints -= cost;
+                            log?.Add($"[지휘] {actor.Name}에게 지시가 통하지 않음 — 말을 듣지 않는다");
+                        }
+                        // 지시도 스킬·무기·쿨다운·마나를 지켜야 합니다. 예전에는 이 검사가
+                        // 콘솔 UI에만 있어서, 다른 IBattleCommander는 검객에게 회복을
+                        // 시켜 마법 회복량을 뽑을 수 있었습니다. 규칙은 코어에 있어야 합니다.
+                        else if (!TacticalBrain.CanTake(actor, given.Action))
+                        {
+                            log?.Add($"[지휘] {actor.Name}: 지금 할 수 없는 지시 — 무시");
+                        }
+                        else
+                        {
                             choice = new ChosenAction(given.Action, given.Target);
-                            log?.Add($"[지휘] {actor.Name}에게 지시 (남은 지휘 {commandPoints})");
+                            log?.Add($"[지휘] {actor.Name}에게 지시");
                         }
                     }
                 }
 
+                choice = Permitted(actor, choice, log);
+
                 actor.Contribution.RecordAction();
+                actor.GrowOnAction();
                 Execute(actor, choice, state, rng, log);
 
                 if (state.IsTeamWipedOut(Team.Enemy))
@@ -106,21 +145,74 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
         return new BattleResult(BattleOutcome.Draw, maxRounds, ReadOnly(log));
     }
 
-    /// <summary>라운드 종료 처리 — 지속 피해와 효과 만료.</summary>
+    /// <summary>
+    /// 속박·침묵에 걸린 행동을 대체합니다.
+    /// <para>지시 불통과 다릅니다 — 이쪽은 <b>그 행동만</b> 확정으로 막힙니다.</para>
+    /// </summary>
+    private static ChosenAction Permitted(Combatant actor, ChosenAction choice, BattleLog? log)
+    {
+        bool movement = choice.Action is TacticAction.MoveBack or TacticAction.MoveFront;
+        bool manaSkill = choice.Action is TacticAction.HealAlly
+            or TacticAction.BuffAlly or TacticAction.DebuffEnemy;
+
+        if (movement && actor.IsRestricted(ActionRestriction.Movement))
+        {
+            log?.Add($"{actor.Name}: 발이 묶여 움직일 수 없음 — 방어");
+            return new ChosenAction(TacticAction.Defend, null);
+        }
+
+        if (manaSkill && actor.IsRestricted(ActionRestriction.ManaSkills))
+        {
+            log?.Add($"{actor.Name}: 침묵 상태 — 방어");
+            return new ChosenAction(TacticAction.Defend, null);
+        }
+
+        return choice;
+    }
+
+    /// <summary>라운드 종료 처리 — 지속 피해, 재생, 임계 전이, 효과 만료, <b>쿨다운</b>.</summary>
     private static void EndOfRound(BattleState state, BattleLog? log)
     {
         foreach (var combatant in state.All)
         {
             if (!combatant.IsAlive) continue;
 
-            if (combatant.HasEffect(StatusEffectKind.Poisoned))
+            foreach (var effect in combatant.Effects.ToList())
             {
-                int damage = DamageModel.PoisonDamage(combatant);
-                combatant.TakeDamage(damage);
-                log?.Add($"{combatant.Name}: 중독 피해 {damage}");
+                switch (effect.Mechanism)
+                {
+                    case EffectMechanism.DamageOverTime:
+                    {
+                        int damage = DamageModel.OverTimeDamage(combatant, effect);
+                        combatant.TakeDamage(damage);
+                        log?.Add($"{combatant.Name}: {effect} 피해 {damage}");
+                        break;
+                    }
+
+                    case EffectMechanism.Recovery when !effect.Profile.BlocksRecovery:
+                    {
+                        int healed = Math.Max(1, (int)Math.Round(combatant.MaxHp * effect.Magnitude));
+                        combatant.Heal(healed);
+                        log?.Add($"{combatant.Name}: 재생 +{healed}");
+                        break;
+                    }
+                }
+            }
+
+            if (!combatant.IsAlive) continue;
+
+            // 동상이 쌓이면 빙결로 넘어갑니다. 파국이자 리셋입니다.
+            if (combatant.ResolveTransition() is { } transitioned)
+            {
+                log?.Add($"{combatant.Name}: {StatusEffects.ToKorean(transitioned)} 상태가 됨");
             }
 
             combatant.TickEffects();
+
+            // 쿨다운도 라운드마다 줄어듭니다. 예전에는 TickCooldowns가 한 번도 불리지
+            // 않아 Skill.Cooldown이 죽은 데이터였습니다 — §10.0b "마나 + 쿨다운 둘 다"가
+            // 사실상 마나 하나뿐이었습니다.
+            combatant.TickCooldowns();
         }
     }
 
@@ -164,14 +256,14 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
             case TacticAction.HealAlly:
             {
                 var target = choice.Target;
-                if (target is null || !target.IsAlive || actor.Mana < DamageModel.ManaPerSpell)
+                if (target is null || !target.IsAlive || !actor.CanAfford(TacticAction.HealAlly))
                 {
                     actor.BeginDefending();
                     return;
                 }
 
                 int healed = DamageModel.MagicHealAmount(actor);
-                actor.SpendMana(DamageModel.ManaPerSpell);
+                actor.PaySkillCost(TacticAction.HealAlly);
                 target.Heal(healed);
                 actor.Contribution.RecordHealing(healed);
                 actor.Contribution.RecordSupport();
@@ -182,11 +274,11 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
             case TacticAction.BuffAlly:
             {
                 var target = choice.Target;
-                if (target is null || !target.IsAlive || actor.Mana < DamageModel.ManaPerSpell) return;
+                if (target is null || !target.IsAlive || !actor.CanAfford(TacticAction.BuffAlly)) return;
 
-                actor.SpendMana(DamageModel.ManaPerSpell);
-                target.ApplyEffect(new StatusEffect(
-                    StatusEffectKind.Empowered, DamageModel.BuffDuration, DamageModel.BuffMagnitude, actor.Id));
+                actor.PaySkillCost(TacticAction.BuffAlly);
+                target.ApplyEffect(StatusEffects.Create(
+                    EffectName.PowerUp, DamageModel.BuffDuration, actor.Id));
                 actor.Contribution.RecordSupport();
                 log?.Add($"{actor.Name} → {target.Name}: 공격 강화");
                 return;
@@ -195,11 +287,11 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
             case TacticAction.DebuffEnemy:
             {
                 var target = choice.Target;
-                if (target is null || !target.IsAlive || actor.Mana < DamageModel.ManaPerSpell) return;
+                if (target is null || !target.IsAlive || !actor.CanAfford(TacticAction.DebuffEnemy)) return;
 
-                actor.SpendMana(DamageModel.ManaPerSpell);
-                target.ApplyEffect(new StatusEffect(
-                    StatusEffectKind.Weakened, DamageModel.BuffDuration, DamageModel.BuffMagnitude, actor.Id));
+                actor.PaySkillCost(TacticAction.DebuffEnemy);
+                target.ApplyEffect(StatusEffects.Create(
+                    EffectName.PowerDown, DamageModel.BuffDuration, actor.Id));
                 actor.Contribution.RecordSupport();
                 log?.Add($"{actor.Name} → {target.Name}: 공격 약화");
                 return;
@@ -207,15 +299,45 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
 
             case TacticAction.Taunt:
             {
+                if (!actor.CanAfford(TacticAction.Taunt))
+                {
+                    actor.BeginDefending();
+                    return;
+                }
+
+                actor.PaySkillCost(TacticAction.Taunt);
                 var enemies = state.LivingOpponentsOf(actor.Team);
                 foreach (var enemy in enemies)
                 {
-                    enemy.ApplyEffect(new StatusEffect(
-                        StatusEffectKind.Taunted, DamageModel.TauntDuration, 0.0, actor.Id));
+                    enemy.ApplyEffect(StatusEffects.Create(
+                        EffectName.Taunt, DamageModel.TauntDuration, actor.Id));
                 }
                 actor.BeginDefending();
                 actor.Contribution.RecordSupport();
                 log?.Add($"{actor.Name}: 도발 — 적의 공격을 끌어들임");
+                return;
+            }
+
+            case TacticAction.GivePotion:
+            {
+                // 짐꾼의 핵심. 예전에는 case가 없어 default로 떨어져 턴만 버렸습니다 —
+                // 예외도 안 나고 조용히 아무 일도 일어나지 않는 종류의 결함이었습니다.
+                var target = choice.Target;
+                if (actor.Potions <= 0 || target is null || !target.IsAlive
+                    || !actor.CanAfford(TacticAction.GivePotion))
+                {
+                    actor.BeginDefending();
+                    log?.Add($"{actor.Name}: 건넬 회복약이 없어 방어");
+                    return;
+                }
+
+                int given = DamageModel.PotionHealAmount(target);
+                actor.ConsumePotion();
+                actor.PaySkillCost(TacticAction.GivePotion);
+                target.Heal(given);
+                actor.Contribution.RecordHealing(given);
+                actor.Contribution.RecordSupport();
+                log?.Add($"{actor.Name} → {target.Name}: 회복약을 건넴 (+{given}, 남은 {actor.Potions}개)");
                 return;
             }
 
@@ -228,8 +350,14 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
             {
                 var targets = state.ReachableTargets(actor);
                 if (targets.Count == 0) return;
+                if (!actor.CanAfford(TacticAction.AttackAll))
+                {
+                    actor.BeginDefending();
+                    return;
+                }
 
-                bool areaMagic = actor.Capability.UsesMagic;
+                actor.PaySkillCost(TacticAction.AttackAll);
+                bool areaMagic = actor.UsesMagicPower;
                 foreach (var target in targets.ToList())
                 {
                     if (!target.IsAlive) continue;
@@ -257,10 +385,23 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
                     return;
                 }
 
+                // 후열 타격은 스킬입니다 — 사거리만으로 열리지 않습니다 (docs/08 §10).
+                if (choice.Action == TacticAction.AttackBackRow)
+                {
+                    if (!actor.CanAfford(TacticAction.AttackBackRow))
+                    {
+                        actor.BeginDefending();
+                        log?.Add($"{actor.Name}: 관통 사격을 쓸 수 없어 방어");
+                        return;
+                    }
+
+                    actor.PaySkillCost(TacticAction.AttackBackRow);
+                }
+
                 var result = DamageModel.ResolveAttack(actor, target, rng, explain: explainAttacks);
 
                 // ⚠️ 부작용이 있는 호출을 log?.Add(...)의 인자로 넣지 마세요. 위 주석 참조.
-                string line = ApplyHit(actor, target, result, actor.Capability.UsesMagic);
+                string line = ApplyHit(actor, target, result, actor.UsesMagicPower);
                 log?.Add(line);
                 Explain(result, log);
                 return;

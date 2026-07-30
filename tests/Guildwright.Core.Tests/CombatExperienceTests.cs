@@ -29,12 +29,11 @@ public class CombatExperienceTests(ITestOutputHelper output)
         DeclineAge = 40
     };
 
-    private static Adventurer Veteran(WeaponStyle style)
+    private static Adventurer Veteran(WeaponKind kind)
     {
-        var weaponClass = WeaponStyles.AllowedClasses(style)[0];
         var a = new Adventurer(
             "V", "실험체", PrimaryStats.Uniform(20), 50, Profile(), 20,
-            WeaponAptitudes.Uniform(AptitudeGrade.B), style, weaponClass);
+            WeaponAptitudes.Uniform(AptitudeGrade.B), Loadout.Single(kind));
 
         // 등록 첫 해 제약을 소화합니다.
         CareerSimulator.ResolveTrainingYear(a, new DeterministicRandom(1UL));
@@ -58,8 +57,8 @@ public class CombatExperienceTests(ITestOutputHelper output)
     public void 경험은_총_성장량이_아니라_방향을_바꾼다()
     {
         // 가중치 합이 대체로 보존되어야, "어떻게 싸웠느냐"가 총량 이득이 되지 않습니다.
-        var tank = CombatExperience.FromRole(WeaponStyle.SwordAndShield, Row.Front);
-        var mage = CombatExperience.FromRole(WeaponStyle.Staff, Row.Back);
+        var tank = CombatExperience.FromRole(WeaponKind.Shield, Row.Front);
+        var mage = CombatExperience.FromRole(WeaponKind.Staff, Row.Back);
 
         double tankSum = PrimaryStats.AllStats.Sum(tank.WeightOf);
         double mageSum = PrimaryStats.AllStats.Sum(mage.WeightOf);
@@ -77,7 +76,7 @@ public class CombatExperienceTests(ITestOutputHelper output)
     [Fact]
     public void 앞에서_맞은_캐릭터는_체력과_방어가_자란다()
     {
-        var tank = CombatExperience.FromRole(WeaponStyle.SwordAndShield, Row.Front);
+        var tank = CombatExperience.FromRole(WeaponKind.Shield, Row.Front);
 
         output.WriteLine($"한손+방패 전열: {tank}");
 
@@ -89,7 +88,7 @@ public class CombatExperienceTests(ITestOutputHelper output)
     [Fact]
     public void 마법을_쓴_캐릭터는_마력과_마공이_자란다()
     {
-        var mage = CombatExperience.FromRole(WeaponStyle.Staff, Row.Back);
+        var mage = CombatExperience.FromRole(WeaponKind.Staff, Row.Back);
 
         output.WriteLine($"지팡이 후열: {mage}");
 
@@ -103,7 +102,7 @@ public class CombatExperienceTests(ITestOutputHelper output)
     {
         // 0으로 두면 한 역할만 시킨 캐릭터가 다른 방면으로 영영 자라지 못해,
         // 전직이나 역할 변경이 사실상 불가능해집니다.
-        var mage = CombatExperience.FromRole(WeaponStyle.Staff, Row.Back);
+        var mage = CombatExperience.FromRole(WeaponKind.Staff, Row.Back);
 
         Assert.True(mage.WeightOf(PrimaryStat.Strength) > 0.2);
     }
@@ -117,9 +116,9 @@ public class CombatExperienceTests(ITestOutputHelper output)
     {
         // ★ 이게 이 시스템의 존재 이유입니다.
         // 능력치도 잠재력도 완전히 동일한 둘이, 어떻게 싸웠느냐만으로 갈라져야 합니다.
-        PrimaryStats After(WeaponStyle style)
+        PrimaryStats After(WeaponKind kind)
         {
-            var a = Veteran(style);
+            var a = Veteran(kind);
             var rng = new DeterministicRandom(Seed);
 
             for (int y = 0; y < 5; y++)
@@ -130,8 +129,8 @@ public class CombatExperienceTests(ITestOutputHelper output)
             return a.Stats;
         }
 
-        var tank = After(WeaponStyle.SwordAndShield);
-        var mage = After(WeaponStyle.Staff);
+        var tank = After(WeaponKind.Shield);
+        var mage = After(WeaponKind.Staff);
 
         output.WriteLine($"한손+방패 실전 5년: {tank}");
         output.WriteLine($"지팡이   실전 5년: {mage}");
@@ -147,7 +146,7 @@ public class CombatExperienceTests(ITestOutputHelper output)
     public void 실전_기록을_직접_넘기면_그대로_반영된다()
     {
         // 실제 전투를 돌린 경우, 근사가 아니라 진짜 기록으로 성장시킵니다.
-        var a = Veteran(WeaponStyle.Polearm);
+        var a = Veteran(WeaponKind.Spear);
 
         // 이 해에는 마법만 잔뜩 썼다고 가정합니다(장비와 무관하게).
         var contribution = new CombatContribution();
@@ -178,15 +177,15 @@ public class CombatExperienceTests(ITestOutputHelper output)
         var rng = new DeterministicRandom(Seed);
 
         var party = new List<Adventurer>();
-        foreach (var (style, name) in new[]
+        foreach (var (kind, name) in new[]
                  {
-                     (WeaponStyle.SwordAndShield, "탱커"),
-                     (WeaponStyle.Staff, "힐러"),
-                     (WeaponStyle.TwoHanded, "딜러")
+                     (WeaponKind.Shield, "탱커"),
+                     (WeaponKind.Staff, "힐러"),
+                     (WeaponKind.Greatsword, "딜러")
                  })
         {
             var a = Adventurer.Recruit($"P_{name}", name, rng.Fork($"r:{name}"));
-            a.Equip(style, WeaponStyles.AllowedClasses(style)[0]);
+            a.Equip(WeaponSet.Primary, Hand.Right, kind);
             // 전열이 중간에 무너지면 후열이 노출되어 "전열이 더 맞는다"를 잴 수 없습니다.
             // 파티를 충분히 강하게 만들어 전열이 버티게 합니다.
             for (int y = 0; y < 7; y++) CareerSimulator.ResolveTrainingYear(a, rng.Fork($"t:{name}:{y}"));
@@ -199,7 +198,7 @@ public class CombatExperienceTests(ITestOutputHelper output)
             .Select(i =>
             {
                 var e = Adventurer.Recruit($"E{i}", $"적{i}", rng.Fork($"e:{i}"));
-                e.Equip(WeaponStyle.TwoHanded, WeaponClass.Axe);
+                e.Equip(WeaponSet.Primary, Hand.Right, WeaponKind.Greatsword);
                 for (int y = 0; y < 2; y++) CareerSimulator.ResolveTrainingYear(e, rng.Fork($"et:{i}:{y}"));
                 return e;
             })
@@ -233,11 +232,11 @@ public class CombatExperienceTests(ITestOutputHelper output)
         var rng = new DeterministicRandom(Seed);
 
         var party = new List<Adventurer>();
-        foreach (var style in new[] { WeaponStyle.SwordAndShield, WeaponStyle.Staff })
+        foreach (var kind in new[] { WeaponKind.Shield, WeaponKind.Staff })
         {
-            var a = Adventurer.Recruit($"P{style}", style.ToKorean(), rng.Fork($"r:{style}"));
-            a.Equip(style, WeaponStyles.AllowedClasses(style)[0]);
-            for (int y = 0; y < 3; y++) CareerSimulator.ResolveTrainingYear(a, rng.Fork($"t:{style}:{y}"));
+            var a = Adventurer.Recruit($"P{kind}", kind.ToKorean(), rng.Fork($"r:{kind}"));
+            a.Equip(WeaponSet.Primary, Hand.Right, kind);
+            for (int y = 0; y < 3; y++) CareerSimulator.ResolveTrainingYear(a, rng.Fork($"t:{kind}:{y}"));
             party.Add(a);
         }
 
@@ -249,8 +248,8 @@ public class CombatExperienceTests(ITestOutputHelper output)
         var state = CombatantFactory.FormParty(party, enemies);
         new BattleResolver().Resolve(state, rng.Fork("battle"));
 
-        var tankExp = CombatExperience.From(state.All.First(c => c.Style == WeaponStyle.SwordAndShield).Contribution);
-        var mageExp = CombatExperience.From(state.All.First(c => c.Style == WeaponStyle.Staff).Contribution);
+        var tankExp = CombatExperience.From(state.All.First(c => c.Loadout.Holding(WeaponKind.Shield)).Contribution);
+        var mageExp = CombatExperience.From(state.All.First(c => c.Loadout.Holding(WeaponKind.Staff)).Contribution);
 
         output.WriteLine($"탱커  실제 경험: {tankExp}");
         output.WriteLine($"마법사 실제 경험: {mageExp}");

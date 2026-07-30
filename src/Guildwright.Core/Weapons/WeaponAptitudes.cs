@@ -40,30 +40,31 @@ public static class AptitudeGrades
 /// </summary>
 public sealed class WeaponAptitudes
 {
-    private readonly Dictionary<WeaponStyle, AptitudeGrade> _grades;
+    private readonly Dictionary<WeaponKind, AptitudeGrade> _grades;
 
-    private WeaponAptitudes(Dictionary<WeaponStyle, AptitudeGrade> grades) => _grades = grades;
+    private WeaponAptitudes(Dictionary<WeaponKind, AptitudeGrade> grades) => _grades = grades;
 
-    public AptitudeGrade this[WeaponStyle style] => _grades[style];
+    public AptitudeGrade this[WeaponKind kind] =>
+        _grades.TryGetValue(kind, out var g) ? g : AptitudeGrade.C;
 
     /// <summary>가장 잘 맞는 스타일.</summary>
-    public WeaponStyle Best =>
+    public WeaponKind Best =>
         _grades.OrderByDescending(kv => kv.Value)
                .ThenBy(kv => kv.Key)
                .First().Key;
 
-    public IEnumerable<KeyValuePair<WeaponStyle, AptitudeGrade>> All =>
+    public IEnumerable<KeyValuePair<WeaponKind, AptitudeGrade>> All =>
         _grades.OrderBy(kv => kv.Key);
 
     /// <summary>테스트·기본값용. 모든 스타일이 같은 등급.</summary>
     public static WeaponAptitudes Uniform(AptitudeGrade grade) =>
-        new(WeaponStyles.All.ToDictionary(s => s, _ => grade));
+        new(Weaponry.Trainable.ToDictionary(k => k, _ => grade));
 
-    public static WeaponAptitudes Of(IReadOnlyDictionary<WeaponStyle, AptitudeGrade> grades)
+    public static WeaponAptitudes Of(IReadOnlyDictionary<WeaponKind, AptitudeGrade> grades)
     {
-        var full = WeaponStyles.All.ToDictionary(
-            s => s,
-            s => grades.TryGetValue(s, out var g) ? g : AptitudeGrade.C);
+        var full = Weaponry.Trainable.ToDictionary(
+            k => k,
+            k => grades.TryGetValue(k, out var g) ? g : AptitudeGrade.C);
         return new WeaponAptitudes(full);
     }
 
@@ -75,15 +76,20 @@ public sealed class WeaponAptitudes
         double average = potential.Total / (double)PrimaryStats.AllStats.Count;
         if (average <= 0.0) return Uniform(AptitudeGrade.C);
 
-        var grades = new Dictionary<WeaponStyle, AptitudeGrade>();
+        var grades = new Dictionary<WeaponKind, AptitudeGrade>();
 
-        foreach (var style in WeaponStyles.All)
+        foreach (var kind in Weaponry.Trainable)
         {
-            var affinity = WeaponStyles.AffinityOf(style);
+            var affinity = Weaponry.AffinityOf(kind);
 
+            // ⚠️ Dictionary 순회 순서로 부동소수를 누적하면 안 됩니다 —
+            //    합의 순서가 마지막 비트를 바꾸고, 그 값이 적성 등급 → 경력 전체를
+            //    좌우합니다. 능력치 열거형 순서로 고정합니다.
             double weighted = 0.0, weightSum = 0.0;
-            foreach (var (stat, weight) in affinity)
+            foreach (var stat in PrimaryStats.AllStats)
             {
+                if (!affinity.TryGetValue(stat, out double weight)) continue;
+
                 weighted += potential[stat] * weight;
                 weightSum += weight;
             }
@@ -94,7 +100,7 @@ public sealed class WeaponAptitudes
             // 노이즈가 있어야 가끔 예상 밖의 재능이 나옵니다.
             double score = relative + rng.NextGaussian() * 0.18;
 
-            grades[style] = ToGrade(score);
+            grades[kind] = ToGrade(score);
         }
 
         // ★ 안전장치: 모든 스타일이 낮으면 그 캐릭터는 그냥 하자품이 됩니다.

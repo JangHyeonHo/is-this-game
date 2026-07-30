@@ -85,8 +85,8 @@ public class AttackExplainTests
 
     private static AttackResult Attack(ulong seed, bool explain)
     {
-        var attacker = TestParty.Make("A", Team.Player, 50, style: WeaponStyle.TwoHanded);
-        var defender = TestParty.Make("D", Team.Enemy, 50, style: WeaponStyle.SwordAndShield);
+        var attacker = TestParty.Make("A", Team.Player, 50, loadout: Loadout.Single(WeaponKind.Greatsword));
+        var defender = TestParty.Make("D", Team.Enemy, 50, loadout: Loadout.Pair(WeaponKind.Sword, WeaponKind.Shield));
 
         return DamageModel.ResolveAttack(attacker, defender, new DeterministicRandom(seed), explain: explain);
     }

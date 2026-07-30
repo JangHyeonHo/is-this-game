@@ -97,38 +97,38 @@ public sealed class CombatExperience
     /// 스타일과 위치만으로 "대체로 이런 걸 겪었을 것"을 추정합니다.
     /// </para>
     /// </summary>
-    public static CombatExperience FromRole(WeaponStyle style, Row row)
+    public static CombatExperience FromRole(WeaponKind style, Row row)
     {
         var raw = PrimaryStats.AllStats.ToDictionary(k => k, _ => 0.0);
         void Add(PrimaryStat stat, double value) => raw[stat] += value;
 
         switch (style)
         {
-            case WeaponStyle.SwordAndShield:
+            case WeaponKind.Shield:
                 Add(PrimaryStat.Vitality, 95); Add(PrimaryStat.Strength, 55); Add(PrimaryStat.Spirit, 30);
                 break;
 
-            case WeaponStyle.TwoHanded:
+            case WeaponKind.Greatsword:
                 Add(PrimaryStat.Strength, 105); Add(PrimaryStat.Vitality, 60); Add(PrimaryStat.Finesse, 25);
                 break;
 
-            case WeaponStyle.DualWield:
+            case WeaponKind.Sword:
                 Add(PrimaryStat.Agility, 85); Add(PrimaryStat.Finesse, 75); Add(PrimaryStat.Strength, 45);
                 break;
 
-            case WeaponStyle.Polearm:
+            case WeaponKind.Spear:
                 Add(PrimaryStat.Strength, 80); Add(PrimaryStat.Finesse, 55); Add(PrimaryStat.Agility, 45);
                 break;
 
-            case WeaponStyle.Bow:
+            case WeaponKind.Bow:
                 Add(PrimaryStat.Finesse, 90); Add(PrimaryStat.Agility, 70); Add(PrimaryStat.Strength, 30);
                 break;
 
-            case WeaponStyle.Crossbow:
+            case WeaponKind.Crossbow:
                 Add(PrimaryStat.Finesse, 95); Add(PrimaryStat.Strength, 45); Add(PrimaryStat.Spirit, 30);
                 break;
 
-            case WeaponStyle.Staff:
+            case WeaponKind.Staff:
                 Add(PrimaryStat.Intellect, 105); Add(PrimaryStat.Spirit, 85);
                 break;
         }

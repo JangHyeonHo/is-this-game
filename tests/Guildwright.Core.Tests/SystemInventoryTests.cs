@@ -72,8 +72,12 @@ public class SystemInventoryTests(ITestOutputHelper output)
 
         // 열거형 멤버까지 들어가야 "활동 몇 종이었죠"를 기억으로 답하지 않게 됩니다.
         Assert.Contains("Meditation", doc);   // 훈련 활동
-        Assert.Contains("Taunted", doc);      // 상태이상
         Assert.Contains("MoveFront", doc);    // 전술 행동
+
+        // 상태 효과는 기전과 이름이 갈려 있습니다. 둘 다 잡혀야 합니다.
+        Assert.Contains("EffectMechanism", doc);
+        Assert.Contains("LoseControl", doc);   // 지시 불통 — 지휘 제약의 근거
+        Assert.Contains("Frostbite", doc);     // 이름은 데이터 쪽
     }
 
     private static string Normalize(string text) =>
