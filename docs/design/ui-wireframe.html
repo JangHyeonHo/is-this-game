@@ -165,15 +165,15 @@
   <div class="panel" style="position:absolute; left:490px; top:100px; bottom:150px; right:640px">
     <div class="tabs"><div class="tab on">육성</div><div class="tab">의뢰</div></div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:20px">
-      <div class="card sel"><div class="t">근력 훈련</div><div class="m">힘 +0.6 · 활력 +0.3 · 피로 +9</div></div>
-      <div class="card"><div class="t">기술 훈련</div><div class="m">기교 +0.5 · 한손검 숙련 ▲ · 피로 +8</div></div>
-      <div class="card"><div class="t">모의전</div><div class="m">여러 능력 조금씩 · 판단력 ▲ · 피로 +12</div></div>
-      <div class="card"><div class="t">학술</div><div class="m">지능 +0.6 · 정신 +0.2 · 피로 +6</div></div>
-      <div class="card"><div class="t">명상</div><div class="m">정신 +0.6 · 마나 ▲ · 피로 +5</div></div>
+      <div class="card sel"><div class="t">근력 훈련 ◀</div><div class="m">피로 +9</div></div>
+      <div class="card"><div class="t">기술 훈련</div><div class="m">피로 +8 · 무기 숙련 ▲</div></div>
+      <div class="card"><div class="t">모의전</div><div class="m">피로 +12 · 판단력 ▲</div></div>
+      <div class="card"><div class="t">학술</div><div class="m">피로 +6</div></div>
+      <div class="card"><div class="t">명상</div><div class="m">피로 +5</div></div>
       <div class="card"><div class="t">휴식</div><div class="m">피로 크게 회복 · 성장 없음</div></div>
     </div>
-    <div style="padding:0 20px; font-size:21px; color:#8a8378">예상 성장은 <b style="color:#c9b98a">선택 중인 캐릭터(세라)</b> 기준으로 계산된다.
-    의뢰 탭에서는 게시판의 의뢰를 고르고 파티 편성으로 이어진다.</div>
+    <div style="padding:0 20px; font-size:21px; color:#8a8378">활동을 고르면 <b style="color:#c9b98a">오른쪽 전체 스탯에 예상 상승이 표시</b>된다 —
+    오르는 스탯만 따로 뽑아 보여주지 않는다. 의뢰 탭에서는 게시판의 의뢰를 고르고 파티 편성으로 이어진다.</div>
   </div>
 
   <!-- 우: 캐릭터 정보 -->
@@ -187,9 +187,13 @@
       </div>
     </div>
     <div style="padding:0 24px">
-      <div style="display:flex; justify-content:space-between; font-size:24px"><span>힘 22</span><span style="color:#9cc79c">+0.4</span></div><div class="bar"><i style="width:22%"></i></div>
-      <div style="display:flex; justify-content:space-between; font-size:24px"><span>민첩 31</span><span style="color:#9cc79c">+0.6</span></div><div class="bar"><i style="width:31%"></i></div>
-      <div style="display:flex; justify-content:space-between; font-size:24px"><span>활력 26</span><span style="color:#9cc79c">+0.3</span></div><div class="bar"><i style="width:26%"></i></div>
+      <!-- 전체 스탯 6종을 항상 보여주고, 고른 활동(근력 훈련)이 올리는 곳에만 상승 표시 -->
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>힘 22</span><b style="color:#9cc79c">+0.5 ▲</b></div><div class="bar"><i style="width:22%"></i></div>
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>민첩 31</span><span style="color:#635c50">—</span></div><div class="bar"><i style="width:31%"></i></div>
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>기교 24</span><span style="color:#635c50">—</span></div><div class="bar"><i style="width:24%"></i></div>
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>활력 26</span><b style="color:#9cc79c">+0.3 ▲</b></div><div class="bar"><i style="width:26%"></i></div>
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>지능 18</span><span style="color:#635c50">—</span></div><div class="bar"><i style="width:18%"></i></div>
+      <div style="display:flex; justify-content:space-between; font-size:24px"><span>정신 20</span><span style="color:#635c50">—</span></div><div class="bar"><i style="width:20%"></i></div>
       <h3 style="padding-left:0">태생 패시브</h3>
       <div style="font-size:24px">신중 <span style="color:#635c50">· ??? · ???</span></div>
     </div>
