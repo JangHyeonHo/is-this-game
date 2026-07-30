@@ -1,0 +1,54 @@
+@* 타이틀 — 배경 전체가 키아트 자리. 메뉴는 좌하단 (docs/07 §21). *@
+
+<div class="art full">배경 전체 — 키아트 자리</div>
+
+<div class="logo">
+    <div class="name">GUILDWRIGHT</div>
+    <div class="tag-line">— 가제 · 로고 일러스트로 교체 —</div>
+</div>
+
+<div class="tmenu">
+    <button class="btn" @onclick="() => Session.Go(Screen.Opening)">새로 시작</button>
+    <button class="btn" disabled>이어하기 (저장 없음)</button>
+    <button class="btn" @onclick="() => _showSettings = true">설정</button>
+    <button class="btn" @onclick="() => _showQuitNote = true">게임 종료</button>
+</div>
+
+<div class="ver">v0.1 프로토타입</div>
+
+@if (_showSettings)
+{
+    <div class="dim-layer" @onclick="() => _showSettings = false">
+        <div class="modal" @onclick:stopPropagation>
+            <h4>설정</h4>
+            <div class="mrow">창 모드 / 전체 화면 — 준비 전</div>
+            <div class="mrow">BGM / 효과음 음량 — 준비 전</div>
+            <div class="mrow">텍스트 속도 — 준비 전</div>
+            <div class="mrow">자동 저장 — 세이브 시스템과 함께 들어온다</div>
+            <div style="margin-top:24px; text-align:right">
+                <button class="btn" @onclick="() => _showSettings = false">닫기</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showQuitNote)
+{
+    <div class="dim-layer" @onclick="() => _showQuitNote = false">
+        <div class="modal" @onclick:stopPropagation>
+            <h4>게임 종료</h4>
+            <div class="mrow">브라우저 프로토타입에서는 탭을 닫아 종료한다.</div>
+            <div class="mrow">PC 빌드에서 프로그램 종료로 동작한다.</div>
+            <div style="margin-top:24px; text-align:right">
+                <button class="btn" @onclick="() => _showQuitNote = false">닫기</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter] public required GameSession Session { get; set; }
+
+    private bool _showSettings;
+    private bool _showQuitNote;
+}

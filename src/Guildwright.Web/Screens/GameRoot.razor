@@ -1,0 +1,22 @@
+@* 화면 전환의 축. 1920×1080 스테이지 하나를 놓고 현재 화면을 갈아 끼운다 (docs/07 §21). *@
+
+<div class="viewport">
+    <div class="stage">
+        <CascadingValue Value="Session" IsFixed="true">
+            @switch (Session.Screen)
+            {
+                case Screen.Title: <TitleScreen /> break;
+                case Screen.Opening: <OpeningScreen /> break;
+                case Screen.Main: <MainScreen /> break;
+                case Screen.Prep: <PrepScreen /> break;
+                case Screen.MonthResult: <MonthResultScreen /> break;
+            }
+        </CascadingValue>
+    </div>
+</div>
+
+@code {
+    private GameSession Session { get; } = new();
+
+    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+}

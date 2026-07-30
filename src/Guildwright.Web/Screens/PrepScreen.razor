@@ -1,0 +1,201 @@
+@* 업무 준비 — 3단: 왼쪽 캐릭터 리스트 / 가운데 육성·의뢰 탭 / 오른쪽 캐릭터 정보.
+   전체 스탯을 항상 보여주고 고른 활동이 올리는 곳에만 ▲ (docs/07 §21).
+   자유로운 단원 전원을 배정해야 업무 시작이 켜진다. *@
+
+<div class="topbar">
+    <div class="back" @onclick="() => Session.Go(Screen.Main)">← 메인으로</div>
+    <div class="mid">@(Session.Month)월 업무 준비</div>
+    <div class="res">
+        <span>자금 <b>@Session.Gold</b></span>
+        <span>배정 <b>@Session.AssignedCount/@Session.FreeCount</b></span>
+    </div>
+</div>
+
+@* ── 좌: 캐릭터 리스트 ── *@
+<div class="panel" style="position:absolute; left:36px; top:100px; bottom:150px; width:430px">
+    <h3>단원</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:10px 20px">
+        @foreach (var member in Session.Members)
+        {
+            var isSelected = ReferenceEquals(member, Session.Selected);
+            <div style="text-align:center; position:relative; @(member.Free ? "" : "opacity:.5")">
+                <div class="portrait @(isSelected ? "sel" : "")" style="width:180px; height:220px; cursor:pointer"
+                     @onclick="() => Select(member)">
+                    @member.Name
+                    @if (member.Assigned is not null)
+                    {
+                        <div class="check">✓</div>
+                    }
+                </div>
+                <button class="btn" style="width:180px; margin-top:8px; font-size:24px"
+                        disabled="@(!member.Free)" @onclick="() => Select(member)">@member.Name</button>
+                <div style="margin-top:6px">
+                    @if (!member.Free)
+                    {
+                        <span class="tag">파견중 · 잠김</span>
+                    }
+                    else if (member.Assigned is { } assigned)
+                    {
+                        <span class="tag">@TrainingActivities.NameOf(assigned)</span>
+                    }
+                    else
+                    {
+                        <span class="tag dim">미배정</span>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@* ── 중: 행동 선택 ── *@
+<div class="panel" style="position:absolute; left:490px; top:100px; bottom:150px; right:640px">
+    <div class="tabs">
+        <div class="tab @(_tab == Tab.Training ? "on" : "")" @onclick="() => _tab = Tab.Training">육성</div>
+        <div class="tab @(_tab == Tab.Contract ? "on" : "")" @onclick="() => _tab = Tab.Contract">의뢰</div>
+    </div>
+    @if (_tab == Tab.Training)
+    {
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:20px">
+            @foreach (var profile in TrainingActivities.All)
+            {
+                var isAssigned = Session.Selected?.Assigned == profile.Activity;
+                <div class="card @(isAssigned ? "sel" : "")"
+                     @onmouseover="() => Session.Focused = profile.Activity"
+                     @onmouseout="() => Session.Focused = null"
+                     @onclick="() => Assign(profile.Activity)">
+                    <div class="t">@profile.Name @(isAssigned ? "◀" : "")</div>
+                    <div class="m">@profile.Flavor · @FatigueLabel(profile)@ExtraLabel(profile)</div>
+                </div>
+            }
+        </div>
+        <div style="padding:0 20px; font-size:21px; color:#8a8378">
+            활동에 올리면 오른쪽 전체 스탯에 오르는 곳이 ▲로 표시된다. 누르면 배정된다.
+        </div>
+    }
+    else
+    {
+        <div style="display:flex; flex-direction:column; gap:16px; padding:20px">
+            <div class="card dis"><div class="t">마을 앞 고블린 토벌 <span class="badge">F</span></div><div class="m">한 달 동안 고블린으로부터 마을을 지켜라</div></div>
+            <div class="card dis"><div class="t">상인 호위 <span class="badge">F</span></div><div class="m">옆 마을까지 가도 호위 · 산적·고블린 출몰</div></div>
+            <div class="card dis"><div class="t">마을 보수공사 <span class="badge">E</span></div><div class="m">도움역·호위역 편성 · 전투 확률 낮음</div></div>
+            <div style="font-size:21px; color:#8a8378">의뢰 수락과 파티 편성은 코어 연결 단계에서 열린다.</div>
+        </div>
+    }
+</div>
+
+@* ── 우: 캐릭터 정보 — 전체 스탯 + 예보 ▲ ── *@
+<div class="panel" style="position:absolute; right:36px; top:100px; bottom:150px; width:580px">
+    @if (Session.Selected is { } selected)
+    {
+        var previewProfile = PreviewProfile(selected);
+        <div style="display:flex; gap:20px; padding:20px">
+            <div class="portrait" style="width:170px; height:220px">@selected.Name</div>
+            <div style="font-size:25px">
+                <div style="color:#eadfc0; font-size:30px; font-weight:bold">@selected.Name</div>
+                @selected.Job · @(selected.Age)세<br />
+                컨디션 @selected.Condition · 피로 @selected.Fatigue<br />
+                @foreach (var proficiency in selected.Proficiencies)
+                {
+                    <span class="tag">@proficiency</span>
+                }
+            </div>
+        </div>
+        <div style="padding:0 24px">
+            @foreach (var stat in PrimaryStats.AllStats)
+            {
+                var weight = previewProfile?.WeightOf(stat) ?? 0.0;
+                <div class="statrow">
+                    <span>@stat.ToKorean() @selected.Stats[stat]</span>
+                    @if (weight > 0.0)
+                    {
+                        <span class="up">@(weight >= 0.75 ? "▲▲" : "▲") 오른다</span>
+                    }
+                    else
+                    {
+                        <span class="none">—</span>
+                    }
+                </div>
+                <div class="bar"><i style="width:@(Math.Min(selected.Stats[stat], 100))%"></i></div>
+            }
+            @if (previewProfile is not null && (previewProfile.ProficiencyPerMonth > 0 || previewProfile.JudgementPerMonth > 0))
+            {
+                <div style="font-size:22px; color:#9cc79c">
+                    @(previewProfile.ProficiencyPerMonth > 0 ? "무기 숙련 ▲ " : "")@(previewProfile.JudgementPerMonth > 0 ? "판단력 ▲" : "")
+                </div>
+            }
+            <h3 style="padding-left:0">태생 패시브</h3>
+            <div style="font-size:24px">
+                @(string.Join(" · ", selected.KnownPassives))
+                <span style="color:#635c50"> @(string.Concat(Enumerable.Repeat(" · ???", selected.HiddenPassiveSlots)))</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div style="display:grid; place-items:center; height:100%; color:#635c50; font-size:26px">
+            왼쪽에서 캐릭터를 고른다
+        </div>
+    }
+</div>
+
+<div class="footer">
+    <div style="font-size:26px; color:#8a8378">
+        전원의 이번 달을 정하면 시작할 수 있다 — <b style="color:#c9b98a">배정 @Session.AssignedCount/@Session.FreeCount</b>
+    </div>
+    <div class="gobtn @(Session.AllAssigned ? "" : "dis")" @onclick="StartMonth">업무 시작</div>
+</div>
+
+@code {
+    [CascadingParameter] public required GameSession Session { get; set; }
+
+    private enum Tab { Training, Contract }
+    private Tab _tab = Tab.Training;
+
+    protected override void OnInitialized()
+    {
+        Session.Selected ??= Session.FreeMembers.FirstOrDefault(m => m.Assigned is null)
+                             ?? Session.FreeMembers.FirstOrDefault();
+    }
+
+    private void Select(MemberVm member)
+    {
+        if (member.Free) Session.Selected = member;
+    }
+
+    private void Assign(TrainingActivity activity)
+    {
+        if (Session.Selected is not { } selected) return;
+        selected.Assigned = activity;
+
+        var next = Session.FreeMembers.FirstOrDefault(m => m.Assigned is null);
+        if (next is not null) Session.Selected = next;
+    }
+
+    /// <summary>오른쪽 스탯 ▲의 근거 — 포커스 중인 활동이 우선, 없으면 배정된 활동.</summary>
+    private TrainingActivityProfile? PreviewProfile(MemberVm member)
+    {
+        var activity = Session.Focused ?? member.Assigned;
+        return activity is { } value ? TrainingActivities.Of(value) : null;
+    }
+
+    private static string FatigueLabel(TrainingActivityProfile profile)
+    {
+        // Razor는 줄머리의 관계 패턴(< 0 =>)을 태그로 오인하므로 switch 식을 쓰지 않는다.
+        if (profile.FatigueCost < 0) return $"피로 {profile.FatigueCost} (회복)";
+        if (profile.FatigueCost == 0) return "피로 크게 회복";
+        return $"피로 +{profile.FatigueCost}";
+    }
+
+    private static string ExtraLabel(TrainingActivityProfile profile)
+    {
+        if (profile.ProficiencyPerMonth > 0) return " · 무기 숙련 ▲";
+        if (profile.JudgementPerMonth > 0) return " · 판단력 ▲";
+        return "";
+    }
+
+    private void StartMonth()
+    {
+        if (Session.AllAssigned) Session.Go(Screen.MonthResult);
+    }
+}
