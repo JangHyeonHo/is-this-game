@@ -159,6 +159,13 @@ public sealed class TrainingYearSession
     private double EffectiveStat(PrimaryStat kind) => _adventurer.Stats[kind] + _accumulated[(int)kind];
 
     /// <summary>
+    /// 이번 세션에서 아직 결산되지 않은 누적 성장.
+    /// <para>결산은 반올림 소실을 막으려고 한 번에 하지만, 화면은 매달 이 값을 보여줘야
+    /// 합니다 — 훈련을 시켰는데 몇 달째 아무것도 안 변하는 게임이 됩니다.</para>
+    /// </summary>
+    public double AccumulatedGain(PrimaryStat kind) => _accumulated[(int)kind];
+
+    /// <summary>
     /// 휴식.
     /// <para>
     /// <b>피로 회복량은 고정이고 컨디션 회복만 등급으로 갈립니다.</b>

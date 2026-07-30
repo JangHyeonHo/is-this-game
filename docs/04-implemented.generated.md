@@ -10,7 +10,7 @@
 > 수치(상수)는 넣지 않는다 — 튜닝마다 흔들려 스냅샷이 무의미해진다. 코드를 직접 본다.
 > 설계 맥락·미구현 목록·막혀 있는 기능은 [05-gaps.md](05-gaps.md)에 있다.
 
-공개 타입 118개
+공개 타입 119개
 
 ## Adventurers
 
@@ -52,6 +52,7 @@
 - `static class ContractNames` — 형태·출처의 한국어 이름
 - `enum ContractSource` — 의뢰의 출처<br>　└ `Realm` · `Village` · `Guild`
 - `enum DeploymentFailure` — 파견이 실패한 이유<br>　└ `None` · `Wiped` · `Retreated` · `Abandoned` · `ObjectiveLost` · `NotFound` · `Unfinished`
+- `static class DeploymentFailures` — 파견 실패 사유의 화면 표기
 - `record DeploymentMonth` — 한 달의 기록
 - `record DeploymentResult` — 파견 한 건의 결과
 - `static class DeploymentRules` — 파견 진행의 수치

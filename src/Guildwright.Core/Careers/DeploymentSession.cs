@@ -33,6 +33,22 @@ public enum DeploymentFailure
     Unfinished
 }
 
+/// <summary>파견 실패 사유의 화면 표기.</summary>
+public static class DeploymentFailures
+{
+    public static string ToKorean(this DeploymentFailure failure) => failure switch
+    {
+        DeploymentFailure.None => "성공",
+        DeploymentFailure.Wiped => "전멸",
+        DeploymentFailure.Retreated => "후퇴",
+        DeploymentFailure.Abandoned => "중도 포기",
+        DeploymentFailure.ObjectiveLost => "대상 상실",
+        DeploymentFailure.NotFound => "발견 실패",
+        DeploymentFailure.Unfinished => "기간 내 미달",
+        _ => failure.ToString()
+    };
+}
+
 /// <summary>그 달에 무엇을 했는가. <b>모험가 AI가 고릅니다</b> — 플레이어는 편성과 보급만 합니다.</summary>
 public enum MonthWork
 {
