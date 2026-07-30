@@ -114,17 +114,10 @@ public sealed class Combatant
 
     // ---- 상태 효과가 반영된 실효 수치 ----
 
-    public int EffectivePhysicalPower =>
-        ApplyModifiers(BasePhysicalPower, StatusEffectKind.Empowered, StatusEffectKind.Weakened);
-
-    public int EffectiveMagicPower =>
-        ApplyModifiers(BaseMagicPower, StatusEffectKind.Empowered, StatusEffectKind.Weakened);
-
-    public int EffectivePhysicalGuard =>
-        ApplyModifiers(BasePhysicalGuard, StatusEffectKind.Warded, StatusEffectKind.Sundered);
-
-    public int EffectiveMagicGuard =>
-        ApplyModifiers(BaseMagicGuard, StatusEffectKind.Warded, StatusEffectKind.Sundered);
+    public int EffectivePhysicalPower => Shifted(BasePhysicalPower, ShiftTarget.Power);
+    public int EffectiveMagicPower => Shifted(BaseMagicPower, ShiftTarget.Power);
+    public int EffectivePhysicalGuard => Shifted(BasePhysicalGuard, ShiftTarget.Guard);
+    public int EffectiveMagicGuard => Shifted(BaseMagicGuard, ShiftTarget.Guard);
 
     /// <summary>공격 위력. 마법 무기면 마법 위력을 씁니다.</summary>
     public int EffectiveOffense =>
@@ -135,42 +128,109 @@ public sealed class Combatant
         Math.Clamp(BaseCritChance * Capability.CritChanceModifier, 0.0, 0.45);
 
     /// <summary>회피 확률.</summary>
-    public double EvasionChance => BaseEvasionChance;
+    public double EvasionChance => BaseEvasionChance * ShiftFactor(ShiftTarget.Evasion);
 
-    /// <summary>행동 순서에 쓰이는 실효 속도. 무기 무게와 둔화가 반영됩니다.</summary>
-    public double EffectiveSpeed
-    {
-        get
-        {
-            double speed = BaseActionSpeed * Capability.SpeedModifier;
-            foreach (var effect in _effects)
-            {
-                if (effect.Kind == StatusEffectKind.Slowed) speed *= 1.0 - effect.Magnitude;
-            }
-            return speed;
-        }
-    }
+    /// <summary>명중 보정 배율. 상태 효과만 반영합니다.</summary>
+    public double AccuracyFactor => ShiftFactor(ShiftTarget.Accuracy);
 
-    private int ApplyModifiers(int baseValue, StatusEffectKind up, StatusEffectKind down)
+    /// <summary>행동 순서에 쓰이는 실효 속도. 무기 무게와 상태 효과가 반영됩니다.</summary>
+    public double EffectiveSpeed =>
+        BaseActionSpeed * Capability.SpeedModifier * ShiftFactor(ShiftTarget.Speed);
+
+    /// <summary>
+    /// 그 수치에 걸린 증감을 모아 배율로 만듭니다.
+    /// <para>
+    /// <b>덧셈으로 모아 마지막에 한 번 곱합니다.</b> 곱셈을 누적하면 적용 순서에 따라
+    /// 부동소수점 끝자리가 달라져 배치 시뮬레이션 재현성이 깨집니다.
+    /// </para>
+    /// </summary>
+    private double ShiftFactor(ShiftTarget target)
     {
-        double value = baseValue;
+        double sum = 0.0;
+
         foreach (var effect in _effects)
         {
-            if (effect.Kind == up) value *= 1.0 + effect.Magnitude;
-            else if (effect.Kind == down) value *= 1.0 - effect.Magnitude;
+            var profile = effect.Profile;
+            if (profile.Mechanism != EffectMechanism.StatShift || profile.Target != target) continue;
+
+            sum += profile.Beneficial ? effect.Magnitude : -effect.Magnitude;
         }
-        return Math.Max(1, (int)Math.Round(value));
+
+        // 배율이 0 이하로 떨어지면 수치가 사라지므로 하한을 둡니다.
+        return Math.Max(0.1, 1.0 + sum);
     }
+
+    private int Shifted(int baseValue, ShiftTarget target) =>
+        Math.Max(1, (int)Math.Round(baseValue * ShiftFactor(target)));
 
     /// <summary>도발당한 대상의 Id. 없으면 null.</summary>
     public string? TauntedBy =>
-        _effects.FirstOrDefault(e => e.Kind == StatusEffectKind.Taunted)?.SourceId;
+        _effects.FirstOrDefault(e => e.Name == EffectName.Taunt)?.SourceId;
 
-    public bool HasEffect(StatusEffectKind kind) => _effects.Any(e => e.Kind == kind);
+    public bool HasEffect(EffectName name) => _effects.Any(e => e.Name == name);
+
+    /// <summary>그 기전의 효과가 걸려 있는가.</summary>
+    public bool HasMechanism(EffectMechanism mechanism) =>
+        _effects.Any(e => e.Mechanism == mechanism);
+
+    /// <summary>
+    /// <b>플레이어의 지시가 통하는가.</b> 공포나 혼란에 걸려 있으면 통하지 않습니다.
+    /// <para>
+    /// 지휘에 횟수 제한이 없는 대신 이것이 유일한 제약입니다.
+    /// 근거: docs/08-design-revision.md §14, §18.7
+    /// </para>
+    /// </summary>
+    public bool AcceptsOrders => !HasMechanism(EffectMechanism.LoseControl);
+
+    /// <summary>그 종류의 행동이 막혀 있는가.</summary>
+    public bool IsRestricted(ActionRestriction restriction) =>
+        _effects.Any(e => e.Profile.Restriction == restriction);
+
+    /// <summary>
+    /// 행동이 막힐 확률. 마비는 0.3쯤, 빙결·석화는 1.0입니다.
+    /// <para>여러 개가 걸려 있으면 가장 높은 것을 씁니다 — 곱하면 순서에 의존합니다.</para>
+    /// </summary>
+    public double IncapacitateChance
+    {
+        get
+        {
+            double worst = 0.0;
+            foreach (var effect in _effects)
+            {
+                if (effect.Mechanism != EffectMechanism.Incapacitate) continue;
+                worst = Math.Max(worst, effect.Profile.BlockChance);
+            }
+            return worst;
+        }
+    }
+
+    /// <summary>자연회복이 막혀 있는가 (저주).</summary>
+    public bool RecoveryBlocked => _effects.Any(e => e.Profile.BlocksRecovery);
+
+    /// <summary>표적이 되지 않는가 (은신).</summary>
+    public bool IsHidden => HasEffect(EffectName.Hidden);
 
     // ---- 상태 변경 ----
 
-    public void TakeDamage(int amount) => Hp = Math.Max(0, Hp - amount);
+    /// <summary>
+    /// 피해를 입습니다. <b>보호막이 있으면 먼저 깎입니다.</b>
+    /// <para>회복과 달리 남은 보호막은 사라지므로, 미리 걸어두는 판단이 됩니다.</para>
+    /// </summary>
+    public void TakeDamage(int amount)
+    {
+        if (Barrier > 0)
+        {
+            int absorbed = Math.Min(Barrier, amount);
+            Barrier -= absorbed;
+            amount -= absorbed;
+            if (Barrier == 0) _effects.RemoveAll(e => e.Mechanism == EffectMechanism.Barrier);
+        }
+
+        Hp = Math.Max(0, Hp - amount);
+    }
+
+    /// <summary>남은 보호막. HP 위에 얹혀 있습니다.</summary>
+    public int Barrier { get; private set; }
 
     /// <summary>피해를 입고 그 사실을 기록합니다. 어떤 종류로 맞았는지가 성장에 영향을 줍니다.</summary>
     internal void TakeDamage(int amount, bool magic)
@@ -179,7 +239,17 @@ public sealed class Combatant
         Contribution.RecordDamageTaken(amount, magic);
     }
 
-    public void Heal(int amount) => Hp = Math.Min(MaxHp, Hp + amount);
+    /// <summary>회복합니다. <b>저주가 걸려 있으면 그만큼 덜 회복됩니다.</b></summary>
+    public void Heal(int amount)
+    {
+        double kept = 1.0;
+        foreach (var effect in _effects)
+        {
+            if (effect.Profile.BlocksRecovery) kept = Math.Min(kept, 1.0 - effect.Magnitude);
+        }
+
+        Hp = Math.Min(MaxHp, Hp + Math.Max(0, (int)Math.Round(amount * kept)));
+    }
 
     public void SpendMana(int amount) => Mana = Math.Max(0, Mana - amount);
 
@@ -191,14 +261,73 @@ public sealed class Combatant
 
     public void MoveTo(Row row) => Row = row;
 
-    /// <summary>같은 종류의 효과는 덮어씁니다. 중첩을 허용하면 조합 폭발이 일어납니다.</summary>
+    /// <summary>
+    /// 효과를 겁니다.
+    /// <para>
+    /// 같은 이름이 이미 걸려 있으면 <see cref="GrowthMode.PerStack"/>이면 쌓고,
+    /// 아니면 덮어씁니다. <b>덮어쓰기가 기본입니다</b> — 무엇이든 쌓이게 두면
+    /// 긴 전투에서 감당이 안 됩니다.
+    /// </para>
+    /// <para>동반 효과(동상의 둔화 등)도 같이 걸립니다.</para>
+    /// </summary>
     public void ApplyEffect(StatusEffect effect)
     {
-        _effects.RemoveAll(e => e.Kind == effect.Kind);
-        _effects.Add(effect);
+        int existing = _effects.FindIndex(e => e.Name == effect.Name);
+
+        if (existing >= 0) _effects[existing] = _effects[existing].Reapply(effect);
+        else _effects.Add(effect);
+
+        if (effect.Profile.Companion is { } companion && !HasEffect(companion))
+        {
+            _effects.Add(StatusEffects.Create(companion, effect.RemainingRounds, effect.SourceId));
+        }
+
+        // 보호막은 흡수량을 따로 들고 있어야 해서 여기서 채웁니다.
+        if (effect.Mechanism == EffectMechanism.Barrier)
+        {
+            Barrier = Math.Max(Barrier, (int)Math.Round(MaxHp * effect.Magnitude));
+        }
     }
 
-    /// <summary>라운드 종료 시 지속시간을 깎고 만료된 것을 제거합니다.</summary>
+    /// <summary>행동할 때마다 커지는 효과(출혈)를 키웁니다.</summary>
+    internal void GrowOnAction()
+    {
+        for (int i = 0; i < _effects.Count; i++)
+        {
+            _effects[i] = _effects[i].Grow();
+        }
+    }
+
+    /// <summary>
+    /// 임계에 닿아 전이해야 하는 효과를 처리합니다. 전이한 이름을 돌려줍니다.
+    /// <para>동상이 쌓이면 빙결이 되고, 원래 것은 사라집니다 — <b>파국이자 리셋</b>입니다.</para>
+    /// </summary>
+    internal EffectName? ResolveTransition()
+    {
+        for (int i = 0; i < _effects.Count; i++)
+        {
+            if (!_effects[i].ShouldTransition) continue;
+
+            var to = _effects[i].Profile.TransitionsTo!.Value;
+            var companion = _effects[i].Profile.Companion;
+
+            _effects.RemoveAt(i);
+            if (companion is { } c) _effects.RemoveAll(e => e.Name == c);
+            _effects.Add(StatusEffects.Create(to, TransitionRounds));
+
+            return to;
+        }
+
+        return null;
+    }
+
+    /// <summary>전이해서 걸리는 상태의 지속 라운드.</summary>
+    private const int TransitionRounds = 2;
+
+    /// <summary>
+    /// 라운드 종료 시 지속시간을 깎고 만료된 것을 제거합니다.
+    /// <para><b>남는 효과(상처)는 여기서 사라지지 않습니다.</b> 치료해야 풀립니다.</para>
+    /// </summary>
     public void TickEffects()
     {
         for (int i = _effects.Count - 1; i >= 0; i--)
@@ -207,6 +336,22 @@ public sealed class Combatant
             if (ticked.IsExpired) _effects.RemoveAt(i);
             else _effects[i] = ticked;
         }
+    }
+
+    /// <summary>
+    /// 전투가 끝났습니다. <b>상황이 만든 것은 풀리고 몸에 난 것은 남습니다.</b>
+    /// </summary>
+    public void EndBattle()
+    {
+        _effects.RemoveAll(e => !e.Profile.Persists);
+        ClearDefending();
+    }
+
+    /// <summary>치료 소모품으로 풀 수 있는 효과를 제거합니다. 푼 개수를 돌려줍니다.</summary>
+    public int Cure(CureItem item)
+    {
+        if (item == CureItem.None) return 0;
+        return _effects.RemoveAll(e => e.Profile.Cure == item);
     }
 
     public override string ToString() =>

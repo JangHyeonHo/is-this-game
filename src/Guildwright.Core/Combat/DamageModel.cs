@@ -199,6 +199,16 @@ public static class DamageModel
     public static int MagicHealAmount(Combatant healer) =>
         Math.Max(1, (int)Math.Round(healer.EffectiveMagicPower * MagicHealScale * healer.WeaponEffectiveness));
 
-    public static int PoisonDamage(Combatant victim) =>
-        Math.Max(1, (int)Math.Round(victim.MaxHp * 0.05));
+    /// <summary>
+    /// 지속 피해 한 번. <b>세기 × 스택</b>이 최대 HP 비율로 들어갑니다.
+    /// <para>
+    /// 화상은 세기가 크고 안 쌓이며, 중독은 작지만 쌓이고, 출혈은 행동할 때마다 쌓입니다.
+    /// 그 차이가 전부 <see cref="StatusEffect"/>의 설정에서 나옵니다.
+    /// </para>
+    /// </summary>
+    public static int OverTimeDamage(Combatant victim, StatusEffect effect)
+    {
+        double ratio = StatusEffects.DamageOverTimeScale * effect.Magnitude * effect.Stacks;
+        return Math.Max(1, (int)Math.Round(victim.MaxHp * ratio));
+    }
 }

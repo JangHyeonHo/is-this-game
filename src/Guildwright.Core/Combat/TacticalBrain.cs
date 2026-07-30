@@ -160,13 +160,13 @@ public static class TacticalBrain
         if (self.Capability.UsesMagic && hasMana)
         {
             var strongestAlly = allies.OrderByDescending(a => a.EffectiveOffense).ThenBy(a => a.Id, StringComparer.Ordinal).First();
-            if (!strongestAlly.HasEffect(StatusEffectKind.Empowered))
+            if (!strongestAlly.HasEffect(EffectName.PowerUp))
             {
                 actions.Add(new ChosenAction(TacticAction.BuffAlly, strongestAlly));
             }
 
             var threat = PickStrongest(enemies);
-            if (!threat.HasEffect(StatusEffectKind.Weakened))
+            if (!threat.HasEffect(EffectName.PowerDown))
             {
                 actions.Add(new ChosenAction(TacticAction.DebuffEnemy, threat));
             }

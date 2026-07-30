@@ -331,28 +331,29 @@ public class PositionCombatTests(ITestOutputHelper output)
     public void 상태효과는_지속시간이_지나면_사라진다()
     {
         var target = TestParty.Make("T", Team.Player, 60);
-        target.ApplyEffect(new StatusEffect(StatusEffectKind.Empowered, 2, 0.3, "X"));
+        target.ApplyEffect(StatusEffects.Create(EffectName.PowerUp, 2, "X"));
 
-        int boosted = target.EffectivePhysicalPower;
-        Assert.True(boosted > target.Stats.Strength);
-
-        target.TickEffects();
-        Assert.True(target.HasEffect(StatusEffectKind.Empowered));
+        Assert.True(target.EffectivePhysicalPower > target.BasePhysicalPower);
 
         target.TickEffects();
-        Assert.False(target.HasEffect(StatusEffectKind.Empowered));
+        Assert.True(target.HasEffect(EffectName.PowerUp));
+
+        target.TickEffects();
+        Assert.False(target.HasEffect(EffectName.PowerUp));
         Assert.Equal(target.BasePhysicalPower, target.EffectivePhysicalPower);
     }
 
     [Fact]
-    public void 같은_효과는_중첩되지_않는다()
+    public void 쌓이지_않는_효과는_덮어쓴다()
     {
-        // 중첩을 허용하면 조합 폭발로 밸런싱이 불가능해집니다.
+        // 무엇이든 쌓이게 두면 긴 전투에서 감당이 안 됩니다.
+        // 쌓이는 것은 GrowthMode로 명시한 것만입니다.
         var target = TestParty.Make("T", Team.Player, 60);
 
-        target.ApplyEffect(new StatusEffect(StatusEffectKind.Empowered, 3, 0.3, "X"));
-        target.ApplyEffect(new StatusEffect(StatusEffectKind.Empowered, 3, 0.3, "Y"));
+        target.ApplyEffect(StatusEffects.Create(EffectName.PowerUp, 3, "X"));
+        target.ApplyEffect(StatusEffects.Create(EffectName.PowerUp, 3, "Y"));
 
         Assert.Single(target.Effects);
+        Assert.Equal(1, target.Effects[0].Stacks);
     }
 }

@@ -251,7 +251,7 @@ public static class Display
     private static string FormatEffects(Combatant c)
     {
         if (c.Effects.Count == 0) return "";
-        return "  <" + string.Join(",", c.Effects.Select(e => StatusEffect.ToKorean(e.Kind))) + ">";
+        return "  <" + string.Join(",", c.Effects.Select(e => e.ToString())) + ">";
     }
 
     public static string ActionName(TacticAction action) => action switch

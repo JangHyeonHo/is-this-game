@@ -9,7 +9,7 @@
 > 수치(상수)는 일부러 넣지 않았습니다 — 코드를 직접 보세요.
 > 설계 맥락·미구현 목록·막혀 있는 기능은 [09-systems.md](09-systems.md)에 있습니다.
 
-공개 타입 90개
+공개 타입 96개
 
 ## Adventurers
 
@@ -64,6 +64,7 @@
 
 ## Combat
 
+- `enum ActionRestriction` — 막히는 행동의 종류<br>　└ `None` · `Movement` · `ManaSkills`
 - `struct AttackResult` — 한 번의 공격이 어떻게 끝났는지
 - `class BattleLog` — 전투 기록 수집기
 - `enum BattleOutcome`<br>　└ `PlayerVictory` · `EnemyVictory` · `Draw`
@@ -75,11 +76,16 @@
 - `class Combatant` — 전투에 참여하는 한 명
 - `static class CombatantFactory` — 육성한 모험가를 전투원으로 변환합니다
 - `struct CommandOrder` — 플레이어의 전투 개입 요청
-- `static class CommandRules`
+- `enum CureItem` — 이 상태를 푸는 소모품<br>　└ `None` · `Antidote` · `BurnSalve` · `Bandage` · `FrostSalve` · `ParalysisCure` · `HolyWater`
 - `static class DamageModel` — 데미지·회복 계산
+- `enum EffectMechanism` — 상태 효과의 기전<br>　└ `StatShift` · `DamageOverTime` · `Incapacitate` · `RestrictAction` · `LoseControl` · `TargetShift` · `Barrier` · `Recovery`
+- `enum EffectName` — 상태 효과의 이름<br>　└ `PowerUp` · `PowerDown` · `GuardUp` · `GuardDown` · `AccuracyUp` · `AccuracyDown` · `EvasionUp` · `EvasionDown` · `SpeedUp` · `SpeedDown` · `Poison` · `Burn` · `Bleed` · `Frostbite` · `Paralysis` · `Freeze` · `Petrify` · `Bind` · `Silence` · `Fear` · `Confusion` · `Taunt` · `Hidden` · `Barrier` · `Regen` · `Curse`
+- `record EffectProfile` — 이름 하나의 설정
+- `enum GrowthMode` — 지속 피해가 커지는 방식<br>　└ `None` · `PerStack` · `PerAction`
 - `interface IBattleCommander` — 전투 중 플레이어가 끼어들 수 있게 하는 통로
-- `record StatusEffect`
-- `enum StatusEffectKind` — 상태 효과<br>　└ `Empowered` · `Warded` · `Weakened` · `Sundered` · `Poisoned` · `Slowed` · `Taunted`
+- `enum ShiftTarget` — 수치 증감이 건드리는 대상<br>　└ `None` · `Power` · `Guard` · `Accuracy` · `Evasion` · `Speed`
+- `record StatusEffect` — 한 캐릭터에게 걸려 있는 상태 효과 하나
+- `static class StatusEffects` — 상태 효과 목록과 조회
 - `enum TacticAction` — 전술 규칙이 지시하는 행동<br>　└ `AttackNearest` · `AttackWeakest` · `AttackStrongest` · `AttackBackRow` · `AttackAll` · `HealAlly` · `BuffAlly` · `DebuffEnemy` · `Taunt` · `UsePotion` · `Defend` · `MoveBack` · `MoveFront`
 - `enum TacticCondition` — 전술 규칙의 발동 조건<br>　└ `Always` · `SelfHpBelow` · `AllyHpBelow` · `EnemyHpBelow` · `SelfInFrontRow` · `SelfInBackRow` · `FrontRowEmpty`
 - `struct TacticRule` — FF12 감빗과 유사한 조건-행동 규칙
