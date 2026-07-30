@@ -192,34 +192,46 @@ internal sealed class Guild(IRandomSource rng)
             Ui.Line();
             Display.StatSheet(member);
 
-            var choices = new List<string> { "훈련 (1달)", "휴식 (1달)" };
-            bool canDeploy = member.CanDeploy;
-
-            if (canDeploy) choices.Insert(0, "의뢰를 받는다");
-            else Ui.Note("아직 실전에 나갈 수 없습니다 — 12달을 채워야 합니다.");
-
             // 전직은 자유이고 비용도 없습니다 (§16.4). 대가는 규칙이 아니라
-            // 새 무기 숙련이 0부터라는 것입니다.
-            var upgrades = UpgradesFor(member);
-            // 사다리를 오를 수 있을 때만 눈에 띄게 알립니다. 계열을 바꾸는 전향은 언제나 가능합니다.
-            int better = upgrades.Count(j => j.MaxContractDifficulty > member.MaxContractDifficulty);
-            if (upgrades.Count > 0)
+            // 새 무기 숙련이 0부터라는 것입니다. 그래서 전직은 달을 쓰지 않습니다 —
+            // 전직한 뒤 그 달의 행동을 다시 고릅니다. 메뉴 한 줄로 두면
+            // 전직이 훈련·의뢰와 같은 "그 달의 행동"이 되어 한 달이라는 비용이 생깁니다.
+            while (true)
             {
-                choices.Add(better > 0
-                    ? $"전직 (상위 {better}개 해금)"
-                    : $"전직 (계열 전향 {upgrades.Count}개)");
+                var choices = new List<string> { "훈련 (1달)", "휴식 (1달)" };
+                bool canDeploy = member.CanDeploy;
+
+                if (canDeploy) choices.Insert(0, "의뢰를 받는다");
+                else Ui.Note("아직 실전에 나갈 수 없습니다 — 12달을 채워야 합니다.");
+
+                var upgrades = UpgradesFor(member);
+                // 사다리를 오를 수 있을 때만 눈에 띄게 알립니다. 계열을 바꾸는 전향은 언제나 가능합니다.
+                int better = upgrades.Count(j => j.MaxContractDifficulty > member.MaxContractDifficulty);
+                if (upgrades.Count > 0)
+                {
+                    choices.Add(better > 0
+                        ? $"전직 (상위 {better}개 해금 · 달을 쓰지 않음)"
+                        : $"전직 (계열 전향 {upgrades.Count}개 · 달을 쓰지 않음)");
+                }
+
+                choices.Add("은퇴시킨다");
+
+                int choice = Ui.Choose($"   {_month}월에 무엇을 시킬까요", choices);
+                string picked = choices[choice];
+
+                if (picked.StartsWith("전직"))
+                {
+                    ChangeJob(member, upgrades);
+                    Display.StatSheet(member);
+                    continue; // 달은 그대로 — 이번 달의 행동을 다시 고릅니다
+                }
+
+                if (picked.StartsWith("의뢰")) DeploymentMonth(member, board);
+                else if (picked.StartsWith("훈련")) TrainMonth(member);
+                else if (picked.StartsWith("휴식")) RestMonth(member);
+                else Retire(member);
+                break;
             }
-
-            choices.Add("은퇴시킨다");
-
-            int choice = Ui.Choose($"   {_month}월에 무엇을 시킬까요", choices);
-            string picked = choices[choice];
-
-            if (picked.StartsWith("의뢰")) DeploymentMonth(member, board);
-            else if (picked.StartsWith("훈련")) TrainMonth(member);
-            else if (picked.StartsWith("휴식")) RestMonth(member);
-            else if (picked.StartsWith("전직")) ChangeJob(member, upgrades);
-            else Retire(member);
         }
 
         Ui.Line();
