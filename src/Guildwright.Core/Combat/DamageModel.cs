@@ -60,9 +60,6 @@ public static class DamageModel
     /// </summary>
     public const double MaxEvasionChance = 0.28;
 
-    /// <summary>방어 태세일 때 회피 확률 보너스. 자세를 낮추면 피하기 쉽습니다.</summary>
-    public const double DefendEvasionBonus = 0.10;
-
     /// <summary>광역 공격은 피하기 어렵습니다.</summary>
     public const double AreaEvasionPenalty = 0.5;
 
@@ -145,7 +142,8 @@ public static class DamageModel
         double speedRatio = defender.EffectiveSpeed / Math.Max(1.0, attacker.EffectiveSpeed);
         chance *= Math.Clamp(speedRatio, 0.5, 1.8);
 
-        if (defender.IsDefending) chance += DefendEvasionBonus;
+        // 방어 자세는 회피를 올리지 않는다 — 방어는 자세를 굳혀 버티는 것이지
+        // 더 잘 피하는 것이 아니다 (docs/08 #67, 사용자 지적으로 제거).
         if (area) chance *= AreaEvasionPenalty;
 
         // 후열에서 근접 무기를 휘두르면 제대로 닿지 않으니 더 잘 피합니다.
