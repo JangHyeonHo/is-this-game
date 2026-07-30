@@ -88,6 +88,10 @@ public sealed class TrainingYearSession
     /// </summary>
     private readonly double[] _accumulated = new double[7];
 
+    /// <summary>매달 이미 본체에 반영한 정수분. 소수 꼬리는 결산에서 한 번에 반올림합니다.</summary>
+    private readonly int[] _applied = new int[7];
+    private int _judgementApplied;
+
     private double _proficiency;
     private double _judgement;
     private int _failedMonths;
@@ -152,11 +156,54 @@ public sealed class TrainingYearSession
             : DoTraining(month, TrainingActivities.Of(activity));
 
         _months.Add(outcome);
+
+        // 그 달에 자란 만큼 그 달에 반영합니다 (정수분만 — 반올림 소실은 결산 꼬리로).
+        var applyNow = PrimaryStats.Zero;
+        foreach (var kind in PrimaryStats.AllStats)
+        {
+            int due = (int)Math.Floor(_accumulated[(int)kind]) - _applied[(int)kind];
+            if (due > 0) { _applied[(int)kind] += due; applyNow = applyNow.With(kind, due); }
+        }
+        _adventurer.ApplyTrainingMonth(applyNow, outcome.ProficiencyGain);
+
+        int judgementDue = (int)Math.Floor(_judgement) - _judgementApplied;
+        if (judgementDue > 0) { _judgementApplied += judgementDue; _adventurer.GainJudgement(judgementDue); }
+
         return outcome;
     }
 
-    /// <summary>본체 능력치 + 아직 확정되지 않은 연중 누적.</summary>
-    private double EffectiveStat(PrimaryStat kind) => _adventurer.Stats[kind] + _accumulated[(int)kind];
+    /// <summary>
+    /// 이 활동을 이번 달에 하면 얼마나 오를지 기대값 (노이즈·실패 제외).
+    /// 활동을 고르는 화면의 판단 재료입니다 — 가중치 점만으로는 "이 아이가" 얼마나
+    /// 오르는지 알 수 없습니다.
+    /// </summary>
+    public IReadOnlyList<(PrimaryStat Stat, double Gain)> PreviewMonth(TrainingActivity activity)
+    {
+        if (activity == TrainingActivity.Rest) return [];
+
+        var profile = TrainingActivities.Of(activity);
+        var growth = _adventurer.Growth;
+        double bloom = growth.BloomFactorAt(_adventurer.Age);
+        double multiplier = bloom * growth.TrainingMultiplier * _mentorship.TrainingMultiplier
+                            * Condition.Multiplier() * FatiguePenalty();
+
+        var result = new List<(PrimaryStat, double)>();
+        foreach (var kind in PrimaryStats.AllStats)
+        {
+            double weight = profile.WeightOf(kind);
+            if (weight <= 0.0) continue;
+            double current = EffectiveStat(kind);
+            int potential = growth.Potential[kind];
+            if (potential <= current) continue;
+            result.Add((kind, (potential - current) * TrainingRules.MonthlyLearnRate * multiplier * weight));
+        }
+        return result;
+    }
+
+    /// <summary>본체 능력치 + 아직 본체로 옮기지 않은 소수 꼬리.
+    /// 정수분은 매달 본체에 반영되므로, 누적 전체를 더하면 이중 계산이 됩니다.</summary>
+    private double EffectiveStat(PrimaryStat kind) =>
+        _adventurer.Stats[kind] + _accumulated[(int)kind] - _applied[(int)kind];
 
     /// <summary>
     /// 이번 세션에서 아직 결산되지 않은 누적 성장.
@@ -368,16 +415,16 @@ public sealed class TrainingYearSession
 
         double share = (double)MonthsCompleted / TrainingRules.MonthsPerYear;
 
-        // 노화는 훈련한 기간만큼.
-        // 반올림은 여기서 딱 한 번 — 월 단위로 반올림하면 미세한 차이가 전부 사라집니다.
+        // 성장의 정수분은 매달 이미 반영됐습니다. 여기서는 반올림 꼬리와 노화만 정산합니다 —
+        // 총합은 "한 번에 반올림"했을 때와 같아야 합니다 (월별 반올림은 미세 성장을 지웁니다).
         double decline = _adventurer.Growth.DeclineFactorAt(_adventurer.Age) * share;
         var change = PrimaryStats.Zero;
 
         foreach (var kind in PrimaryStats.AllStats)
         {
-            double total = _accumulated[(int)kind];
-            if (decline > 0.0) total -= _adventurer.Stats[kind] * decline;
-            change = change.With(kind, (int)Math.Round(total));
+            int tail = (int)Math.Round(_accumulated[(int)kind]) - _applied[(int)kind];
+            if (decline > 0.0) tail -= (int)Math.Round(_adventurer.Stats[kind] * decline);
+            change = change.With(kind, tail);
         }
 
         string span = MonthsCompleted == TrainingRules.MonthsPerYear ? "훈련" : $"{MonthsCompleted}달 훈련";
@@ -392,11 +439,12 @@ public sealed class TrainingYearSession
             _adventurer.Age, YearActivity.Training, change, null, 0, note,
             ProficiencyGain: _proficiency, Months: MonthsCompleted);
 
-        _adventurer.ApplyYear(record);
+        // 달수·숙련은 매달 반영됐으므로 결산은 이력과 꼬리만 얹습니다.
+        _adventurer.ApplySettlement(record);
 
-        // 훈련 기간의 기본 판단력 + 모의전으로 따로 쌓은 만큼. 기본값도 기간에 비례합니다.
+        // 훈련 기간의 기본 판단력 + 모의전 몫의 반올림 꼬리. 기본값은 기간에 비례합니다.
         int baseJudgement = (int)Math.Round(CareerRules.JudgementFromTraining * share);
-        _adventurer.GainJudgement(baseJudgement + (int)Math.Round(_judgement));
+        _adventurer.GainJudgement(baseJudgement + ((int)Math.Round(_judgement) - _judgementApplied));
         return record;
     }
 }
