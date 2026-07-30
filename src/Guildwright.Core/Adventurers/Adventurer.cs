@@ -50,6 +50,13 @@ public enum DeploymentOutcome
 /// 그러면 숙련도가 선택 대상이 아니게 됩니다. (docs/08-design-revision.md §2)
 /// </para>
 /// </param>
+/// <param name="Months">
+/// 이 기록이 덮는 달 수. 훈련은 12달이지만 <b>파견은 의뢰 기간만큼</b>입니다.
+/// <para>
+/// 예전에는 이력 한 줄이 곧 1년이었습니다. 의뢰가 1달~1년이 되면서 그 전제가
+/// 깨졌으므로, 나이는 이 값이 12달을 채울 때마다 오릅니다 (docs/08 §17.4).
+/// </para>
+/// </param>
 public sealed record YearRecord(
     int Age,
     YearActivity Activity,
@@ -58,7 +65,8 @@ public sealed record YearRecord(
     int Income,
     string Note,
     JobId? JobAtTime = null,
-    double? ProficiencyGain = null);
+    double? ProficiencyGain = null,
+    int Months = 12);
 
 /// <summary>
 /// 모험가 한 명.
@@ -251,13 +259,32 @@ public sealed class Adventurer
 
     public IReadOnlyList<YearRecord> History => _history;
 
-    /// <summary>지금까지 보낸 총 연차.</summary>
-    public int CompletedYears => _history.Count;
+    /// <summary>
+    /// 지금까지 보낸 총 달 수.
+    /// <para>
+    /// <b>이력 한 줄이 곧 1년이 아닙니다.</b> 훈련은 12달이지만 파견은 의뢰 기간만큼이라,
+    /// 1달 의뢰를 열두 번 한 사람과 1년 의뢰를 한 번 한 사람이 같은 나이가 되어야 합니다.
+    /// </para>
+    /// </summary>
+    public int MonthsElapsed { get; private set; }
 
-    /// <summary>훈련으로 보낸 연차. 감정 정확도에 영향을 줍니다.</summary>
-    public int TrainingYears => _history.Count(r => r.Activity == YearActivity.Training);
+    /// <summary>지금까지 보낸 총 연차. 달 수에서 나옵니다.</summary>
+    public int CompletedYears => MonthsElapsed / MonthsPerYear;
 
-    public int DeploymentYears => _history.Count(r => r.Activity == YearActivity.Deployment);
+    /// <summary>훈련으로 보낸 달. 감정 정확도에 영향을 줍니다.</summary>
+    public int TrainingMonths =>
+        _history.Where(r => r.Activity == YearActivity.Training).Sum(r => r.Months);
+
+    /// <summary>실전으로 보낸 달.</summary>
+    public int DeploymentMonths =>
+        _history.Where(r => r.Activity == YearActivity.Deployment).Sum(r => r.Months);
+
+    public int TrainingYears => TrainingMonths / MonthsPerYear;
+
+    public int DeploymentYears => DeploymentMonths / MonthsPerYear;
+
+    /// <summary>1년은 12달입니다. 나이가 오르는 주기입니다.</summary>
+    public const int MonthsPerYear = 12;
 
     public bool IsAlive => Status is AdventurerStatus.Active or AdventurerStatus.Retired or AdventurerStatus.Crippled;
 
@@ -274,16 +301,17 @@ public sealed class Adventurer
     {
         _history.Add(record);
         Stats = (Stats + record.StatChange).ClampToZero();
-        Age++;
+        AdvanceMonths(record.Months);
 
         // 그 해를 들고 있던 무기의 숙련도가 오릅니다. 사망한 해는 제외합니다.
         if (record.Outcome != DeploymentOutcome.Died)
         {
             // 훈련 연도는 세션이 계산해 넘겨줍니다 — 기술 훈련을 몇 달 했느냐로 달라지므로.
-            // 실전은 무기를 쓸 수밖에 없으니 연 단위 기본값을 씁니다.
+            // 실전은 무기를 쓸 수밖에 없으니 연 단위 기본값을 기간만큼 나눠 씁니다 —
+            // 1달 의뢰가 1년치 숙련을 주면 짧은 의뢰만 반복하는 게 최적해가 됩니다.
             double baseGain = record.ProficiencyGain
                 ?? (record.Activity == YearActivity.Deployment
-                    ? WeaponProficiency.PerDeploymentYear
+                    ? WeaponProficiency.PerDeploymentYear * record.Months / MonthsPerYear
                     : 0.0);
 
             // 든 것들의 숙련도가 각각 오릅니다 — 검+방패면 둘 다 늡니다.
@@ -306,6 +334,24 @@ public sealed class Adventurer
                 Status = AdventurerStatus.Crippled;
                 break;
         }
+    }
+
+    /// <summary>
+    /// 달을 보냅니다. <b>12달을 채울 때마다 나이가 오릅니다.</b>
+    /// <para>
+    /// 나이를 이력 줄 수로 세면 1달 의뢰를 받은 사람이 한 살을 먹습니다. 의뢰 기간이
+    /// 1달~1년으로 갈라졌으므로 달을 세는 것 말고는 방법이 없습니다.
+    /// </para>
+    /// </summary>
+    private void AdvanceMonths(int months)
+    {
+        if (months <= 0) return;
+
+        int before = MonthsElapsed;
+        MonthsElapsed += months;
+
+        // 걸친 해의 수만큼 올립니다 — 1년짜리 의뢰 하나로 한 살, 1달 열두 번으로도 한 살.
+        Age += MonthsElapsed / MonthsPerYear - before / MonthsPerYear;
     }
 
     internal void GainJudgement(int amount) => Judgement = Math.Clamp(Judgement + amount, 0, 100);

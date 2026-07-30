@@ -33,7 +33,8 @@ public sealed class Combatant
         int potions = 2,
         DerivedBonuses? bonuses = null,
         IReadOnlyList<SkillId>? passives = null,
-        IReadOnlyList<SkillId>? actives = null)
+        IReadOnlyList<SkillId>? actives = null,
+        int? startingMana = null)
     {
         Id = id;
         Name = name;
@@ -53,7 +54,9 @@ public sealed class Combatant
             + (int)Math.Round(PassiveBonusOf(passives, DerivedStat.MaxHp));
         Hp = MaxHp;
         MaxMana = DerivedStats.MaxMana(stats, bonuses);
-        Mana = MaxMana;
+
+        // 마나는 파견 단위 자원입니다 — 전투마다 채워지면 사실상 무한이 됩니다 (§17.5b).
+        Mana = startingMana is { } m ? Math.Clamp(m, 0, MaxMana) : MaxMana;
 
         BasePhysicalPower = DerivedStats.PhysicalPower(stats, bonuses);
         BasePhysicalGuard = DerivedStats.PhysicalGuard(stats, bonuses);

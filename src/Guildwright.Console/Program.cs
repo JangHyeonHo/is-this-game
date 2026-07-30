@@ -2,6 +2,7 @@ using Guildwright.Cli;
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
 using Guildwright.Core.Combat;
+using Guildwright.Core.Parties;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Training;
 using Guildwright.Core.Weapons;
@@ -171,8 +172,9 @@ internal sealed class Guild(IRandomSource rng)
 
     private void PlanAndExecutePhase()
     {
-        var board = ContractGenerator.GenerateBoard(
-            rng.Fork($"board:{_year}"), 4, Math.Max(2, _reputation / 8 + 2));
+        // 길드 랭크가 의뢰의 양과 질을 조절합니다 (§17.8). 평판이 아직 랭크를 대신합니다.
+        var guildRank = Ranks.Lowest.Above(Math.Clamp(_reputation / 12, 0, 7));
+        var board = ContractBoard.Post(rng.Fork($"board:{_year}"), month: 1, guildRank);
 
         foreach (var member in _members.ToList())
         {
@@ -333,15 +335,23 @@ internal sealed class Guild(IRandomSource rng)
 
     private void DeploymentYear(Adventurer member, IReadOnlyList<Contract> board)
     {
-        // 지금은 목표 수치형 의뢰 하나만 있습니다.
-        // 「난이도 N짜리 전투 한 판」 구조를 걷어내는 중이라 옛 의뢰는 잠시 내렸습니다.
-        var contract = Contract.Combat("가도 정리", difficulty: 1);
-        const int Quota = 10;
+        // 게시판에서 고릅니다. 그 달에 안 받으면 사라집니다 (지속 의뢰만 남습니다).
+        var open = ContractBoard.AvailableTo(
+            board, member.Rank, asRegularParty: false, member.MaxContractDifficulty);
+
+        if (open.Count == 0)
+        {
+            Ui.Note("받을 수 있는 의뢰가 없습니다. 아직 자격이 모자랍니다.");
+            return;
+        }
 
         Ui.Line();
-        Ui.Line("   ── 의뢰 ──");
-        Ui.Line($"   [{contract.Name}] 난이도 {contract.Difficulty}");
-        Ui.Note($"마을 근처 가도에 고블린이 늘었습니다. 1년 안에 {Quota}마리를 정리하십시오.");
+        Ui.Line("   ── 의뢰 게시판 ──");
+        int chosen = Ui.Choose("   무엇을 받겠습니까", [.. open.Select(Display.ContractLine)]);
+        var contract = open[chosen];
+
+        Ui.Note($"{contract.Months}달 동안 {contract.Name}. " +
+                $"강도 {contract.Intensity}{contract.Form.IntensityLabel()} — 기간은 고정입니다.");
 
         var party = new List<Adventurer> { member };
 
@@ -356,27 +366,27 @@ internal sealed class Guild(IRandomSource rng)
             party.AddRange(picks.Select(i => others[i]));
         }
 
-        int load = party.Sum(p => p.Loadout.Load);
-        if (load > 0) Ui.Note($"파티 적재량 {load} — 가방을 든 사람이 있습니다");
+        int capacity = Supplies.CapacityOf(party);
+        Ui.Note($"짐 한도 {capacity}개 — 가방을 든 사람이 있으면 늘어납니다");
 
-        var result = RunFieldYear(party, contract, Quota);
+        var (session, result) = RunDeployment(party, contract);
 
-        ApplyDeploymentResults(member, party, contract, result);
+        ApplyDeploymentResults(party, session, result);
     }
 
     /// <summary>
-    /// 파견 1년을 월 단위로 진행합니다.
+    /// 파견 한 건을 달 단위로 진행합니다.
     /// <para>
-    /// 훈련 연도와 같은 리듬입니다 — 매달 무엇을 할지 고르고, 조우하면 싸울지 피할지 고릅니다.
-    /// <b>HP와 회복약이 전투 사이에 저절로 회복되지 않아서</b> 매 판단에 무게가 생깁니다.
+    /// <b>플레이어가 고르는 것은 편성과 보급뿐</b>입니다. 일할지 쉴지는 모험가가 판단하고,
+    /// 플레이어가 끼어드는 곳은 전투 안입니다 (docs/08 §17.5).
     /// </para>
     /// </summary>
-    private FieldYearOutcome RunFieldYear(
-        List<Adventurer> party, Contract contract, int quota)
+    private (DeploymentSession Session, DeploymentResult Result) RunDeployment(
+        List<Adventurer> party, Contract contract)
     {
-        var session = new FieldYearSession(
-            party, contract, quota, rng.Fork($"field:{_year}"),
-            potionsEach: 2 + party.Sum(a => a.Loadout.Load) / 6);
+        var session = new DeploymentSession(
+            party, contract, rng.Fork($"deploy:{_year}:{contract.Id}"),
+            Supplies.UpTo(party, Supplies.CapacityOf(party)));
 
         bool manual = Ui.Confirm("   전투에 직접 개입하시겠습니까?");
         var commander = manual ? new ConsoleCommander() : null;
@@ -388,84 +398,44 @@ internal sealed class Guild(IRandomSource rng)
         {
             Display.FieldStatus(session, party);
 
-            int pick = Ui.Choose($"   {session.CurrentMonth}월", Display.FieldMenu());
-            var action = (FieldAction)pick;
-
-            var encounter = session.StartMonth(action);
-
-            if (encounter is null)
-            {
-                Ui.Line($"     {session.Months[^1].Note}");
-                continue;
-            }
-
-            Ui.Line();
-            Ui.Note($"고블린 {encounter.Enemies.Count}마리와 마주쳤습니다. " +
-                    $"빠져나갈 가능성 {encounter.AvoidChance:P0}");
-
-            bool fight = Ui.Choose("   어떻게 할까요",
-                [$"교전한다", $"피한다 (성공 {encounter.AvoidChance:P0} · 실패하면 기습당함)"]) == 0;
-
-            if (!fight && session.Avoid())
-            {
-                Ui.Line($"     {session.Months[^1].Note}");
-                continue;
-            }
-
-            if (!fight) Ui.Note("빠져나가지 못했습니다. 기습당한 채로 싸웁니다.");
-
-            var battle = session.Fight(
-                rng.Fork($"battle:{_year}:{session.CurrentMonth}"),
+            var month = session.AdvanceMonth(
+                rng.Fork($"battle:{_year}:{contract.Id}:{session.CurrentMonth}"),
                 commander,
                 manual ? line => Ui.Line("       " + line) : null);
 
-            if (!manual)
-            {
-                foreach (var line in battle.Log) Ui.Line("       " + line);
-            }
+            Ui.Line($"     {month.Note}");
 
-            Ui.Line($"     {session.Months[^1].Note}");
+            // 손절할 기회를 줍니다 — 끝까지 밀어서 무너지느냐, 빈손이라도 사람을 지키느냐.
+            if (!session.IsComplete && session.HealthRatio < 0.4
+                && Ui.Confirm("   상태가 좋지 않습니다. 의뢰를 포기하고 돌아오겠습니까?"))
+            {
+                session.Abandon();
+            }
         }
 
-        var final = session.Complete();
+        var result = session.Complete();
 
         Ui.Line();
-        Ui.Note(final.Achieved
-            ? $"목표 달성 — 고블린 {final.Killed}마리를 정리했습니다."
-            : final.Retreated
-                ? $"더 싸울 수 없어 돌아왔습니다. {final.Killed}/{final.Quota}마리."
-                : $"1년이 끝났습니다. {final.Killed}/{final.Quota}마리에 그쳤습니다.");
+        Ui.Note(result.Succeeded
+            ? $"성공 — {result.Progress}{contract.Form.IntensityLabel()}."
+            : $"실패 ({result.Failure}) — {result.MonthsSpent}/{contract.Months}달.");
 
-        return new FieldYearOutcome(final, session.Experience);
+        return (session, result);
     }
-
-    private sealed record FieldYearOutcome(
-        FieldYearResult Result,
-        IReadOnlyDictionary<string, CombatExperience> Experience);
 
     /// <summary>파견 결과를 각자에게 적용합니다.</summary>
     private void ApplyDeploymentResults(
-        Adventurer leader,
         List<Adventurer> party,
-        Contract contract,
-        FieldYearOutcome fought)
+        DeploymentSession session,
+        DeploymentResult result)
     {
-        // 목표를 채웠으면 승리로, 못 채웠으면 미완/실패로 봅니다.
-        var outcome = fought.Result.Achieved
-            ? BattleOutcome.PlayerVictory
-            : fought.Result.Retreated
-                ? BattleOutcome.EnemyVictory
-                : BattleOutcome.Draw;
-
+        var contract = result.Contract;
         int totalIncome = 0;
 
         foreach (var fighter in party)
         {
-            var record = CareerSimulator.ResolveDeploymentYear(
-                fighter, contract.Difficulty, rng.Fork($"deploy:{_year}:{fighter.Id}"),
-                fought.Experience.GetValueOrDefault(fighter.Id),
-                contract,
-                new BattleReport(outcome, Downed: fought.Result.Retreated));
+            var record = CareerSimulator.ResolveDeployment(
+                fighter, session, result, rng.Fork($"settle:{_year}:{fighter.Id}"));
 
             totalIncome += record.Income;
             Ui.Line($"     {record.Note}");
@@ -481,12 +451,10 @@ internal sealed class Guild(IRandomSource rng)
             }
         }
 
-        int reputationGain = outcome switch
-        {
-            BattleOutcome.PlayerVictory => contract.Difficulty,
-            BattleOutcome.Draw => 0,
-            _ => -1
-        };
+        // 길드 자체 의뢰는 보수가 아니라 명성으로 돌아옵니다 (§17.2).
+        int reputationGain = result.Succeeded
+            ? contract.Difficulty * (contract.Reward == RewardKind.Renown ? 2 : 1)
+            : -1;
 
         _funds += totalIncome;
         _reputation = Math.Max(0, _reputation + reputationGain);

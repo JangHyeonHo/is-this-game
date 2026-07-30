@@ -199,32 +199,30 @@ public static class Display
 
     public static TrainingActivity FocusFromIndex(int index) => (TrainingActivity)index;
 
-    /// <summary>파견 중 현재 상태 — 진행도, 파티 HP, 회복약, 피로.</summary>
-    public static void FieldStatus(FieldYearSession session, IReadOnlyList<Adventurer> party)
+    /// <summary>파견 중 현재 상태 — 진척, 파티 HP·마나·회복약.</summary>
+    public static void FieldStatus(DeploymentSession session, IReadOnlyList<Adventurer> party)
     {
+        var contract = session.Contract;
+
         Ui.Line();
-        Ui.Line($"   ── {session.CurrentMonth}월 · 처치 {session.Killed}/{session.Quota} · 피로 {session.Fatigue} ──");
+        Ui.Line($"   ── {session.CurrentMonth}/{contract.Months}달 · " +
+                $"진척 {session.Progress}/{contract.Intensity}{contract.Form.IntensityLabel()} ──");
 
         foreach (var a in party)
         {
             int hp = session.Hp[a.Id];
             string state = hp <= 0 ? "  전투 불능" : "";
             Ui.Line($"     {a.Name,-16} {Ui.Bar((double)hp / a.MaxHp, 10)} {hp,4}/{a.MaxHp,-4} " +
-                    $"회복약 {session.Potions[a.Id]}{state}");
+                    $"마나 {session.Mana[a.Id],3} · 회복약 {session.Potions[a.Id]}{state}");
         }
     }
 
-    /// <summary>파견 월별 행동 메뉴. 조우 확률과 피로를 라벨에 적습니다.</summary>
-    public static IReadOnlyList<string> FieldMenu() =>
-        Enum.GetValues<FieldAction>()
-            .Select(a =>
-            {
-                int fatigue = FieldRules.FatigueOf(a);
-                string cost = fatigue >= 0 ? $"피로 +{fatigue}" : $"피로 −{-fatigue}, HP 회복";
-                return $"{FieldRules.NameOf(a)} ({FieldRules.FlavorOf(a)}) — " +
-                       $"조우 {FieldRules.EncounterChanceOf(a):P0} · {cost}";
-            })
-            .ToList();
+    /// <summary>의뢰 한 줄. 게시판에 그대로 씁니다.</summary>
+    public static string ContractLine(Contract c) =>
+        $"[{c.Form.ToKorean()}] {c.Name} — 난이도 {c.Difficulty} · {c.Months}달 · " +
+        $"{c.Intensity}{c.Form.IntensityLabel()} · {c.Source.ToKorean()}" +
+        (c.PartyOnly ? " · 파티 전용" : "") +
+        (c.Persists ? " · 지속" : "");
 
     /// <summary>전투 한 라운드의 진영 상태.</summary>
     public static void Formation(BattleState state)
@@ -273,16 +271,6 @@ public static class Display
         _ => action.ToString()
     };
 
-    public static void Contract(Contract c, int index)
-    {
-        string kind = c.Kind switch
-        {
-            ContractKind.Combat => "전투형",
-            ContractKind.Gathering => "채집형",
-            _ => "탐색형"
-        };
-
-        Ui.Line($"   {index}) [{c.Name}] 난이도 {c.Difficulty} · {kind}");
-
-    }
+    public static void Contract(Contract c, int index) =>
+        Ui.Line($"   {index}) {ContractLine(c)}");
 }

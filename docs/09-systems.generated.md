@@ -9,7 +9,7 @@
 > 수치(상수)는 일부러 넣지 않았습니다 — 코드를 직접 보세요.
 > 설계 맥락·미구현 목록·막혀 있는 기능은 [09-systems.md](09-systems.md)에 있습니다.
 
-공개 타입 111개
+공개 타입 118개
 
 ## Adventurers
 
@@ -40,20 +40,27 @@
 ## Careers
 
 - `record BattleReport` — 그 해에 실제로 치른 전투가 어떻게 끝났는지, 그리고 이 사람이 그 안에서 쓰러졌는지
+- `static class Calendar` — 달과 계절
 - `static class CareerRules` — 경력 시뮬레이션의 밸런스 상수
 - `static class CareerSimulator` — 한 해를 진행시킵니다
 - `class CombatExperience` — 실전에서 겪은 것이 무엇을 키우는지
-- `record Contract` — 길드가 받는 의뢰
-- `static class ContractGenerator` — 의뢰를 절차적으로 생성합니다
-- `enum ContractKind` — 의뢰의 성격<br>　└ `Combat` · `Gathering` · `Exploration`
-- `record Encounter` — 조우한 무리와, 피할 수 있는 가능성
+- `record Contract` — 길드가 받는 의뢰 한 건
+- `static class ContractBoard` — 의뢰 게시판 — 매달 랜덤으로 발생합니다
+- `static class ContractFlavor` — 의뢰 이름 풀
+- `enum ContractForm` — 의뢰의 형태 — 완료 판정으로 가릅니다<br>　└ `Subjugate` · `Defend` · `Gather` · `Discover`
+- `static class ContractNames` — 형태·출처의 한국어 이름
+- `enum ContractSource` — 의뢰의 출처<br>　└ `Realm` · `Village` · `Guild`
+- `enum DeploymentFailure` — 파견이 실패한 이유<br>　└ `None` · `Wiped` · `Retreated` · `Abandoned` · `ObjectiveLost` · `NotFound` · `Unfinished`
+- `record DeploymentMonth` — 한 달의 기록
+- `record DeploymentResult` — 파견 한 건의 결과
+- `static class DeploymentRules` — 파견 진행의 수치
+- `class DeploymentSession` — 파견 한 건을 달 단위로 진행합니다
 - `static class EncounterGenerator` — 의뢰에 맞는 적을 만듭니다
-- `enum FieldAction` — 파견 나간 한 달 동안 무엇을 할지<br>　└ `Search` · `Patrol` · `Camp`
-- `record FieldMonth` — 한 달에 실제로 일어난 일
-- `static class FieldRules` — 파견 월 단위 진행의 밸런스 상수
-- `record FieldYearResult` — 파견 1년의 결과
-- `class FieldYearSession` — 파견 1년을 월 단위로 진행합니다
 - `record Mentorship` — 선배가 후배 육성에 주는 보너스
+- `enum MonthWork` — 그 달에 무엇을 했는가<br>　└ `Work` · `Rest`
+- `enum RewardKind` — 보상의 성격<br>　└ `Pay` · `Renown`
+- `enum Season` — 계절<br>　└ `Spring` · `Summer` · `Autumn` · `Winter`
+- `record Supplies` — 파견에 들려 보내는 보급
 
 ## Combat
 

@@ -24,13 +24,21 @@ public static class CombatantFactory
     /// 그래야 "지금 싸울까 피할까"가 판단이 되고 야영과 포션이 의미를 갖습니다.
     /// </para>
     /// </param>
+    /// <param name="startingMana">
+    /// 전투 시작 마나. 생략하면 최대치입니다.
+    /// <para>
+    /// <b>파견에서는 반드시 넘겨야 합니다.</b> 마나가 매 전투 채워지면 사실상 무한이라
+    /// 마나라는 자원이 아무것도 제약하지 않습니다 (docs/08 §17.5b).
+    /// </para>
+    /// </param>
     public static Combatant Create(
         Adventurer adventurer,
         Team team,
         Row row,
         IReadOnlyList<TacticRule>? tactics = null,
         int potions = 2,
-        int? startingHp = null)
+        int? startingHp = null,
+        int? startingMana = null)
     {
         if (!adventurer.IsAlive)
         {
@@ -48,7 +56,10 @@ public static class CombatantFactory
             bonuses: adventurer.Bonuses,
             row: row,
             tactics: tactics ?? DefaultTacticsFor(adventurer.Loadout),
-            potions: potions);
+            potions: potions,
+            passives: adventurer.Passives,
+            actives: adventurer.Actives,
+            startingMana: startingMana);
 
         if (startingHp is { } hp && hp < combatant.MaxHp)
         {
@@ -151,14 +162,19 @@ public static class CombatantFactory
     /// 아군이 이어받는 HP (모험가 Id → 남은 HP). 파견 연도에서 씁니다.
     /// </param>
     /// <param name="carriedPotions">아군이 들고 있는 회복약 (Id → 개수).</param>
+    /// <param name="carriedMana">
+    /// 아군이 이어받는 마나 (Id → 남은 마나).
+    /// <b>넘기지 않으면 만땅으로 시작합니다</b> — 파견에서는 반드시 넘겨야 합니다 (§17.5b).
+    /// </param>
     public static BattleState FormParty(
         IEnumerable<Adventurer> playerParty,
         IEnumerable<Adventurer> enemyParty,
         IReadOnlyDictionary<string, int>? carriedHp = null,
-        IReadOnlyDictionary<string, int>? carriedPotions = null)
+        IReadOnlyDictionary<string, int>? carriedPotions = null,
+        IReadOnlyDictionary<string, int>? carriedMana = null)
     {
         var combatants = new List<Combatant>();
-        combatants.AddRange(Arrange(playerParty, Team.Player, carriedHp, carriedPotions));
+        combatants.AddRange(Arrange(playerParty, Team.Player, carriedHp, carriedPotions, carriedMana));
         combatants.AddRange(Arrange(enemyParty, Team.Enemy));
         return new BattleState(combatants);
     }
@@ -167,7 +183,8 @@ public static class CombatantFactory
         IEnumerable<Adventurer> party,
         Team team,
         IReadOnlyDictionary<string, int>? carriedHp = null,
-        IReadOnlyDictionary<string, int>? carriedPotions = null)
+        IReadOnlyDictionary<string, int>? carriedPotions = null,
+        IReadOnlyDictionary<string, int>? carriedMana = null)
     {
         var members = party.ToList();
         var rows = members.ToDictionary(
@@ -186,7 +203,8 @@ public static class CombatantFactory
             .Select(a => Create(
                 a, team, rows[a.Id],
                 potions: carriedPotions?.GetValueOrDefault(a.Id, 2) ?? 2,
-                startingHp: carriedHp?.GetValueOrDefault(a.Id)))
+                startingHp: carriedHp?.GetValueOrDefault(a.Id),
+                startingMana: carriedMana is null ? null : carriedMana.GetValueOrDefault(a.Id)))
             .ToList();
     }
 }

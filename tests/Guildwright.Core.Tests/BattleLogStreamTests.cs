@@ -1,3 +1,4 @@
+using Guildwright.Core.Parties;
 using Guildwright.Core.Careers;
 using Guildwright.Core.Combat;
 using Guildwright.Core.Rng;
@@ -71,12 +72,13 @@ public class BattleLogStreamTests
     }
 
     [Fact]
-    public void GenerateBoard_한_게시판에_같은_이름의_의뢰가_두_번_뜨지_않는다()
+    public void Post_한_게시판에_같은_이름의_의뢰가_두_번_뜨지_않는다()
     {
         // 이름이 겹치면 "1번과 2번이 뭐가 다른가"를 알 수 없어 고르는 행위가 무의미해집니다.
         for (int seed = 0; seed < 200; seed++)
         {
-            var board = ContractGenerator.GenerateBoard(new DeterministicRandom((ulong)seed), 4, 6);
+            var board = ContractBoard.Post(
+                new DeterministicRandom((ulong)seed), month: 1 + seed % 12, guildRank: Rank.C);
             var names = board.Select(c => c.Name).ToList();
 
             Assert.Equal(names.Count, names.Distinct().Count());

@@ -17,6 +17,18 @@ public sealed record BattleReport(BattleOutcome Outcome, bool Downed = false)
     /// <summary>전투를 따로 돌리지 않은 경우 (배치 시뮬레이션, 요약 진행).</summary>
     public static BattleReport NotFought { get; } = new(BattleOutcome.PlayerVictory);
 
+    /// <summary>
+    /// 파견 한 건의 결과를 연말 결산이 읽을 수 있는 형태로 옮깁니다.
+    /// <para>
+    /// <b>성공/실패 이분법이므로 무승부가 없습니다</b> (§17.4). 실패는 사유가 무엇이든
+    /// 보수가 0이고 위험이 오릅니다 — 손절도 실패는 실패입니다 (§17.7).
+    /// </para>
+    /// </summary>
+    /// <param name="result">파견 결과.</param>
+    /// <param name="downed">이 사람이 그 파견에서 쓰러졌는지.</param>
+    public static BattleReport From(DeploymentResult result, bool downed = false) =>
+        new(result.Succeeded ? BattleOutcome.PlayerVictory : BattleOutcome.EnemyVictory, downed);
+
     public bool Failed => Outcome == BattleOutcome.EnemyVictory;
 
     public bool Inconclusive => Outcome == BattleOutcome.Draw;
