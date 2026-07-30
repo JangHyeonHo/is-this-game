@@ -50,19 +50,22 @@ public static class Ui
         ReadLineOrQuit();
     }
 
-    /// <summary>1부터 시작하는 번호를 하나 고릅니다.</summary>
-    public static int Choose(string prompt, IReadOnlyList<string> options)
+    /// <summary>1부터 시작하는 번호를 하나 고릅니다. 기본값이 있으면 Enter로 그것을 고릅니다.</summary>
+    public static int Choose(string prompt, IReadOnlyList<string> options, int? defaultIndex = null)
     {
         while (true)
         {
             Console.WriteLine();
             for (int i = 0; i < options.Count; i++)
             {
-                Console.WriteLine($"   {i + 1}) {options[i]}");
+                string mark = i == defaultIndex ? " ← Enter" : "";
+                Console.WriteLine($"   {i + 1}) {options[i]}{mark}");
             }
 
             Console.Write($"{prompt} > ");
             string input = ReadLineOrQuit();
+
+            if (string.IsNullOrWhiteSpace(input) && defaultIndex is { } d) return d;
 
             if (int.TryParse(input.Trim(), out int n) && n >= 1 && n <= options.Count)
             {
@@ -113,7 +116,7 @@ public static class Ui
     {
         while (true)
         {
-            Console.Write($"{prompt} (y/n) > ");
+            Console.Write($"{prompt} (y/N) > ");
             string input = ReadLineOrQuit().Trim().ToLowerInvariant();
             if (input is "y" or "yes") return true;
             if (input is "n" or "no" or "") return false;

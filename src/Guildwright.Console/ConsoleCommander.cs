@@ -1,4 +1,5 @@
 using Guildwright.Core.Combat;
+using Guildwright.Core.Skills;
 using Guildwright.Core.Weapons;
 
 namespace Guildwright.Cli;
@@ -87,7 +88,7 @@ public sealed class ConsoleCommander(bool watchEveryTurn = false) : IBattleComma
                 options.Add(($"회복약 사용 (남은 {actor.Potions}개)", new CommandOrder(TacticAction.UsePotion, null)));
             }
 
-            if (actor.CanDo(TacticAction.HealAlly) && actor.Mana >= DamageModel.ManaPerSpell)
+            if (actor.CanDo(TacticAction.HealAlly) && actor.Mana >= SkillBook.Of(SkillId.Cure).ManaCost)
             {
                 var wounded = allies.OrderBy(a => a.HpRatio).First();
                 options.Add(($"{wounded.Name} 회복 (HP {wounded.Hp}/{wounded.MaxHp})",

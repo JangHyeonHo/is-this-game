@@ -52,6 +52,8 @@ public enum WeaponKind
 {
     /// <summary>빈 손.</summary>
     None,
+    /// <summary>나무검. 튜토리얼 지급용 임시 무기입니다.</summary>
+    WoodenSword,
     Sword,
     Axe,
     Mace,
@@ -138,6 +140,7 @@ public static class Weaponry
         new(WeaponKind.None,       "빈손",   Hands.One, Reach.Melee,    0.00, 1.00),
 
         // 한손 근접 — 방패나 다른 무기와 같이 들 수 있습니다.
+        new(WeaponKind.WoodenSword,"나무검", Hands.One, Reach.Melee,    0.45, 1.00),
         new(WeaponKind.Sword,      "검",     Hands.One, Reach.Melee,    1.00, 1.00),
         new(WeaponKind.Axe,        "도끼",   Hands.One, Reach.Melee,    1.15, 0.90),
         new(WeaponKind.Mace,       "둔기",   Hands.One, Reach.Melee,    1.05, 0.95),

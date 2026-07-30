@@ -2,6 +2,8 @@ using Guildwright.Core.Adventurers;
 using Guildwright.Core.Combat;
 using Guildwright.Core.Rng;
 
+using Guildwright.Core.Skills;
+
 namespace Guildwright.Core.Careers;
 
 /// <summary>파견이 실패한 이유. <see cref="None"/>이면 성공입니다.</summary>
@@ -31,6 +33,22 @@ public enum DeploymentFailure
     /// </para>
     /// </summary>
     Unfinished
+}
+
+/// <summary>파견 실패 사유의 화면 표기.</summary>
+public static class DeploymentFailures
+{
+    public static string ToKorean(this DeploymentFailure failure) => failure switch
+    {
+        DeploymentFailure.None => "성공",
+        DeploymentFailure.Wiped => "전원 전투 불능",
+        DeploymentFailure.Retreated => "후퇴",
+        DeploymentFailure.Abandoned => "중도 포기",
+        DeploymentFailure.ObjectiveLost => "대상 상실",
+        DeploymentFailure.NotFound => "발견 실패",
+        DeploymentFailure.Unfinished => "기간 내 미달",
+        _ => failure.ToString()
+    };
 }
 
 /// <summary>그 달에 무엇을 했는가. <b>모험가 AI가 고릅니다</b> — 플레이어는 편성과 보급만 합니다.</summary>
@@ -103,6 +121,7 @@ public sealed class DeploymentSession
 {
     private readonly IReadOnlyList<Adventurer> _party;
     private readonly IRandomSource _rng;
+    private readonly Func<IRandomSource, string> _nameFor;
     private readonly List<DeploymentMonth> _months = [];
 
     /// <summary>파견 내내 이어지는 HP. 저절로는 조금씩만 찹니다.</summary>
@@ -124,7 +143,8 @@ public sealed class DeploymentSession
         IReadOnlyList<Adventurer> party,
         Contract contract,
         IRandomSource rng,
-        Supplies? supplies = null)
+        Supplies? supplies = null,
+        Func<IRandomSource, string>? nameFor = null)
     {
         if (party.Count == 0) throw new ArgumentException("파티가 비어 있습니다.", nameof(party));
 
@@ -146,6 +166,7 @@ public sealed class DeploymentSession
         _maxMana = _party.ToDictionary(a => a.Id, a => DerivedStats.MaxMana(a.Stats, a.Bonuses), StringComparer.Ordinal);
         _mana = _party.ToDictionary(a => a.Id, a => _maxMana[a.Id], StringComparer.Ordinal);
         _potions = new Dictionary<string, int>(given.DistributeAmong(_party), StringComparer.Ordinal);
+        _nameFor = nameFor ?? (_ => "마물");
     }
 
     public Contract Contract { get; }
@@ -169,6 +190,13 @@ public sealed class DeploymentSession
     public IReadOnlyDictionary<string, int> Potions => _potions;
 
     /// <summary>서 있는 사람.</summary>
+    /// <summary>
+    /// 전투 전력으로 셈하는 인원. 짐꾼과 가방을 든 사람은 싸우지 못하므로 (§16.8b)
+    /// 적 머릿수 계산에 넣지 않습니다 — 넣으면 비전투 요원이 적만 늘립니다.
+    /// </summary>
+    public static int Combatants(IEnumerable<Adventurer> party) =>
+        Math.Max(1, party.Count(a => Jobs.Of(a.Job).Combat && !a.Loadout.CarryingPack));
+
     public IReadOnlyList<Adventurer> Standing =>
         [.. _party.Where(a => a.IsAlive && _hp[a.Id] > 0)];
 
@@ -232,6 +260,15 @@ public sealed class DeploymentSession
 
         if (_rng.Chance(DeploymentRules.EncounterChanceOf(Contract.Form)))
         {
+            // 싸울 수 있는 사람이 없으면 싸움이 성립하지 않습니다 — 짐꾼 혼자 50라운드를
+            // 버티는 결투는 게임이 아니라 고문입니다.
+            if (Standing.Count(a => Skills.Jobs.Of(a.Job).Combat && !a.Loadout.CarryingPack) == 0)
+            {
+                _failure = Contract.HasWard ? DeploymentFailure.ObjectiveLost : DeploymentFailure.Retreated;
+                return Record(new DeploymentMonth(month, MonthWork.Work,
+                    $"{month}달째: 싸울 사람이 없어 물러났다", 0, Fought: false));
+            }
+
             fought = true;
             var (won, killed) = Fight(month, battleRng ?? _rng.Fork($"battle:{month}"), commander, onLine);
 
@@ -268,7 +305,7 @@ public sealed class DeploymentSession
         if (Contract.CanComeUpEmpty && !_found && _rng.Chance(DiscoveryChance()))
         {
             _found = true;
-            note += $" · {Contract.Objective ?? "목표"}를 찾았다";
+            note += $" · {Contract.Objective ?? "목표"}을(를) 찾았다";
         }
 
         Progress += gained;
@@ -371,7 +408,7 @@ public sealed class DeploymentSession
         if (standing.Count == 0) return (false, 0);
 
         var enemies = EncounterGenerator.Generate(
-            Contract.Difficulty, standing.Count, _rng.Fork($"enc:{month}"), _ => "마물");
+            Contract.Difficulty, Combatants(standing), _rng.Fork($"enc:{month}"), _nameFor);
 
         var state = CombatantFactory.FormParty(standing, enemies, _hp, _potions, _mana);
         var result = new BattleResolver(recordLog: onLine is not null).Resolve(state, rng, commander, onLine);

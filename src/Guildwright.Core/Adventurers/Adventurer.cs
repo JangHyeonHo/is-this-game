@@ -169,7 +169,7 @@ public sealed class Adventurer
     public IReadOnlyList<SkillId> Innate { get; }
 
     /// <summary>장착 4칸 — 주무기(좌·우) + 보조무기(좌·우).</summary>
-    public Loadout Loadout { get; }
+    public Loadout Loadout { get; private set; }
 
     /// <summary>
     /// 현재 직업.
@@ -239,8 +239,14 @@ public sealed class Adventurer
         if (!Jobs.Of(job).IsUnlockedBy(k => Proficiency[k])) return false;
 
         Job = job;
+        // 시작 장비도 직업이 정하므로 (§16.2) 전직하면 그 직업의 무기로 바꿔 듭니다.
+        // 이게 없으면 짐꾼 출신 검객이 가방을 무기로 휘두릅니다 — 실제로 3년을 그랬습니다.
+        Reequip();
         return true;
     }
+
+    /// <summary>현재 직업의 시작 장비로 다시 갖춥니다 (나무검 → 진짜 검 등).</summary>
+    public void Reequip() => Loadout = StartingLoadoutFor(Job);
 
     /// <summary>
     /// 같은 무기 계열인가. <b>고집이 막지 않는 범위</b>를 정합니다.
@@ -438,7 +444,8 @@ public sealed class Adventurer
             : Loadout.Pair(WeaponKind.Sword, kind);
     }
 
-    private static WeaponKind StartingWeaponFor(JobId job) => job switch
+    /// <summary>이 직업이 처음 드는 무기. 전직 화면에서 적성과 잇는 데도 씁니다.</summary>
+    public static WeaponKind StartingWeaponFor(JobId job) => job switch
     {
         JobId.SwordApprentice => WeaponKind.Sword,
         JobId.ShieldApprentice => WeaponKind.Shield,
