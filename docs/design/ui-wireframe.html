@@ -226,7 +226,9 @@
 
 <!-- ═══════════════ 6. 수동 전투 ═══════════════ -->
 <h2>화면 6 — 수동 전투 (동행 파견에서 전투가 나면)</h2>
-<div class="note">유닛은 일러스트 전제. 차례가 온 아군의 행동·스킬을 직접 고른다. 마나·쿨다운 부족은
+<div class="note">유닛은 일러스트 전제. 명령은 메인 푸터와 같은 4분류 — <b>공격 · 스킬 · 아이템 · 후퇴</b>.
+분류를 고르면 목록이 옆에 펼쳐진다(스킬 → 스킬 목록, 아이템 → 들고 온 포션). 후퇴는 확인을
+묻고 파견 결과에 "후퇴"로 기록된다. 이동·대기는 오른쪽 보조 버튼. 마나·쿨다운 부족은
 흐려지고, 공포·혼란인 아군은 조작 불가. 검사는 전부 코어, UI는 표시만.</div>
 <div class="fit"><div class="stage">
   <div class="art" style="position:absolute; inset:0; border-radius:0; border:none">전장 배경 일러스트 자리 (가도 · 숲)</div>
@@ -256,16 +258,26 @@
       <div class="portrait" style="width:190px; height:280px; background:linear-gradient(180deg,#4a3030,#2a1c1c)">고블린 C</div>
       <div style="width:190px"><div class="bar"><i style="width:80%; background:#9a6a6a"></i></div></div></div>
   </div>
-  <!-- 명령 패널 -->
-  <div style="position:absolute; left:0; right:0; bottom:0; background:rgba(20,17,13,.94); border-top:2px solid #3a352d; padding:24px 36px">
-    <div style="font-size:28px; color:#eadfc0; margin-bottom:14px">브렌의 행동 — 대상을 고르면 실행</div>
-    <div style="display:flex; gap:16px">
-      <button class="btn" style="font-size:27px">공격 <small style="color:#8a8378">철검</small></button>
-      <button class="btn" style="font-size:27px">휘두르기 <small style="color:#8a8378">마나 4 · 쿨 2</small></button>
-      <button class="btn" style="font-size:27px; opacity:.4">도발 <small>마나 부족</small></button>
-      <button class="btn" style="font-size:27px">후열로 이동 <small style="color:#8a8378">턴 소모</small></button>
-      <button class="btn" style="font-size:27px">대기</button>
-      <div style="margin-left:auto; font-size:22px; color:#8a8378; align-self:center">지난 턴: 고블린 A가 브렌을 공격 — 7 피해 (계산 보기)</div>
+  <!-- 명령 패널 — 메인 푸터와 같은 4분류: 공격 · 스킬 · 아이템 · 후퇴 -->
+  <div style="position:absolute; left:0; right:0; bottom:0; background:rgba(20,17,13,.94); border-top:2px solid #3a352d; padding:20px 36px 24px">
+    <div style="display:flex; align-items:center; margin-bottom:14px">
+      <div style="font-size:28px; color:#eadfc0">브렌의 행동</div>
+      <div style="margin-left:auto; font-size:22px; color:#8a8378">지난 턴: 고블린 A가 브렌을 공격 — 7 피해 (계산 보기)</div>
+    </div>
+    <div style="display:flex; gap:20px; align-items:flex-start">
+      <div class="nav" style="width:170px"><span class="ico">⚔️</span>공격</div>
+      <div class="nav" style="width:170px; border-color:#8a7434; color:#eadfc0"><span class="ico">✨</span>스킬 ◀</div>
+      <div class="nav" style="width:170px"><span class="ico">🧪</span>아이템</div>
+      <div class="nav" style="width:170px"><span class="ico">🏃</span>후퇴</div>
+      <!-- 선택한 분류의 목록이 옆에 펼쳐진다 -->
+      <div style="display:flex; flex-direction:column; gap:10px">
+        <button class="btn" style="font-size:26px">휘두르기 <small style="color:#8a8378">마나 4 · 쿨 2</small></button>
+        <button class="btn" style="font-size:26px; opacity:.4">도발 <small>마나 부족</small></button>
+      </div>
+      <div style="margin-left:auto; display:flex; flex-direction:column; gap:10px">
+        <button class="btn" style="font-size:24px">후열로 이동 <small style="color:#8a8378">턴 소모</small></button>
+        <button class="btn" style="font-size:24px">대기</button>
+      </div>
     </div>
   </div>
 </div></div>
