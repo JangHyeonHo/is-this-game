@@ -30,7 +30,7 @@
 {
     var loadout = selected.Adventurer.Loadout;
     @* ── 중: 상세 ── *@
-    <div class="panel" style="position:absolute; left:420px; top:100px; bottom:40px; width:560px">
+    <div class="panel" style="position:absolute; left:420px; top:100px; bottom:40px; width:560px; overflow-y:auto">
         <div style="display:flex; gap:20px; padding:20px">
             <div class="portrait" style="width:150px; height:200px">@ShortName(selected.Name)</div>
             <div style="font-size:24px">
@@ -59,6 +59,25 @@
                 @(selected.InnateLabels.Any() ? string.Join(" · ", selected.InnateLabels) : "없음")
                 <span style="color:#635c50; font-size:19px"> (해금 시스템은 §20.6 구현 전)</span>
             </div>
+            <h3 style="padding-left:0">직업 스킬</h3>
+            @foreach (var skillId in Jobs.Of(selected.Adventurer.Job).Grants)
+            {
+                var skill = SkillBook.Of(skillId);
+                var learned = skill.Form == SkillForm.Passive || selected.Adventurer.Actives.Contains(skillId);
+                <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px; @(learned ? "" : "opacity:.55")">
+                    <div class="icon-ph">아이콘<br />자리</div>
+                    <div style="font-size:22px; line-height:1.4">
+                        <b style="color:#eadfc0">@skill.Korean</b>
+                        <span class="tag" style="font-size:16px">@(skill.Form == SkillForm.Passive ? "패시브" : "액티브")</span><br />
+                        <span style="color:#8a8378">@SkillSummary(skill)</span>
+                        @if (!learned)
+                        {
+                            <span style="color:#c9b98a"> — @(skill.RequiresWeapon.ToKorean()) 숙련 @(skill.RequiresProficiency)에 배운다
+                                (지금 @(selected.Adventurer.Proficiency[skill.RequiresWeapon]))</span>
+                        }
+                    </div>
+                </div>
+            }
         </div>
     </div>
 
@@ -164,4 +183,32 @@ else
         int cut = name.IndexOf('(');
         return cut > 0 ? name[..cut] : name;
     }
+
+    /// <summary>스킬 효과 한 줄 요약 — 표의 값을 그대로 읽는다.</summary>
+    private static string SkillSummary(Skill skill)
+    {
+        if (skill.Id == SkillId.CutAndGuard)
+            return $"공격력의 {DamageModelGuardRatio}%로 공격하며 방어 자세 · 마나 {skill.ManaCost} · 쿨 {skill.Cooldown}";
+        if (skill.FactorBoosts is { } factorStat)
+            return $"전투 시 {StatLabel(factorStat)} ×{1.0 + skill.FactorAmount:F2}";
+        if (skill.Boosts is { } stat)
+            return $"{StatLabel(stat)} +{skill.BoostAmount:0.##}";
+        if (skill.Form == SkillForm.Active)
+            return $"마나 {skill.ManaCost} · 쿨 {skill.Cooldown}";
+        return "—";
+    }
+
+    private static readonly int DamageModelGuardRatio =
+        (int)Math.Round(Guildwright.Core.Combat.DamageModel.GuardStrikePowerRatio * 100);
+
+    private static string StatLabel(DerivedStat stat) => stat switch
+    {
+        DerivedStat.PhysicalGuard => "방어력",
+        DerivedStat.MagicGuard => "마법 방어",
+        DerivedStat.PhysicalPower => "공격력",
+        DerivedStat.MagicPower => "마법 위력",
+        DerivedStat.MaxHp => "최대 HP",
+        DerivedStat.CritChance => "치명타율",
+        _ => stat.ToString()
+    };
 }

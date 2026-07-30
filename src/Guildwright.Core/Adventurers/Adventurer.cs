@@ -275,12 +275,14 @@ public sealed class Adventurer
          .. JobProfile.Grants.Where(id => SkillBook.Of(id).Form == SkillForm.Passive)];
 
     /// <summary>
-    /// 장착할 액티브. 직업이 주는 것 중 슬롯 수만큼, 그리고 <b>지금 든 무기로 쓸 수 있는 것</b>만.
+    /// 장착할 액티브. 직업이 주는 것 중 슬롯 수만큼 — <b>지금 든 무기로 쓸 수 있고,
+    /// 요구 숙련을 채워 이미 배운 것</b>만 (docs/07 §22 — 배우는 타이밍은 숙련이 정한다).
     /// </summary>
     public IReadOnlyList<SkillId> Actives =>
         JobProfile.Grants
             .Where(id => SkillBook.Of(id).Form == SkillForm.Active)
             .Where(id => SkillBook.Of(id).UsableWith(Loadout))
+            .Where(id => SkillBook.Of(id).LearnedBy(Proficiency))
             .Take(JobProfile.ActiveSlots)
             .ToArray();
 

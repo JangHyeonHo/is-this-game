@@ -130,6 +130,15 @@ html, body {
 .statrow .up { color: #9cc79c; font-weight: bold; }
 .statrow .none { color: #635c50; }
 
+/* 아이콘 자리 — 이미지가 들어간다는 전제의 표시 (스킬 · 아이템) */
+.icon-ph {
+    width: 56px; height: 56px; flex: none;
+    background: repeating-linear-gradient(45deg, #2a251d, #2a251d 6px, #241f18 6px, #241f18 12px);
+    border: 2px dashed #55503f; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 13px; color: #7a7368; line-height: 1.2;
+}
+
 /* 모달 */
 .dim-layer {
     position: absolute; inset: 0; background: rgba(0,0,0,.55);

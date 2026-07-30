@@ -20,7 +20,10 @@
         {
             var canBuy = Session.Gold >= price;
             <div class="card">
-                <div class="t" style="font-size:27px">@item.Korean</div>
+                <div style="display:flex; gap:12px; align-items:center">
+                    <div class="icon-ph">아이콘<br />자리</div>
+                    <div class="t" style="font-size:27px">@item.Korean</div>
+                </div>
                 <div class="m">위력 배율 @((Weaponry.Of(item.Kind).Power * item.Material.PowerFactor()).ToString("F2")) ·
                     한손 · 보유 @Session.Armory.CountOf(item)</div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px">
@@ -37,7 +40,10 @@
         {
             var canBuy = Session.Gold >= price;
             <div class="card">
-                <div class="t" style="font-size:27px">@kind.ToKorean()</div>
+                <div style="display:flex; gap:12px; align-items:center">
+                    <div class="icon-ph">아이콘<br />자리</div>
+                    <div class="t" style="font-size:27px">@kind.ToKorean()</div>
+                </div>
                 <div class="m">보유 @Session.Armory.CountOf(kind) · 사용은 파견 연결 후</div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px">
                     <b style="color:#d6b45a; font-size:26px">@price G</b>

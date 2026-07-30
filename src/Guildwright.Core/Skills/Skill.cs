@@ -67,6 +67,8 @@ public enum SkillId
     /// </para>
     /// </summary>
     PiercingShot,
+    /// <summary>베고 막기 — 공격력의 75%로 공격하며 방어 자세를 취합니다. 견습 전사의 것 (docs/07 §22).</summary>
+    CutAndGuard,
 
     // ---- 직업 패시브 — 숙련도가 여는 것 ----
     /// <summary>쌍수 숙달. 치명타가 자잘하게 자주 터집니다.</summary>
@@ -79,6 +81,8 @@ public enum SkillId
     SteadyAim,
     /// <summary>짐 다루기. 무거운 짐을 지고도 버팁니다.</summary>
     Packcraft,
+    /// <summary>대담함. 전투 시 방어력 1.1배 — 견습 전사의 직업 패시브 (docs/07 §22).</summary>
+    Boldness,
 
     // ---- 태생 패시브 (성격) ----
     // ⚠️ 효과가 파티 전체인지 자신인지는 [제안]일 뿐 승인되지 않았습니다 (docs/07 §10).
@@ -141,6 +145,15 @@ public enum SkillId
 /// 어느 쪽이 오라를 갖는지·세기가 어떻게 갈리는지는 정해지지 않았습니다.
 /// </para>
 /// </param>
+/// <param name="FactorBoosts">
+/// 패시브가 <b>배율</b>로 올리는 수치 — 대담함("방어력 1.1배")이 이 축입니다 (docs/07 §22).
+/// 합연산(<see cref="Boosts"/>)과 달리 (기본+가산) 전체에 곱해집니다.
+/// </param>
+/// <param name="FactorAmount">배율 보정량. 0.10이면 ×1.10입니다. 여러 개면 덧셈으로 모아 한 번 곱합니다.</param>
+/// <param name="RequiresProficiency">
+/// 배우는 데 필요한 <see cref="RequiresWeapon"/> 숙련 — <b>"특정 타이밍에 배운다"의 타이밍</b>입니다.
+/// 0이면 직업을 얻는 순간 배웁니다.
+/// </param>
 public sealed record Skill(
     SkillId Id,
     string Korean,
@@ -155,11 +168,24 @@ public sealed record Skill(
     DerivedStat? Costs = null,
     double CostAmount = 0.0,
     double CritMultiplierBonus = 0.0,
-    bool PartyWide = false)
+    bool PartyWide = false,
+    DerivedStat? FactorBoosts = null,
+    double FactorAmount = 0.0,
+    int RequiresProficiency = 0)
 {
     /// <summary>이 무기 구성으로 쓸 수 있는가.</summary>
     public bool UsableWith(Loadout loadout) =>
         RequiresWeapon == WeaponKind.None || loadout.Holding(RequiresWeapon);
+
+    /// <summary>
+    /// 이 숙련으로 배웠는가. <b>"특정 타이밍에 배운다"의 타이밍이 이것이다</b> —
+    /// 직업이 주는 스킬이라도 요구 숙련(<see cref="RequiresProficiency"/>)을 채우기
+    /// 전에는 아직 익히지 못한 것이다 (docs/07 §22).
+    /// </summary>
+    public bool LearnedBy(WeaponProficiency proficiency) =>
+        RequiresProficiency <= 0
+        || RequiresWeapon == WeaponKind.None
+        || proficiency[RequiresWeapon] >= RequiresProficiency;
 
     public override string ToString() => Korean;
 }
@@ -216,6 +242,13 @@ public static class SkillBook
         new(SkillId.PiercingShot, "관통 사격", SkillSource.Job, SkillForm.Active,
             Action: TacticAction.AttackBackRow, ManaCost: 4, Cooldown: 1),
 
+        // 견습 전사의 액티브 (docs/07 §22 — 사용자 결정 2026-07-30).
+        // 공격력의 75%로 베면서 방어 자세를 취한다. 쿨 2 · 마나 3은 확정값,
+        // ⚠️ 요구 숙련 10은 임시값이다 — "특정 타이밍에 배운다"의 타이밍.
+        new(SkillId.CutAndGuard, "베고 막기", SkillSource.Job, SkillForm.Active,
+            Action: TacticAction.GuardStrike, RequiresWeapon: WeaponKind.Sword,
+            ManaCost: 3, Cooldown: 2, RequiresProficiency: 10),
+
         // ---- 직업 패시브 — 숙련도가 여는 것 ----
         // 치명타 특성이 여기 있는 이유: 초보가 쌍수를 들었다고 바로 자잘하게 잘 터지는 건
         // 이상합니다. 그건 무기의 성질이 아니라 오래 써서 얻은 것입니다.
@@ -235,6 +268,11 @@ public static class SkillBook
 
         new(SkillId.Packcraft, "짐 다루기", SkillSource.Job, SkillForm.Passive,
             Boosts: DerivedStat.MaxHp, BoostAmount: 6.0),
+
+        // 견습 전사의 직업 패시브 (docs/07 §22 — 사용자 결정 2026-07-30).
+        // "전투 시 방어력 1.1배" — 유일한 배율형 패시브라 FactorBoosts 축을 쓴다.
+        new(SkillId.Boldness, "대담함", SkillSource.Job, SkillForm.Passive,
+            FactorBoosts: DerivedStat.PhysicalGuard, FactorAmount: 0.10),
 
         // ---- 태생 패시브 (성격) ----
         // 이득에는 대가가 붙습니다 — 대가가 없으면 모두가 같은 성격을 원해 성격이 서열이 됩니다.

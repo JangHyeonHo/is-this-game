@@ -168,6 +168,21 @@ public sealed class Combatant
         return sum;
     }
 
+    /// <summary>
+    /// 패시브가 그 파생 수치에 거는 <b>배율</b> — 대담함(방어력 1.1배)이 이 축이다.
+    /// 결정론 규칙대로 배율 보정도 덧셈으로 모아 마지막에 한 번 곱한다.
+    /// </summary>
+    private double PassiveFactor(DerivedStat stat)
+    {
+        double bonus = 0.0;
+        foreach (var id in Passives)
+        {
+            var skill = SkillBook.Of(id);
+            if (skill.FactorBoosts == stat) bonus += skill.FactorAmount;
+        }
+        return 1.0 + bonus;
+    }
+
     /// <summary>치명타 배율. 숙련 패시브가 좌우합니다 — 무기가 아닙니다.</summary>
     public double CritMultiplier
     {
@@ -234,16 +249,20 @@ public sealed class Combatant
     // ---- 상태 효과가 반영된 실효 수치 ----
 
     public int EffectivePhysicalPower =>
-        Shifted(BasePhysicalPower + PassiveBonus(DerivedStat.PhysicalPower), ShiftTarget.Power);
+        Shifted((BasePhysicalPower + PassiveBonus(DerivedStat.PhysicalPower))
+                * PassiveFactor(DerivedStat.PhysicalPower), ShiftTarget.Power);
 
     public int EffectiveMagicPower =>
-        Shifted(BaseMagicPower + PassiveBonus(DerivedStat.MagicPower), ShiftTarget.Power);
+        Shifted((BaseMagicPower + PassiveBonus(DerivedStat.MagicPower))
+                * PassiveFactor(DerivedStat.MagicPower), ShiftTarget.Power);
 
     public int EffectivePhysicalGuard =>
-        Shifted(BasePhysicalGuard + PassiveBonus(DerivedStat.PhysicalGuard), ShiftTarget.Guard);
+        Shifted((BasePhysicalGuard + PassiveBonus(DerivedStat.PhysicalGuard))
+                * PassiveFactor(DerivedStat.PhysicalGuard), ShiftTarget.Guard);
 
     public int EffectiveMagicGuard =>
-        Shifted(BaseMagicGuard + PassiveBonus(DerivedStat.MagicGuard), ShiftTarget.Guard);
+        Shifted((BaseMagicGuard + PassiveBonus(DerivedStat.MagicGuard))
+                * PassiveFactor(DerivedStat.MagicGuard), ShiftTarget.Guard);
 
     /// <summary>공격 위력. 지팡이를 들면 마법 위력을 씁니다.</summary>
     public int EffectiveOffense =>
