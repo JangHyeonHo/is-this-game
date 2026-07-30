@@ -272,7 +272,8 @@ public static class Display
 
             Ui.Line($"     {tag} {string.Join(" · ", names)}  " +
                     $"{Ui.Bar(Math.Min(1.0, (double)months / PartyRules.MonthsToRegister), 6)} " +
-                    $"{months}/{PartyRules.MonthsToRegister}달");
+                    $"{Math.Min(months, PartyRules.MonthsToRegister)}/{PartyRules.MonthsToRegister}달" +
+                    (months >= PartyRules.MonthsToRegister ? " — 등록 가능" : ""));
         }
     }
 

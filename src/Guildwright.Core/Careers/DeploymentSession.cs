@@ -260,6 +260,15 @@ public sealed class DeploymentSession
 
         if (_rng.Chance(DeploymentRules.EncounterChanceOf(Contract.Form)))
         {
+            // 싸울 수 있는 사람이 없으면 싸움이 성립하지 않습니다 — 짐꾼 혼자 50라운드를
+            // 버티는 결투는 게임이 아니라 고문입니다.
+            if (Standing.Count(a => Skills.Jobs.Of(a.Job).Combat && !a.Loadout.CarryingPack) == 0)
+            {
+                _failure = Contract.HasWard ? DeploymentFailure.ObjectiveLost : DeploymentFailure.Retreated;
+                return Record(new DeploymentMonth(month, MonthWork.Work,
+                    $"{month}달째: 싸울 사람이 없어 물러났다", 0, Fought: false));
+            }
+
             fought = true;
             var (won, killed) = Fight(month, battleRng ?? _rng.Fork($"battle:{month}"), commander, onLine);
 
@@ -296,7 +305,7 @@ public sealed class DeploymentSession
         if (Contract.CanComeUpEmpty && !_found && _rng.Chance(DiscoveryChance()))
         {
             _found = true;
-            note += $" · {Contract.Objective ?? "목표"}를 찾았다";
+            note += $" · {Contract.Objective ?? "목표"}을(를) 찾았다";
         }
 
         Progress += gained;

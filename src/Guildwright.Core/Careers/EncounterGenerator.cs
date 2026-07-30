@@ -63,8 +63,10 @@ public static class EncounterGenerator
                 $"X{i}", nameFor(stream), stream,
                 potentialTier: Math.Clamp(difficulty / 2, 1, 6));
 
-            // 난이도만큼 해를 보내 강해집니다. 여기가 난이도의 유일한 표현입니다.
-            for (int y = 0; y < difficulty; y++)
+            // 난이도 - 1 만큼 해를 보내 강해집니다. 여기가 난이도의 유일한 표현입니다.
+            // 난이도 1이 "실전 1년차"면 첫 실전의 상대가 항상 선배라, 신입의 첫 의뢰와
+            // 튜토리얼이 구조적으로 전패였습니다 (docs/08 #40 · #65).
+            for (int y = 0; y < difficulty - 1; y++)
             {
                 if (foe.Status != AdventurerStatus.Active) break;
                 CareerSimulator.ResolveTrainingYear(foe, stream.Fork($"train:{y}"));

@@ -116,7 +116,7 @@ public static class Ui
     {
         while (true)
         {
-            Console.Write($"{prompt} (y/n) > ");
+            Console.Write($"{prompt} (y/N) > ");
             string input = ReadLineOrQuit().Trim().ToLowerInvariant();
             if (input is "y" or "yes") return true;
             if (input is "n" or "no" or "") return false;
