@@ -19,12 +19,20 @@ public static class DeploymentRules
     /// <summary>
     /// 형태별 한 달 조우 확률.
     /// <para>
-    /// 토벌은 찾아다니니 잦고, 지킴은 습격을 기다리고, 수집·발견에서는 사고입니다.
+    /// <b>토벌은 만나는 것이 전제입니다</b> — 나가서 찾아 싸우는 일이므로 "못 찾았다"가
+    /// 성립하지 않습니다. 안 만날 수 있는 것은 <b>지킴</b>입니다(습격이 올 수도, 안 올 수도).
+    /// 수집·발견에서는 사고로만 만납니다.
+    /// </para>
+    /// <para>
+    /// ⚠️ 예전에는 토벌을 0.85로 두었습니다. 그러면 조우가 적게 뜬 달이 겹쳐
+    /// <b>끝까지 일했는데도 진척 미달로 실패</b>하는 파견이 나옵니다(40번 중 2번 측정).
+    /// 그 근거로 삼았던 문서 문장("토벌은 안 만나면 진척이 없다")은 <b>에이전트가 쓴 것</b>이고
+    /// 주인님의 모델과 반대였습니다.
     /// </para>
     /// </summary>
     public static double EncounterChanceOf(ContractForm form) => form switch
     {
-        ContractForm.Subjugate => 0.85,
+        ContractForm.Subjugate => 1.00,
         ContractForm.Defend => 0.55,
         ContractForm.Gather => 0.30,
         ContractForm.Discover => 0.35,
