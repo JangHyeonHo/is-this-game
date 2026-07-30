@@ -21,7 +21,7 @@ public static class Display
         Ui.Line($"   │ 기교 {a.Stats.Finesse,3}       │ 물리 방어 {a.PhysicalGuard,4}   치명타율 {a.CritChance,4:P0}");
         Ui.Line($"   │ 활력 {a.Stats.Vitality,3}       │ 마법 방어 {a.MagicGuard,4}   회피율   {a.EvasionChance,4:P0}");
         Ui.Line($"   │ 지능 {a.Stats.Intellect,3}       │ 판단력    {a.Judgement,4}   숙련     {a.Proficiency[a.Loadout.MainWeapon],4}");
-        Ui.Line($"   │ 정신 {a.Stats.Spirit,3}       │ 연봉      {a.AnnualWage,4}");
+        Ui.Line($"   │ 정신 {a.Stats.Spirit,3}       │ 유지비/년 {CareerRules.AnnualUpkeep,4}");
         Ui.Line($"   └────────────────┴───────────────────────────────");
 
         if (a.Actives.Count > 0)

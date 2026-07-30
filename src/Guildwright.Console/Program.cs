@@ -261,8 +261,7 @@ internal sealed class Guild(IRandomSource rng)
     private void ChangeJob(Adventurer member, List<Job> upgrades)
     {
         var labels = upgrades
-            .Select(j => $"{j.Korean} — 슬롯 {j.ActiveSlots} · 수주 난이도 {j.MaxContractDifficulty} · " +
-                         $"유지비 {j.Upkeep}" +
+            .Select(j => $"{j.Korean} — 슬롯 {j.ActiveSlots} · 수주 난이도 {j.MaxContractDifficulty}" +
                          (j.Grants.Count > 0
                              ? $" · {string.Join(", ", j.Grants.Select(g => SkillBook.Of(g).Korean))}"
                              : ""))
@@ -374,6 +373,9 @@ internal sealed class Guild(IRandomSource rng)
         int affordable = Math.Min(room, Math.Max(0, _funds / RecruitCost));
 
         if (room == 0) Ui.Note($"정원이 찼습니다 ({RosterCapacity}명). 랭크가 올라야 늘어납니다.");
+        else if (affordable == 0) Ui.Note($"자금이 모자랍니다 (계약금 {RecruitCost}).");
+
+        if (affordable == 0) return;
 
         var picked = Ui.ChooseMany("영입할 사람", labels, affordable);
 
@@ -505,8 +507,9 @@ internal sealed class Guild(IRandomSource rng)
 
         if (others.Count > 0)
         {
+            // 총 5인까지 — §17.4가 든 예가 "다섯을 보내면"입니다. 최대 인원의 확정은 아직 없습니다.
             var picks = Ui.ChooseMany("   함께 보낼 동료",
-                others.Select(o => $"{o.Name} · {o.Title} · {o.Rank.Label()} ({o.Loadout})").ToList(), 3);
+                others.Select(o => $"{o.Name} · {o.Title} · {o.Rank.Label()} ({o.Loadout})").ToList(), 4);
             party.AddRange(picks.Select(i => others[i]));
         }
         else
@@ -559,6 +562,24 @@ internal sealed class Guild(IRandomSource rng)
         {
             _parties.RecordEvaluation(existing, result.Contract.Difficulty * EvaluationPerDifficulty);
             Ui.Note($"{existing}");
+        }
+
+        // 정규 파티 멤버가 아닌 동행이 있었으면 증원을 물어봅니다 (§6.1).
+        // 자격은 코어가 검사하고, 증원해도 누적은 새 조합으로 다시 6개월입니다.
+        var regularOfAny = party.Select(p => _parties.RegularPartyOf(p.Id)).FirstOrDefault(p => p is not null);
+        if (regularOfAny is not null)
+        {
+            foreach (var guest in party.Where(p => !regularOfAny.Members.Any(m => m.Id == p.Id)))
+            {
+                if (_parties.CheckAdmission(regularOfAny, guest) != AdmissionProblem.None) continue;
+
+                if (Ui.Confirm($"   {guest.Name}을(를) {regularOfAny.Name}에 증원하시겠습니까 (새 조합의 누적은 6개월부터)"))
+                {
+                    _parties.Admit(regularOfAny, guest);
+                    Record($"{_year}년: {regularOfAny.Name} 증원 — {guest.Name}");
+                    Ui.Note($"증원되었습니다. {regularOfAny}");
+                }
+            }
         }
 
         Display.Parties(_parties, _members);
@@ -672,9 +693,15 @@ internal sealed class Guild(IRandomSource rng)
             ? contract.Difficulty * (contract.Reward == RewardKind.Renown ? 2 : 1)
             : -1;
 
-        _funds += totalIncome;
+        // 보수는 나눕니다 (docs/07 §7) — 파티 평균 등급이 높을수록 모험가 몫이 큽니다.
+        // 그래서 쉬운 의뢰에 고수를 보내는 것이 손해가 됩니다.
+        var ranks = party.Select(p => p.Rank).ToList();
+        int guildTake = CareerRules.GuildTake(totalIncome, ranks);
+
+        _funds += guildTake;
         _reputation = Math.Max(0, _reputation + reputationGain);
-        Ui.Note($"보수 {totalIncome}, 평판 {(reputationGain >= 0 ? "+" : "")}{reputationGain}");
+        Ui.Note($"보수 {totalIncome} — 모험가 몫 {totalIncome - guildTake} · 길드 몫 {guildTake} " +
+                $"(모험가 {CareerRules.AdventurerShare(ranks):P0}), 평판 {(reputationGain >= 0 ? "+" : "")}{reputationGain}");
 
         // 죽거나 불구가 되면 파티에서 빠지고, 1명 남으면 자동 해체됩니다 (§6.1).
         foreach (var lost in _members.Where(m => m.Status is AdventurerStatus.Dead or AdventurerStatus.Crippled))
@@ -729,21 +756,17 @@ internal sealed class Guild(IRandomSource rng)
 
         Ui.Section($"{_year}년 결산");
 
-        int wages = _members.Sum(m => m.AnnualWage);
-        _funds -= wages;
-        _reputation += _members.Sum(m => m.ReputationValue) / 4;
+        // 유지비는 등급 무관 정액입니다 (docs/07 §7) — 단원이 강해져도 오르지 않습니다.
+        // 강한 사람의 비용은 보수 분배에서 나갑니다. 평판은 의뢰에서만 오릅니다.
+        int upkeep = _members.Count * CareerRules.AnnualUpkeep;
+        _funds -= upkeep;
 
-        Ui.Note($"급여 지출 {wages}");
-        foreach (var m in _members)
-        {
-            Ui.Line($"     {m.Name} · {m.Title} ({m.Age}세) 연봉 {m.AnnualWage}");
-        }
-
+        Ui.Note($"유지비 지출 {upkeep} ({_members.Count}명 × {CareerRules.AnnualUpkeep})");
         Ui.Note($"남은 자금 {_funds} · 평판 {_reputation}");
 
-        if (_funds < wages)
+        if (_funds < upkeep)
         {
-            Ui.Note("⚠ 다음 해 급여를 감당하기 어렵습니다. 실전에 내보내야 합니다.");
+            Ui.Note("⚠ 다음 해 유지비를 감당하기 어렵습니다. 실전에 내보내야 합니다.");
         }
     }
 

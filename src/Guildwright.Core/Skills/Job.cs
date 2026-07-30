@@ -66,14 +66,6 @@ public enum JobId
 /// 혼자·임시 조합으로 받을 수 있는 의뢰 난이도 상한. <c>JobRank</c>에서 흡수했습니다.
 /// <para>실력이 아니라 <b>자격</b>입니다.</para>
 /// </param>
-/// <param name="Upkeep">
-/// 연간 유지비. <c>JobRank.AnnualWage</c>에서 흡수했습니다.
-/// <para>
-/// ⚠️ 유지비는 <b>항상 그 등급의 최대 수주 보수보다 낮아야</b> 합니다.
-/// 예전에 전설 등급을 1,300으로 잡았다가 최대 보수 1,200을 넘겨 최고 등급이
-/// 순수 적자가 되는 문제가 있었습니다.
-/// </para>
-/// </param>
 /// <param name="Combat">
 /// 전투 직업인가. 짐꾼은 거짓입니다.
 /// <para>파티 구성 규칙(짐꾼 최대 1명 · 짐꾼만으로 구성 불가)에 씁니다.</para>
@@ -86,7 +78,6 @@ public sealed record Job(
     int ActiveSlots,
     double ProficiencyBonus = 0.0,
     int MaxContractDifficulty = 2,
-    int Upkeep = 60,
     bool Combat = true)
 {
     /// <summary>이 숙련도로 이 직업을 가질 수 있는가.</summary>
@@ -112,21 +103,20 @@ public static class Jobs
     /// <summary>사다리 한 단을 만듭니다 — 요구 숙련만 다른 같은 계열의 직업들.</summary>
     private static Job Rung(
         JobId id, string korean, WeaponKind weapon, int required,
-        int slots, int difficulty, int upkeep, params SkillId[] grants) =>
+        int slots, int difficulty, params SkillId[] grants) =>
         new(id, korean,
             required <= 0
                 ? new Dictionary<WeaponKind, int>()
                 : new Dictionary<WeaponKind, int> { [weapon] = required },
             grants, slots, ProficiencyBonus: 0.05 * slots,
-            MaxContractDifficulty: difficulty, Upkeep: upkeep);
+            MaxContractDifficulty: difficulty);
 
-    // 사다리 다섯 단이 공유하는 요구 숙련·슬롯·자격·유지비.
-    // 예전 JobRank의 임계값(20/45/70/90)과 값(난이도 2/4/6/8/10, 연봉 60/150/340/700/1000)을
-    // 그대로 옮겼습니다 — 축을 줄이는 작업이고 밸런스를 바꾸는 작업이 아닙니다.
+    // 사다리 다섯 단이 공유하는 요구 숙련·슬롯·자격.
+    // 예전 JobRank의 임계값(20/45/70/90)과 난이도(2/4/6/8/10)를 그대로 옮겼습니다.
+    // 유지비는 직업과 무관합니다 — 등급 무관 정액(docs/07 §7, CareerRules.AnnualUpkeep).
     private static readonly int[] Steps = [0, 20, 45, 70, 90];
     private static readonly int[] Slots = [2, 3, 4, 5, 6];
     private static readonly int[] Difficulty = [2, 4, 6, 8, 10];
-    private static readonly int[] Upkeep = [60, 150, 340, 700, 1_000];
 
     /// <summary>
     /// 무기 계열이 주는 스킬. <b>히든 직업의 합집합을 여기서 계산합니다</b> —
@@ -154,7 +144,7 @@ public static class Jobs
             // 숙련 패시브는 두 번째 단부터 붙습니다 — 견습이 숙달을 가질 수는 없습니다.
             var given = i >= 1 ? grants : [];
             yield return Rung(ids[i], names[i], weapon, Steps[i],
-                Slots[i], Difficulty[i], Upkeep[i], given);
+                Slots[i], Difficulty[i], given);
         }
     }
 
@@ -167,7 +157,7 @@ public static class Jobs
     /// </para>
     /// </summary>
     private static Job Hidden(
-        JobId id, string korean, int slots, int difficulty, int upkeep,
+        JobId id, string korean, int slots, int difficulty,
         double proficiencyBonus, params (WeaponKind Weapon, int Required)[] requires)
     {
         // 열거형 순서로 고정합니다 — Dictionary 순회 순서가 스킬 목록 순서를 바꾸면
@@ -180,7 +170,7 @@ public static class Jobs
 
         return new Job(id, korean,
             requires.ToDictionary(r => r.Weapon, r => r.Required),
-            granted, slots, proficiencyBonus, difficulty, upkeep);
+            granted, slots, proficiencyBonus, difficulty);
     }
 
     private static readonly Job[] Table =
@@ -214,12 +204,12 @@ public static class Jobs
             ["견습 마법사", "마법사", "상급 마법사", "대마법사", "현자"]),
 
         // 짧은 사다리 — 필요해지면 표에 줄을 더하면 됩니다.
-        Rung(JobId.Axeman, "도부수", WeaponKind.Axe, 0, 2, 2, 60),
-        Rung(JobId.Berserker, "광부수", WeaponKind.Axe, 45, 4, 6, 340, SkillId.HeavyBlow),
-        Rung(JobId.Maceman, "둔기병", WeaponKind.Mace, 0, 2, 2, 60),
-        Rung(JobId.Warpriest, "전투 사제", WeaponKind.Mace, 45, 4, 6, 340, SkillId.Cure),
-        Rung(JobId.Miner, "광부", WeaponKind.Pickaxe, 0, 2, 1, 50),
-        Rung(JobId.Prospector, "탐광자", WeaponKind.Pickaxe, 45, 3, 3, 200),
+        Rung(JobId.Axeman, "도부수", WeaponKind.Axe, 0, 2, 2),
+        Rung(JobId.Berserker, "광부수", WeaponKind.Axe, 45, 4, 6, SkillId.HeavyBlow),
+        Rung(JobId.Maceman, "둔기병", WeaponKind.Mace, 0, 2, 2),
+        Rung(JobId.Warpriest, "전투 사제", WeaponKind.Mace, 45, 4, 6, SkillId.Cure),
+        Rung(JobId.Miner, "광부", WeaponKind.Pickaxe, 0, 2, 1),
+        Rung(JobId.Prospector, "탐광자", WeaponKind.Pickaxe, 45, 3, 3),
 
         // ---- 짐꾼 — 비전투 직업 ----
         // 누구나 시작할 수 있고(요구 숙련 없음), 오래 하면 세집니다.
@@ -227,12 +217,12 @@ public static class Jobs
         new(JobId.Porter, "짐꾼",
             new Dictionary<WeaponKind, int>(),
             [SkillId.HandPotion],
-            ActiveSlots: 2, MaxContractDifficulty: 2, Upkeep: 50, Combat: false),
+            ActiveSlots: 2, MaxContractDifficulty: 2, Combat: false),
 
         new(JobId.SkilledPorter, "숙련 짐꾼",
             new Dictionary<WeaponKind, int> { [WeaponKind.Backpack] = 40 },
             [SkillId.HandPotion, SkillId.Packcraft],
-            ActiveSlots: 3, MaxContractDifficulty: 5, Upkeep: 220, Combat: false),
+            ActiveSlots: 3, MaxContractDifficulty: 5, Combat: false),
 
         // ⚠️ 예전에는 수송대장이 SkillId.Cheerful(태생 스킬)을 줬습니다. 직업이 태생을 주면
         //    "타고난다"와 "배운다"가 같아져 두 축이 붕괴합니다 (§10). 슬롯·자격·유지비가
@@ -240,16 +230,16 @@ public static class Jobs
         new(JobId.Quartermaster, "수송대장",
             new Dictionary<WeaponKind, int> { [WeaponKind.Backpack] = 75 },
             [SkillId.HandPotion, SkillId.Packcraft],
-            ActiveSlots: 4, MaxContractDifficulty: 8, Upkeep: 520, Combat: false),
+            ActiveSlots: 4, MaxContractDifficulty: 8, Combat: false),
 
         // ---- 히든 — 숙련 조합으로만 열립니다 ----
         // 대가는 규칙이 아니라 시간입니다 — 두 숙련을 올리는 데 배로 걸리고,
         // 그동안 그 캐릭터는 오래 어중간하며, 경력이 유한하므로 못 닿을 수도 있습니다.
-        Hidden(JobId.SpellArcher, "마궁사", slots: 5, difficulty: 8, upkeep: 760,
+        Hidden(JobId.SpellArcher, "마궁사", slots: 5, difficulty: 8,
             proficiencyBonus: 0.20,
             (WeaponKind.Bow, 60), (WeaponKind.Staff, 60)),
 
-        Hidden(JobId.SpellBlade, "마검사", slots: 5, difficulty: 8, upkeep: 760,
+        Hidden(JobId.SpellBlade, "마검사", slots: 5, difficulty: 8,
             proficiencyBonus: 0.20,
             (WeaponKind.Sword, 60), (WeaponKind.Staff, 60))
     ];

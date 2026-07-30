@@ -107,7 +107,7 @@
 | 파견 진행 (달 단위 · 조우 · 휴식 · 판정) | `Careers/DeploymentSession.cs` |
 | 파견 상수 · 보급 짐 한도 | `Careers/DeploymentRules.cs` |
 | 결산 (성장 · 보수 · 사고 위험 · 승급) | `Careers/CareerSimulator.cs` |
-| 경력 상수 (위험 · 보수 · 판단력) | `Careers/CareerRules.cs` |
+| 경력 상수 (위험 · 보수 · 판단력 · 유지비 · 보수 분배) | `Careers/CareerRules.cs` |
 | 전투 결과 → 결산 변환 | `Careers/BattleReport.cs` |
 | 겪은 것 → 성장 방향 | `Careers/CombatExperience.cs` |
 | 멘토 | `Careers/Mentorship.cs` |

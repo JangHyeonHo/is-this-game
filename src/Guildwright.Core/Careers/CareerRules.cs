@@ -24,6 +24,43 @@ public static class CareerRules
     /// <summary>의뢰 난이도 1당 기본 보수.</summary>
     public const int IncomePerDifficulty = 120;
 
+    // ── 경제 — 유지비 + 보수 분배 (docs/07 §7 확정) ──────────
+    //
+    // 연봉이 아닙니다. 유지비는 등급 무관 정액이라 단원이 강해져도 오르지 않고,
+    // 강한 사람의 비용은 보수 분배에서만 나갑니다 — 일을 시켰을 때만 비쌉니다.
+
+    /// <summary>1인당 연간 유지비. 등급 무관 (docs/07 §7 — "1인당 연 40, 숙식비").</summary>
+    public const int AnnualUpkeep = 40;
+
+    /// <summary>파티 평균 등급이 최하(F)일 때 모험가 몫.</summary>
+    public const double AdventurerShareFloor = 0.30;
+
+    /// <summary>파티 평균 등급이 최상(SS)일 때 모험가 몫.</summary>
+    public const double AdventurerShareCeiling = 0.60;
+
+    /// <summary>
+    /// 의뢰 보수 중 모험가 몫. 파티 평균 등급이 높을수록 커집니다 (docs/07 §7).
+    /// 나머지가 길드 몫입니다 — 그래서 "이 의뢰엔 누구를 보내는 게 남는가"가 생깁니다.
+    /// <para>
+    /// ⚠️ 30%~60% 범위는 확정, F~SS 눈금 위의 곡선(선형)은 임시입니다 —
+    /// §7의 기준점은 옛 5등급 눈금(1등급 30% · 3등급 46% · 5등급 60%)으로 적혀 있습니다.
+    /// </para>
+    /// </summary>
+    public static double AdventurerShare(IReadOnlyList<Parties.Rank> ranks)
+    {
+        if (ranks.Count == 0) return AdventurerShareFloor;
+
+        double average = ranks.Average(r => (double)r);
+        double span = (double)Parties.Ranks.Highest - (double)Parties.Ranks.Lowest;
+        double t = span <= 0 ? 0 : Math.Clamp(average / span, 0.0, 1.0);
+
+        return AdventurerShareFloor + t * (AdventurerShareCeiling - AdventurerShareFloor);
+    }
+
+    /// <summary>의뢰 보수에서 길드가 받는 몫.</summary>
+    public static int GuildTake(int totalPay, IReadOnlyList<Parties.Rank> ranks) =>
+        (int)Math.Round(totalPay * (1.0 - AdventurerShare(ranks)));
+
     /// <summary>실전 위험도 기본 계수.</summary>
     public const double BaseRisk = 0.055;
 
