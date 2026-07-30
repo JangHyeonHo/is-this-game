@@ -6,13 +6,13 @@ namespace Guildwright.Core.Careers;
 /// 파견 진행의 수치.
 /// <para>
 /// ⚠️ <b>여기 있는 수치는 전부 임시값입니다.</b> 배치 시뮬레이션으로 검증하고 근거를
-/// docs/06-balance-log.md에 남기세요. 감으로 고치지 마세요.
+/// docs/08-balance-log.md에 남기세요. 감으로 고치지 마세요.
 /// </para>
 /// <para>
 /// 예외적으로 <see cref="RestHealRatio"/>는 주인님이 준 범위(휴식 달에 50~100%)
 /// 안에 있으므로 임시값이라기보다 그 범위 안의 한 점입니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §17.4, §17.5, §17.5b
+/// 근거: docs/07-decisions.md §17.4, §17.5, §17.5b
 /// </summary>
 public static class DeploymentRules
 {

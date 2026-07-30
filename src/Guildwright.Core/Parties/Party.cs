@@ -12,7 +12,7 @@ namespace Guildwright.Core.Parties;
 /// 등급은 <b>개인 등급에서 파생되지 않습니다.</b> 최하에서 시작해 파티로서 평가를 쌓아야
 /// 오릅니다 — 그래서 "파티를 짰다고 처음부터 A"가 되지 않고, 순환 참조도 없습니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §6.0, §6.2
+/// 근거: docs/07-decisions.md §6.0, §6.2
 /// </summary>
 public sealed class Party
 {

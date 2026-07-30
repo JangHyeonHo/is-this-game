@@ -67,7 +67,7 @@ public sealed record TrainingPolicy(
     /// <para>
     /// ⚠️ 예전 구조에서는 <b>기대 성장이 신중 방침보다 낮았습니다</b> — 피로 페널티와
     /// 부상 손실이 늘어난 훈련 횟수보다 컸기 때문입니다. 부상을 걷어내고 실패로 바꾼 지금은
-    /// <b>다시 재야 합니다.</b> (docs/06-balance-log.md #8, 개정으로 무효)
+    /// <b>다시 재야 합니다.</b> (docs/08-balance-log.md #8, 개정으로 무효)
     /// </para>
     /// </summary>
     public TrainingPolicy Aggressive() => this with { RestFatigueThreshold = 72, Name = $"{Name}(강행)" };

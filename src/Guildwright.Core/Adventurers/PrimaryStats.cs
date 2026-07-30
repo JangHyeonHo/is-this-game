@@ -7,7 +7,7 @@ namespace Guildwright.Core.Adventurers;
 /// 하나를 올렸을 때 여러 곳이 움직여야 육성 선택이 무거워지기 때문입니다.
 /// 그리고 전투 밖의 것(운반·함정 해제·감정)과 연결할 고리가 필요합니다.
 /// </para>
-/// 근거: docs/04-game-design.md §3.3
+/// 근거: docs/01-game-design.md §3.3
 /// </summary>
 public enum PrimaryStat
 {

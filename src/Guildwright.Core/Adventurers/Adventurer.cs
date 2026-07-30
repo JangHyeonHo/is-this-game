@@ -47,14 +47,14 @@ public enum DeploymentOutcome
 /// <para>
 /// 훈련 연도는 <b>기술 훈련을 몇 달 했는지</b>에 따라 달라지므로 세션이 직접 계산해 넘깁니다.
 /// 예전에는 훈련 연도이기만 하면 무엇을 시켰든 자동으로 올랐는데,
-/// 그러면 숙련도가 선택 대상이 아니게 됩니다. (docs/08-design-revision.md §2)
+/// 그러면 숙련도가 선택 대상이 아니게 됩니다. (docs/07-decisions.md §2)
 /// </para>
 /// </param>
 /// <param name="Months">
 /// 이 기록이 덮는 달 수. 훈련은 12달이지만 <b>파견은 의뢰 기간만큼</b>입니다.
 /// <para>
 /// 예전에는 이력 한 줄이 곧 1년이었습니다. 의뢰가 1달~1년이 되면서 그 전제가
-/// 깨졌으므로, 나이는 이 값이 12달을 채울 때마다 오릅니다 (docs/08 §17.4).
+/// 깨졌으므로, 나이는 이 값이 12달을 채울 때마다 오릅니다 (docs/07 §17.4).
 /// </para>
 /// </param>
 public sealed record YearRecord(
@@ -192,7 +192,7 @@ public sealed class Adventurer
     /// <b>무엇을 맡길 수 있는가</b>입니다. 그래서 검성인 F등급이 이론상 가능합니다.
     /// </para>
     /// <para>
-    /// 저절로 오르지 않습니다. <b>승급 의뢰</b>를 완수해야 오릅니다 (docs/08 §6.5) —
+    /// 저절로 오르지 않습니다. <b>승급 의뢰</b>를 완수해야 오릅니다 (docs/07 §6.5) —
     /// 그래서 <see cref="Promote"/>는 여기 있고 판정은 의뢰 쪽에 있습니다.
     /// </para>
     /// </summary>
@@ -217,7 +217,7 @@ public sealed class Adventurer
     /// "신궁이었던 애가 검사로 전직한다고 검성이 되진 않습니다."
     /// </para>
     /// <para>
-    /// 다만 <b>고집</b>을 타고났으면 권유를 듣지 않습니다 (docs/08 §16.8).
+    /// 다만 <b>고집</b>을 타고났으면 권유를 듣지 않습니다 (docs/07 §16.8).
     /// </para>
     /// <para>
     /// ⚠️ <b>[검토중] — 고집의 세기는 정해지지 않았습니다.</b> 문서는 "고집 같은 특성이
@@ -408,11 +408,11 @@ public sealed class Adventurer
         var aptitudes = WeaponAptitudes.Roll(growth.Potential, rng.Fork($"aptitude:{id}"));
 
         // 희망 직업을 가지고 옵니다 — 플레이어가 배정하는 게 아닙니다.
-        // 적성과 어긋날 수 있고, 그 어긋남이 전직의 동기가 됩니다 (docs/08 §16.3).
+        // 적성과 어긋날 수 있고, 그 어긋남이 전직의 동기가 됩니다 (docs/07 §16.3).
         var wished = Jobs.Starting[rng.Fork($"wish:{id}").NextInt(0, Jobs.Starting.Count)];
         var loadout = StartingLoadoutFor(wished);
 
-        // 태생 패시브 하나를 타고납니다. 이해도가 올라야 드러납니다 (docs/08 §16.7).
+        // 태생 패시브 하나를 타고납니다. 이해도가 올라야 드러납니다 (docs/07 §16.7).
         var pool = SkillBook.InnatePool;
         var innate = new[] { pool[rng.Fork($"innate:{id}").NextInt(0, pool.Count)] };
 

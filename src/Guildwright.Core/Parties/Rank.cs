@@ -10,7 +10,7 @@ namespace Guildwright.Core.Parties;
 /// <para>
 /// 값의 순서가 곧 높낮이입니다 — <c>F &lt; E &lt; … &lt; SS</c>. 비교에 그대로 쓸 수 있습니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §6.1
+/// 근거: docs/07-decisions.md §6.1
 /// </summary>
 public enum Rank
 {
@@ -46,7 +46,7 @@ public static class Ranks
     /// 무기 적성도 A~S 눈금을 쓰므로 화면에 <c>A</c> 하나만 뜨면 무엇의 A인지 알 수 없습니다.
     /// <b>표기로 가르는 것이 싸고 충분합니다</b> — 적성은 "적성 A", 등급은 "A급".
     /// </para>
-    /// 근거: docs/08-design-revision.md §"등급 표기 충돌"
+    /// 근거: docs/07-decisions.md §"등급 표기 충돌"
     /// </summary>
     public static string Label(this Rank rank) => $"{rank}급";
 

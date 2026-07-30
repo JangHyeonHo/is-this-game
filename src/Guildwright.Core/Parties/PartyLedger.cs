@@ -58,7 +58,7 @@ public enum AdmissionProblem
 /// 성립하므로 그 규칙이 필요하지 않았습니다.
 /// </para>
 /// <para>부작용이 없습니다 — 시간·난수·파일에 손대지 않습니다. 달은 호출자가 넘겨줍니다.</para>
-/// 근거: docs/08-design-revision.md §6.0, §6.1
+/// 근거: docs/07-decisions.md §6.0, §6.1
 /// </summary>
 public sealed class PartyLedger
 {

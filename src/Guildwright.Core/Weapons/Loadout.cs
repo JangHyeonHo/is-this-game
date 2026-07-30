@@ -27,7 +27,7 @@ public enum Hand
 /// "액티브는 특정 무기를 요구한다"가 무의미해집니다 — 아무 때나 바꿔 들 수 있으면
 /// 제약이 아니기 때문입니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §16.2b
+/// 근거: docs/07-decisions.md §16.2b
 /// </summary>
 public sealed class Loadout
 {

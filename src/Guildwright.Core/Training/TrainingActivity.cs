@@ -14,7 +14,7 @@ namespace Guildwright.Core.Training;
 /// 배분이 진짜 고민이 됩니다. 그리고 아트가 없는 게임에서
 /// <b>"달리기를 시켰다"가 "민첩 훈련"보다 훨씬 잘 읽힙니다.</b>
 /// </para>
-/// 근거: docs/08-design-revision.md §2
+/// 근거: docs/07-decisions.md §2
 /// </summary>
 public enum TrainingActivity
 {
@@ -84,7 +84,7 @@ public sealed record TrainingActivityProfile(
 /// 활동 목록과 가중치표.
 /// <para>
 /// ⚠️ <b>여기 있는 가중치는 전부 임시값입니다.</b> 배치 시뮬레이션으로 검증한 뒤
-/// 데이터 파일로 분리합니다. 감으로 고치지 말고 근거를 docs/06-balance-log.md에 남기세요.
+/// 데이터 파일로 분리합니다. 감으로 고치지 말고 근거를 docs/08-balance-log.md에 남기세요.
 /// </para>
 /// <para>
 /// 활동별 가중치 <b>합계를 1.5 안팎으로 맞춰</b> 두었습니다. 합계가 크게 다르면

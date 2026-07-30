@@ -2,7 +2,7 @@
 
 - **상태:** 채택
 - **일자:** 2026-07
-- **관련:** [00-charter.md](../00-charter.md), [02-research-tech.md](../02-research-tech.md)
+- **관련:** [00-charter.md](../00-charter.md), [10-research-tech.md](../10-research-tech.md)
 
 ## 맥락
 

@@ -22,7 +22,7 @@ namespace Guildwright.Core.Careers;
 /// 4인 파티의 난이도 2와 1인의 난이도 2가 완전히 다른 전투가 되어버립니다.
 /// </para>
 ///
-/// 근거: docs/06-balance-log.md #33
+/// 근거: docs/08-balance-log.md #33
 /// </summary>
 public static class EncounterGenerator
 {

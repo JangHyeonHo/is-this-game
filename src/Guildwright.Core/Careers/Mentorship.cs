@@ -13,7 +13,7 @@ namespace Guildwright.Core.Careers;
 /// 그리고 <b>실전을 오래 살아남은 멘토일수록 사람 보는 눈이 좋습니다</b> —
 /// 감정 정확도 보너스가 여기서 나옵니다. 실전 리스크를 감수한 것에 대한 장기 보상입니다.
 /// </para>
-/// 근거: docs/04-game-design.md §5.4
+/// 근거: docs/01-game-design.md §5.4
 /// </summary>
 /// <param name="TrainingMultiplier">훈련 성장 배율.</param>
 /// <param name="AppraisalBonus">감정 역량 가산 (0.0~1.0).</param>

@@ -13,7 +13,7 @@ namespace Guildwright.Core.Careers;
 /// <b>"전투 없음"은 없습니다.</b> 마물이 언제든 올 수 있는 세계라 밭에 있든 성벽에 있든
 /// 싸울 수 있습니다. 형태가 정하는 것은 전투가 <b>목적인가 · 방해인가 · 사고인가</b>입니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §17.3
+/// 근거: docs/07-decisions.md §17.3
 /// </summary>
 public enum ContractForm
 {
@@ -34,7 +34,7 @@ public enum ContractForm
 }
 
 /// <summary>의뢰의 출처. 보상의 성격이 여기서 갈립니다.</summary>
-/// 근거: docs/08-design-revision.md §17.2
+/// 근거: docs/07-decisions.md §17.2
 public enum ContractSource
 {
     /// <summary>나라 · 영주. 주기적. 마물 토벌, 전선 수비, 마물령 침범.</summary>
@@ -71,7 +71,7 @@ public enum RewardKind
 /// <see cref="Intensity"/>는 관리해야 할 할당량이 아니라 <b>그 의뢰의 강도 표시</b>입니다.
 /// "고블린 10마리"는 그 기간에 그 정도 싸움이 있다는 뜻이고, 달성은 전제입니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §17.3, §17.4
+/// 근거: docs/07-decisions.md §17.3, §17.4
 /// </summary>
 /// <param name="Id">식별자. 게시판에서 같은 의뢰를 두 번 세지 않기 위해 필요합니다.</param>
 /// <param name="Name">표시용 이름.</param>

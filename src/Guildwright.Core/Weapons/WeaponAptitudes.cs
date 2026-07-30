@@ -36,7 +36,7 @@ public static class AptitudeGrades
 /// 완전 독립으로 굴리면 "마공 최고인데 대검 적성"같은 모순 캐릭터가 나와서
 /// 개성이 아니라 불량품이 되고, 완전 종속이면 굴릴 이유가 없어집니다.
 /// </para>
-/// 근거: docs/04-game-design.md §3.5
+/// 근거: docs/01-game-design.md §3.5
 /// </summary>
 public sealed class WeaponAptitudes
 {

@@ -8,24 +8,23 @@ namespace Guildwright.Core.Tests;
 /// <summary>
 /// <b>구현 현황 인벤토리를 코드에서 생성합니다.</b>
 /// <para>
-/// 손으로 관리하는 목록은 반드시 낡습니다. "추가하면 문서도 고치세요"라는 규칙에
-/// 기대는 방식은 이미 한 번 실패했습니다 — CLAUDE.md에 "먼저 읽으세요"가 적혀 있었는데도
-/// 이미 구현된 전열/후열·전술 규칙·전투 개입을 "없다"고 답한 사고가 났습니다.
+/// 손으로 관리하는 목록은 낡습니다. "추가하면 문서도 고치세요"라는 규칙은 기억에
+/// 의존하므로 지켜지지 않습니다. 그래서 목록을 어셈블리에서 직접 뽑고, 낡으면
+/// <see cref="SystemInventoryTests"/>가 깨집니다.
 /// </para>
 /// <para>
-/// 그래서 목록을 어셈블리에서 직접 뽑고, 낡으면 <see cref="SystemInventoryTests"/>가 깨집니다.
-/// 사람이 할 일은 <c>docs/09-systems.md</c>의 <b>판단</b>(아직 없는 것, 제약이 막는 곳)뿐입니다.
+/// 사람이 할 일은 <c>docs/05-gaps.md</c>의 <b>판단</b>(아직 없는 것, 제약이 막는 곳)뿐입니다.
 /// </para>
 /// <para>
 /// <b>담는 것은 "무엇이 존재하는가"뿐입니다.</b> 밸런스 상수는 넣지 않습니다 —
-/// 튜닝할 때마다 문서가 흔들려 스냅샷을 기계적으로 다시 만들게 되고, 그러면 장치가 죽습니다.
-/// 수치는 한 번의 grep으로 확인할 수 있고, 실제로 틀렸던 건 존재 여부였습니다.
+/// 튜닝할 때마다 스냅샷을 기계적으로 다시 만들게 되고, 그러면 어긋남을 잡는 장치가 죽습니다.
+/// 수치는 grep 한 번으로 확인할 수 있습니다.
 /// </para>
 /// </summary>
 public static class SystemInventory
 {
     /// <summary>생성 결과가 들어가는 파일. 손으로 고치지 않습니다.</summary>
-    public const string FileName = "09-systems.generated.md";
+    public const string FileName = "04-implemented.generated.md";
 
     /// <summary>이 환경 변수를 켜고 테스트를 돌리면 파일을 다시 씁니다.</summary>
     public const string UpdateEnvVar = "UPDATE_INVENTORY";
@@ -41,14 +40,15 @@ public static class SystemInventory
 
         sb.AppendLine("# 구현 현황 — 자동 생성");
         sb.AppendLine();
-        sb.AppendLine("> ⚠ **이 파일은 손으로 고치지 않습니다.** `Guildwright.Core` 어셈블리에서 생성됩니다.");
-        sb.AppendLine("> 코드와 어긋나면 `SystemInventoryTests`가 깨집니다.");
+        sb.AppendLine("> **\"그 기능 있나\"에 답하는 파일이다.** 여기 없는 공개 타입은 존재하지 않으므로,");
+        sb.AppendLine("> 별도 확인 없이 없는 것으로 판단해도 된다.");
         sb.AppendLine(">");
+        sb.AppendLine("> ⚠ **손으로 고치지 않는다.** `Guildwright.Core` 어셈블리에서 생성되며,");
+        sb.AppendLine("> 코드와 어긋나면 `SystemInventoryTests`가 깨진다.");
         sb.AppendLine($"> 다시 만들기: `{UpdateEnvVar}=1 dotnet test --filter SystemInventory`");
         sb.AppendLine(">");
-        sb.AppendLine("> **여기 없는 공개 타입은 존재하지 않는 것입니다.** 그게 이 파일의 쓸모입니다.");
-        sb.AppendLine("> 수치(상수)는 일부러 넣지 않았습니다 — 코드를 직접 보세요.");
-        sb.AppendLine("> 설계 맥락·미구현 목록·막혀 있는 기능은 [09-systems.md](09-systems.md)에 있습니다.");
+        sb.AppendLine("> 수치(상수)는 넣지 않는다 — 튜닝마다 흔들려 스냅샷이 무의미해진다. 코드를 직접 본다.");
+        sb.AppendLine("> 설계 맥락·미구현 목록·막혀 있는 기능은 [05-gaps.md](05-gaps.md)에 있다.");
         sb.AppendLine();
         sb.AppendLine($"공개 타입 {types.Count}개");
         sb.AppendLine();
@@ -149,7 +149,13 @@ public static class SystemInventory
         return text.Replace("\r", "").Replace("\n", " ").Replace("⚠️", "⚠").Trim();
     }
 
-    /// <summary>테스트 실행 위치에서 저장소 루트를 찾습니다.</summary>
+    /// <summary>
+    /// 테스트 실행 위치에서 저장소 루트를 찾습니다. <c>CLAUDE.md</c>가 있는 곳입니다.
+    /// <para>
+    /// ⚠️ 못 찾으면 <b>왜 못 찾았는지</b>를 예외 메시지에 담습니다. 이유를 빼면 비교 대상이
+    /// 없는 것이 "인벤토리가 코드와 어긋났다"로 보여 엉뚱한 곳을 고치게 됩니다 (docs/08 #58).
+    /// </para>
+    /// </summary>
     public static string RepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -159,7 +165,11 @@ public static class SystemInventory
             dir = dir.Parent;
         }
 
-        return dir?.FullName ?? throw new InvalidOperationException("저장소 루트를 찾지 못했습니다.");
+        return dir?.FullName ?? throw new InvalidOperationException(
+            $"저장소 루트를 찾지 못했습니다 — {AppContext.BaseDirectory} 위로 올라가며 " +
+            "CLAUDE.md를 찾았지만 없었습니다.\n" +
+            "Docker 안이라면 .dockerignore가 CLAUDE.md나 docs/를 제외했는지 확인하세요. " +
+            "인벤토리 테스트는 docs/04-implemented.generated.md를 어셈블리와 대조하므로 둘 다 필요합니다.");
     }
 
     public static string DocumentPath() => Path.Combine(RepositoryRoot(), "docs", FileName);

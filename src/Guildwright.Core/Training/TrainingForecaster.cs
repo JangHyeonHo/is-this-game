@@ -84,7 +84,7 @@ public sealed record YearForecast(
 /// <para>
 /// 결과적으로 <b>감정에 투자할수록 계획을 정확히 세울 수 있게</b> 됩니다.
 /// </para>
-/// 근거: docs/04-game-design.md §5.5
+/// 근거: docs/01-game-design.md §5.5
 /// </summary>
 public static class TrainingForecaster
 {

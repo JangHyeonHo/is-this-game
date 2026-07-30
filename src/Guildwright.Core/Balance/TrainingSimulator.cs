@@ -329,7 +329,7 @@ public static class TrainingSimulator
         bool magic = Weaponry.Of(a.Loadout.MainWeapon).UsesMagicPower;
 
         // 능력치 1점이 전투력에 얼마나 기여하는가.
-        // 파생 공식(docs/07 §1)에서 그대로 가져왔습니다.
+        // 파생 공식(docs/03 §1)에서 그대로 가져왔습니다.
         double ValueOf(PrimaryStat stat) => stat switch
         {
             PrimaryStat.Strength => magic ? 0.2 : 1.6,      // 물리 위력 1.0 + HP 0.8×0.35 + 방어

@@ -19,7 +19,7 @@ public readonly record struct ChosenAction(TacticAction Action, Combatant? Targe
 /// 낮으면 규칙을 무시하고 엉뚱한 선택을 합니다. 특히 <b>물러설 때를 모릅니다</b> —
 /// 죽어가면서도 전열에 남아 있는 신입이 그래서 나옵니다.
 /// </para>
-/// 근거: docs/04-game-design.md §4.2
+/// 근거: docs/01-game-design.md §4.2
 /// </summary>
 public static class TacticalBrain
 {
@@ -35,7 +35,7 @@ public static class TacticalBrain
     /// 처음에는 판단력과 무관하게 고정했는데, 그러면 판단력 100이
     /// "평범한 계획을 완벽하게 수행하는 것"이 되어 오히려 70보다 약해졌습니다.
     /// 기본 규칙이 "목록의 첫 적을 때려라"인데 그걸 완벽히 지키느라
-    /// 빈사인 적을 두고 멀쩡한 적을 계속 때렸기 때문입니다. (docs/06 #12)
+    /// 빈사인 적을 두고 멀쩡한 적을 계속 때렸기 때문입니다. (docs/08 #12)
     /// </para>
     /// <para>
     /// 지금 모델: <b>낮은 판단력은 규칙을 기계적으로 따르되 실수가 잦고,
@@ -118,7 +118,7 @@ public static class TacticalBrain
     {
         TacticAction.UsePotion => self.Potions > 0,
 
-        // 아래는 전부 스킬이 엽니다 — 무기가 아닙니다 (docs/08 §10 "스킬이 떠맡게 된 것").
+        // 아래는 전부 스킬이 엽니다 — 무기가 아닙니다 (docs/07 §10 "스킬이 떠맡게 된 것").
         // 예전에는 후열 타격이 Loadout.CanStrikeBackRow로, 강화·약화가 UsesMagicPower로
         // 열렸습니다. 그러면 스킬 하나 없는 견습이 지팡이만 들어도 버프를 씁니다.
         TacticAction.AttackBackRow => self.CanAfford(TacticAction.AttackBackRow),
@@ -298,7 +298,7 @@ public static class TacticalBrain
                 if (enemies.All(e => e.TauntedBy == self.Id)) return 0.0;
 
                 // ⚠️ 이 계수를 1.5까지 올려봤더니 승률이 54% → 32%로 폭락했습니다.
-                //    근거 없이 올리지 마세요. (docs/06 #12)
+                //    근거 없이 올리지 마세요. (docs/08 #12)
                 double wounded = allies.Count(a => a.HpRatio < 0.5) / (double)Math.Max(1, allies.Count);
                 return 0.9 * self.HpRatio * (0.4 + wounded);
             }
@@ -359,7 +359,7 @@ public static class TacticalBrain
     /// <para>
     /// 원래는 그냥 배열의 첫 원소를 집었습니다. 전열/후열을 도입해놓고 대상 선택은
     /// 리스트 순서였던 셈이라, 기본 규칙이 사실상 무의미했습니다.
-    /// 그 결과 판단력 100이 그 무의미한 규칙을 완벽히 따르느라 70보다 약했습니다. (docs/06 #12)
+    /// 그 결과 판단력 100이 그 무의미한 규칙을 완벽히 따르느라 70보다 약했습니다. (docs/08 #12)
     /// </para>
     /// <para>
     /// 기본 규칙은 <b>편성을 안 해도 그럭저럭 말이 되는 수</b>여야 합니다.

@@ -9,7 +9,7 @@ namespace Guildwright.Core.Tests;
 /// 이 테스트가 이 장치의 전부입니다. 문서를 손으로 관리하면 반드시 낡고,
 /// 낡은 인벤토리는 <b>없는 걸 있다고, 있는 걸 없다고</b> 말하게 만들어 아무것도 안 하는 것보다 나쁩니다.
 /// </para>
-/// 배경: docs/09-systems.md
+/// 배경: docs/05-gaps.md
 /// </summary>
 public class SystemInventoryTests(ITestOutputHelper output)
 {

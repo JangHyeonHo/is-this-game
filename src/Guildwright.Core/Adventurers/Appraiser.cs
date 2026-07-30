@@ -58,7 +58,7 @@ public sealed record ScoutingReport(
 /// <para>
 /// 결과적으로 <b>정보 자체가 길드 성장의 보상</b>이 됩니다.
 /// </para>
-/// 근거: docs/04-game-design.md §3.4
+/// 근거: docs/01-game-design.md §3.4
 /// </summary>
 public static class Appraiser
 {

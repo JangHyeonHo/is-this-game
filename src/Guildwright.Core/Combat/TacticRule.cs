@@ -72,7 +72,7 @@ public enum TacticAction
 /// 캐릭터는 육성을 통해 규칙 슬롯을 늘리고 규칙 자체를 배웁니다.
 /// 플레이어는 이 목록의 순서를 편성합니다 — 그게 곧 빌드입니다.
 /// </para>
-/// 근거: docs/04-game-design.md §4.1
+/// 근거: docs/01-game-design.md §4.1
 /// </summary>
 /// <param name="Condition">발동 조건.</param>
 /// <param name="Threshold">HP 비율을 보는 조건에서 쓰는 임계값 (0.0~1.0).</param>
