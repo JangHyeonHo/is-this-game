@@ -18,7 +18,7 @@ namespace Guildwright.Core.Careers;
 /// 개화 시기가 숨겨져 있기 때문에 이 선택이 도박이 됩니다.
 /// 대기만성형을 일찍 내보내면 약한 채로 죽고, 조숙형을 계속 훈련시키면 전성기를 훈련장에서 낭비합니다.
 /// </para>
-/// 근거: docs/04-game-design.md §5
+/// 근거: docs/01-game-design.md §5
 /// </summary>
 public static class CareerSimulator
 {

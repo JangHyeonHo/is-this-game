@@ -69,7 +69,7 @@ public sealed record MonthOutcome(
 /// 여기에 <b>컨디션</b>이 매달 변동해서, "이번 달은 절호조니까 밀어붙일까"라는
 /// 판단이 생깁니다. 이게 육성의 묘미를 만드는 최소 장치입니다.
 /// </para>
-/// 근거: docs/04-game-design.md §5.5, docs/08-design-revision.md §2·§3
+/// 근거: docs/01-game-design.md §5.5, docs/07-decisions.md §2·§3
 /// </summary>
 public sealed class TrainingYearSession
 {
@@ -83,7 +83,7 @@ public sealed class TrainingYearSession
     /// <para>
     /// 월 단위로 쪼개면 한 달 성장이 3~4 정도의 작은 값이 되는데, 여기서 정수로 반올림하면
     /// 미세한 차이가 통째로 사라집니다. 실제로 그 버그를 겪었습니다.
-    /// 반올림은 <see cref="Complete"/>에서 딱 한 번만 합니다. (docs/06 #8)
+    /// 반올림은 <see cref="Complete"/>에서 딱 한 번만 합니다. (docs/08 #8)
     /// </para>
     /// </summary>
     private readonly double[] _accumulated = new double[7];
@@ -164,7 +164,7 @@ public sealed class TrainingYearSession
     /// <b>피로 회복량은 고정이고 컨디션 회복만 등급으로 갈립니다.</b>
     /// 피로에 난수가 끼면 계획 화면의 12개월 피로 예보가 더 이상 정확하지 않게 되는데,
     /// 불확실한 정보가 이미 많은 게임에서 <b>정확한 정보가 하나쯤은 남아 있는 게 좋습니다.</b>
-    /// (docs/06 #26에서 그 예보를 만든 게 피로에 난수가 없기 때문이었습니다.)
+    /// (docs/08 #26에서 그 예보를 만든 게 피로에 난수가 없기 때문이었습니다.)
     /// </para>
     /// </summary>
     private MonthOutcome DoRest(int month)
@@ -255,7 +255,7 @@ public sealed class TrainingYearSession
         }
         else
         {
-            // 실제로 돌려보니 12개월 내내 "성공"만 떠서 화면이 단조로웠습니다. (docs/06 #18)
+            // 실제로 돌려보니 12개월 내내 "성공"만 떠서 화면이 단조로웠습니다. (docs/08 #18)
             grade = qualityRatio switch
             {
                 >= 1.10 => MonthGrade.GreatSuccess,
@@ -285,7 +285,7 @@ public sealed class TrainingYearSession
     ///
     /// <para>
     /// 문턱을 ±1.0으로 두었더니 실제 플레이에서 거의 언제나 "보통"이라
-    /// 컨디션을 보고 판단할 일이 생기지 않았습니다. ±0.6으로 낮췄습니다. (docs/06 #19)
+    /// 컨디션을 보고 판단할 일이 생기지 않았습니다. ±0.6으로 낮췄습니다. (docs/08 #19)
     /// </para>
     ///
     /// <para>
@@ -302,7 +302,7 @@ public sealed class TrainingYearSession
     /// 이제 보통 쪽으로 당기는 힘이 있어 <b>최악도 절호조도 오래 못 갑니다.</b>
     /// </para>
     ///
-    /// 근거: docs/06-balance-log.md #32
+    /// 근거: docs/08-balance-log.md #32
     /// </summary>
     /// <returns>실제로 이동한 단계 수. 휴식 등급 판정에 씁니다.</returns>
     private int DriftCondition(bool restBonus)

@@ -14,7 +14,7 @@ namespace Guildwright.Core.Skills;
 /// 갈라두지 않으면 <b>"성격을 훈련으로 바꿀 수 있나"</b>에 답할 수 없습니다.
 /// 예라면 성격이 정체성이 아니게 되고, 아니라면 왜 같은 시스템인지 설명이 안 됩니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §10
+/// 근거: docs/07-decisions.md §10
 /// </summary>
 public enum SkillSource
 {
@@ -81,7 +81,7 @@ public enum SkillId
     Packcraft,
 
     // ---- 태생 패시브 (성격) ----
-    // ⚠️ 효과가 파티 전체인지 자신인지는 [제안]일 뿐 승인되지 않았습니다 (docs/08 §10).
+    // ⚠️ 효과가 파티 전체인지 자신인지는 [제안]일 뿐 승인되지 않았습니다 (docs/07 §10).
     /// <summary>신중. 방어가 오르되 느려집니다.</summary>
     Careful,
     /// <summary>막무가내. 위력이 오르되 회피가 떨어집니다.</summary>
@@ -132,7 +132,7 @@ public enum SkillId
 /// 파티 전체에 걸리는가.
 /// <para>
 /// ⚠️ <b>[제안] — 승인되지 않았습니다.</b> "태생은 약하지만 파티 전체, 직업은 강하지만
-/// 자신"은 <b>에이전트가 낸 밸런스 안</b>이고, docs/08 §10에 <b>"[제안] 밸런스 축 —
+/// 자신"은 <b>에이전트가 낸 밸런스 안</b>이고, docs/07 §10에 <b>"[제안] 밸런스 축 —
 /// 승인 안 됨"</b>으로 명시되어 있습니다. 지금 표의 값이 그 안대로 들어가 있으나
 /// <b>주인님의 결정으로 인용하지 마세요.</b>
 /// </para>
@@ -172,7 +172,7 @@ public sealed record Skill(
 /// <para>
 /// ⚠️ <b>태생 패시브(성격) 4종은 기전 검증용 최소 구성입니다.</b> 주인님이 종류 수를
 /// "36가지여도 되고 더 줄여도 되고"로 열어두셨으므로, 개수와 내용은 아직 정해지지
-/// 않았습니다 — docs/08 §10 [검토중].
+/// 않았습니다 — docs/07 §10 [검토중].
 /// </para>
 /// </summary>
 public static class SkillBook
@@ -238,7 +238,7 @@ public static class SkillBook
 
         // ---- 태생 패시브 (성격) ----
         // 이득에는 대가가 붙습니다 — 대가가 없으면 모두가 같은 성격을 원해 성격이 서열이 됩니다.
-        // ⚠️ PartyWide 배치와 세기는 [제안]이며 승인되지 않았습니다 (docs/08 §10).
+        // ⚠️ PartyWide 배치와 세기는 [제안]이며 승인되지 않았습니다 (docs/07 §10).
 
         new(SkillId.Careful, "신중", SkillSource.Innate, SkillForm.Passive,
             Boosts: DerivedStat.PhysicalGuard, BoostAmount: 4.0,

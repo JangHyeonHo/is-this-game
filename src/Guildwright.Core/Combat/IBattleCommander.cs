@@ -27,7 +27,7 @@ public readonly record struct CommandOrder(TacticAction Action, Combatant? Targe
 /// <para>
 /// 배치 시뮬레이션에서는 이걸 넘기지 않습니다(null). 그러면 완전 자동으로 돌아갑니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §14, §18.7
+/// 근거: docs/07-decisions.md §14, §18.7
 /// </summary>
 public interface IBattleCommander
 {

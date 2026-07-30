@@ -4,7 +4,7 @@ namespace Guildwright.Core.Careers;
 /// 경력 시뮬레이션의 밸런스 상수.
 /// <para>
 /// ⚠️ <b>여기 있는 수치는 전부 임시값입니다.</b> 배치 시뮬레이션으로 검증한 뒤
-/// 데이터 파일로 분리할 예정입니다. 감으로 고치지 말고 근거를 docs/06-balance-log.md에 남기세요.
+/// 데이터 파일로 분리할 예정입니다. 감으로 고치지 말고 근거를 docs/08-balance-log.md에 남기세요.
 /// </para>
 /// </summary>
 public static class CareerRules
@@ -49,7 +49,7 @@ public static class CareerRules
     // (실제로 "쓰러졌는데 보수 144를 받고 승급"하는 장면을 콘솔에서 봤습니다.)
     //
     // ⚠️ 아래 배율은 아직 배치 시뮬레이션으로 검증하지 않은 임시값입니다.
-    //    docs/06-balance-log.md #23 참조.
+    //    docs/08-balance-log.md #23 참조.
 
     /// <summary>전투에서 패배했을 때 사고 위험 배율.</summary>
     public const double DefeatRiskMultiplier = 3.0;

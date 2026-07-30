@@ -8,7 +8,7 @@
 > 다시 만들기: `UPDATE_INVENTORY=1 dotnet test --filter SystemInventory`
 >
 > 수치(상수)는 넣지 않는다 — 튜닝마다 흔들려 스냅샷이 무의미해진다. 코드를 직접 본다.
-> 설계 맥락·미구현 목록·막혀 있는 기능은 [09-systems.md](09-systems.md)에 있다.
+> 설계 맥락·미구현 목록·막혀 있는 기능은 [05-gaps.md](05-gaps.md)에 있다.
 
 공개 타입 118개
 

@@ -306,7 +306,7 @@ public sealed class Combatant
     /// <b>플레이어의 지시가 통하는가.</b> 공포나 혼란에 걸려 있으면 통하지 않습니다.
     /// <para>
     /// 지휘에 횟수 제한이 없는 대신 이것이 유일한 제약입니다.
-    /// 근거: docs/08-design-revision.md §14, §18.7
+    /// 근거: docs/07-decisions.md §14, §18.7
     /// </para>
     /// </summary>
     public bool AcceptsOrders => !HasMechanism(EffectMechanism.LoseControl);

@@ -8,7 +8,7 @@ namespace Guildwright.Core.Careers;
 /// 전투 시스템과 경력 시스템을 잇는 다리입니다. 이게 없으면 전투 결과와 연말 결산이
 /// 따로 놀아서, <b>전멸하고도 보수를 받고 승급하는</b> 일이 생깁니다. 실제로 겪었습니다.
 /// </para>
-/// 근거: docs/06-balance-log.md #23
+/// 근거: docs/08-balance-log.md #23
 /// </summary>
 /// <param name="Outcome">전투 결과.</param>
 /// <param name="Downed">이 사람이 전투 중 쓰러졌는지. 죽지는 않았어도 몸에 남습니다.</param>

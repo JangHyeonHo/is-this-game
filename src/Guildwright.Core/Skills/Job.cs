@@ -9,7 +9,7 @@ namespace Guildwright.Core.Skills;
 /// 직업 행</b>입니다. 예전에는 <c>JobRank</c> 열거형(견습~대가 5단계)이 따로 있었고
 /// 거기에 연봉과 수주 난이도까지 걸려 있었는데, 축이 하나 줄었습니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §16.2c
+/// 근거: docs/07-decisions.md §16.2c
 /// </summary>
 public enum JobId
 {
@@ -104,7 +104,7 @@ public sealed record Job(
 /// <para>
 /// ⚠️ <b>수치는 전부 임시값입니다.</b> 999 스케일 전환 뒤 배치 시뮬레이션으로 잡습니다.
 /// 특히 <b>조합 직업이 단일 특화보다 약해지지 않게 하는 균형</b>은 아직 미결입니다 —
-/// 합집합 원칙은 정해졌지만 수치가 안 정해졌습니다 (docs/08 §16.9).
+/// 합집합 원칙은 정해졌지만 수치가 안 정해졌습니다 (docs/07 §16.9).
 /// </para>
 /// </summary>
 public static class Jobs

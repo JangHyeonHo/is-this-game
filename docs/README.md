@@ -33,12 +33,13 @@
 
 | 알고 싶은 것 | 볼 곳 |
 |---|---|
-| 그 기능 있나 | [09-systems.generated.md](09-systems.generated.md) — 코드에서 생성. 없으면 없는 것 |
-| 지금 게임이 어떻게 굴러가나 | [04-game-design.md](04-game-design.md) — 명세 |
-| 그 수치가 어디 있나 | [07-formulas.md](07-formulas.md) — 코드 위치 지도 |
-| 왜 · 누가 정했나 | [08-design-revision.md](08-design-revision.md) — 결정 기록 |
-| 왜 그 숫자인가 | [06-balance-log.md](06-balance-log.md) — 측정 기록 |
-| 왜 아직 없나 | [09-systems.md](09-systems.md) |
+| 그 기능 있나 | [04-implemented.generated.md](04-implemented.generated.md) — 코드에서 생성. 없으면 없는 것 |
+| 지금 게임이 어떻게 굴러가나 | [01-game-design.md](01-game-design.md) — 명세 |
+| 코드가 어떻게 나뉘어 있나 | [02-architecture.md](02-architecture.md) — 설계서 |
+| 그 수치가 어디 있나 | [03-formulas.md](03-formulas.md) — 코드 위치 지도 |
+| 왜 · 누가 정했나 | [07-decisions.md](07-decisions.md) — 결정 기록 |
+| 왜 그 숫자인가 | [08-balance-log.md](08-balance-log.md) — 측정 기록 |
+| 왜 아직 없나 | [05-gaps.md](05-gaps.md) |
 | 만들면 안 되는 건가 | [00-charter.md](00-charter.md) §4 |
 | 기술 선택 근거 | [adr/](adr/) |
 
@@ -53,6 +54,8 @@
 | 수치를 측정했다 | 측정 기록에 추가한다 |
 | 공개 타입을 바꿨다 | `UPDATE_INVENTORY=1 dotnet test --filter SystemInventory` — 같은 커밋에 |
 | 코드에서 수치를 바꿨다 | 문서에 값을 복사하지 않는다. 코드가 정본이다 |
+| 없던 기능을 만들었다 | [05-gaps.md](05-gaps.md)에서 그 줄을 지우고 명세에 쓴다 |
+| 제약을 풀었다 · 원인을 알아냈다 | [05-gaps.md](05-gaps.md)에서 그 줄을 지운다. 쌓이면 낡은 걱정 목록이 된다 |
 
 ## 3. 표기 — 누가 정했는가
 
@@ -73,7 +76,7 @@
 - 절 전체에 "표기 없는 항목은 전부 [확정]"이라고 선언하지 않는다. 무표기 한 줄이 자동으로
   확정이 된다. 항목마다 표기를 단다.
 - [검토중]은 **판단이 필요한 것**에만 쓴다. 만들거나 측정할 일은 [검토중]이 아니라
-  [09-systems.md](09-systems.md)의 할 일이다. 섞으면 판단 대기 목록이 부풀어
+  [05-gaps.md](05-gaps.md)의 할 일이다. 섞으면 판단 대기 목록이 부풀어
   정작 판단이 필요한 항목이 묻힌다.
 
 ## 4. 구성 — 무엇을 위한 글인지 드러나게 쓴다
@@ -92,8 +95,8 @@
 - 표에는 규칙 옆에 그 규칙의 효과를 두는 칸을 둔다. 표만으로 이유가 서지 않으면
   표 앞에 한두 문장을 둔다.
 - **이력으로 본문을 더럽히지 않는다.** 무엇이 취소됐고 무엇이 있었는지는 이 글로 답하지
-  않는다. 이력을 남길 곳은 정해져 있다 — 결정은 [08](08-design-revision.md),
-  측정은 [06](06-balance-log.md), 나머지는 git이다. 본문에는 **링크만** 둔다.
+  않는다. 이력을 남길 곳은 정해져 있다 — 결정은 [07](07-decisions.md),
+  측정은 [08](08-balance-log.md), 나머지는 git이다. 본문에는 **링크만** 둔다.
   같은 규칙을 코드 주석에도 적용한다.
 - 근거가 길면 본문에 풀지 않고 결정 기록으로 링크한다.
 
@@ -162,7 +165,7 @@ ADR은 추가만 하는 로그다. 승인된 기록은 편집하지 않는다. �
 고치지 않는 것이 이 모음을 신뢰할 수 있게 만든다. 반년 뒤에 읽어도 그때 무엇이
 사실이었는지 알 수 있다.
 
-적용: [08](08-design-revision.md)을 추가 전용으로 둔다.
+적용: [07](07-decisions.md)을 추가 전용으로 둔다.
 
 ### 6.5 게임 디자인 문서는 짧고, 잘린 기능은 지운다 — GDD
 
@@ -181,9 +184,9 @@ ADR은 추가만 하는 로그다. 승인된 기록은 편집하지 않는다. �
 
 적용 셋.
 
-1. 타입 목록을 생성한다 — [09-systems.generated.md](09-systems.generated.md).
+1. 타입 목록을 생성한다 — [04-implemented.generated.md](04-implemented.generated.md).
    어긋나면 `SystemInventoryTests`가 깨진다
-2. 수치는 코드가 정본이다 — [07](07-formulas.md)은 값이 아니라 파일 위치만 적는다.
+2. 수치는 코드가 정본이다 — [03](03-formulas.md)은 값이 아니라 파일 위치만 적는다.
    틀린 값은 사람을 속이지만 틀린 경로는 즉시 드러난다
 3. 규칙은 테스트가 지킨다. "기억하라"로는 지켜지지 않는다
 

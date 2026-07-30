@@ -38,7 +38,7 @@ public enum BloomTiming
 /// 플레이어는 <see cref="ScoutingReport"/>의 부정확한 힌트로 추측하고,
 /// 육성 연차가 쌓이면서 점점 정확히 알게 됩니다.
 /// </para>
-/// 근거: docs/04-game-design.md §3.4
+/// 근거: docs/01-game-design.md §3.4
 /// </summary>
 public sealed record GrowthProfile
 {

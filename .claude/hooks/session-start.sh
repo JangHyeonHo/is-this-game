@@ -8,11 +8,11 @@
 #   읽는 것이 선택이면 빠지므로 선택을 없앱니다.
 #
 # 무엇을 넣는가:
-#   docs/09-systems.generated.md — 어셈블리에서 생성된 공개 타입 목록 (낡으면 테스트가 깨짐)
-#   docs/09-systems.md          — 없는 것 · 제약에 막힌 것 (기능 부재로 오진하는 것을 막음)
+#   docs/04-implemented.generated.md — 어셈블리에서 생성된 공개 타입 목록 (낡으면 테스트가 깨짐)
+#   docs/05-gaps.md          — 없는 것 · 제약에 막힌 것 (기능 부재로 오진하는 것을 막음)
 #
 # 무엇을 넣지 않는가:
-#   명세(04)와 결정 기록(08)은 넣지 않고 "어디를 보라"만 알려줍니다. 긴 컨텍스트는
+#   명세(01)와 결정 기록(07)은 넣지 않고 "어디를 보라"만 알려줍니다. 긴 컨텍스트는
 #   모든 구간에서 정확도를 떨어뜨리고, 특히 의미가 비슷하지만 관련 없는 내용이
 #   능동적으로 오답을 유도합니다 (distractor interference). 위 둘은 짧고 사실 위주라
 #   그 위험이 낮습니다. 근거: docs/README.md §6.2
@@ -21,8 +21,8 @@ set -euo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
-GENERATED="$ROOT/docs/09-systems.generated.md"
-NOTES="$ROOT/docs/09-systems.md"
+GENERATED="$ROOT/docs/04-implemented.generated.md"
+NOTES="$ROOT/docs/05-gaps.md"
 
 # 둘 다 없으면 넣을 게 없습니다. 세션 시작을 막을 이유는 없으므로 조용히 넘어갑니다.
 [ -f "$GENERATED" ] || [ -f "$NOTES" ] || exit 0
@@ -42,10 +42,10 @@ BODY=$(
 
 | 알고 싶은 것 | 볼 곳 |
 |---|---|
-| 지금 게임이 어떻게 굴러가나 | `docs/04-game-design.md` (현재 명세 · 덮어씀) |
-| 왜 · 누가 정했나 | `docs/08-design-revision.md` (결정 기록 · **추가만**) |
-| 그 수치가 어디 있나 | `docs/07-formulas.md` (코드 위치 지도 · 값은 코드가 정본) |
-| 얼마로 측정됐나 | `docs/06-balance-log.md` (측정 기록 · **추가만**) |
+| 지금 게임이 어떻게 굴러가나 | `docs/01-game-design.md` (현재 명세 · 덮어씀) |
+| 왜 · 누가 정했나 | `docs/07-decisions.md` (결정 기록 · **추가만**) |
+| 그 수치가 어디 있나 | `docs/03-formulas.md` (코드 위치 지도 · 값은 코드가 정본) |
+| 얼마로 측정됐나 | `docs/08-balance-log.md` (측정 기록 · **추가만**) |
 
 **표기를 구분한다** — [확정] / [방향] / [검토중] / [제안].
 [확정]만 착수할 수 있고, **[제안]은 에이전트 안이며 승인된 적이 없다.**

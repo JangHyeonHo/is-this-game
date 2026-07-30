@@ -2,7 +2,7 @@
 
 - **상태:** 채택
 - **일자:** 2026-07
-- **관련:** [02-research-tech.md](../02-research-tech.md), [03-research-art.md](../03-research-art.md)
+- **관련:** [10-research-tech.md](../10-research-tech.md), [11-research-art.md](../11-research-art.md)
 
 ## 맥락
 

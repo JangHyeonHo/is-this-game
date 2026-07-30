@@ -28,7 +28,7 @@ public static class CombatantFactory
     /// 전투 시작 마나. 생략하면 최대치입니다.
     /// <para>
     /// <b>파견에서는 반드시 넘겨야 합니다.</b> 마나가 매 전투 채워지면 사실상 무한이라
-    /// 마나라는 자원이 아무것도 제약하지 않습니다 (docs/08 §17.5b).
+    /// 마나라는 자원이 아무것도 제약하지 않습니다 (docs/07 §17.5b).
     /// </para>
     /// </param>
     public static Combatant Create(

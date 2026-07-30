@@ -4,7 +4,7 @@ namespace Guildwright.Core.Training;
 /// 월 단위 훈련의 밸런스 상수.
 /// <para>
 /// ⚠️ <b>전부 임시값입니다.</b> 배치 시뮬레이션으로 검증한 뒤 데이터 파일로 분리합니다.
-/// 감으로 고치지 말고 근거를 docs/06-balance-log.md에 남기세요.
+/// 감으로 고치지 말고 근거를 docs/08-balance-log.md에 남기세요.
 /// </para>
 /// </summary>
 public static class TrainingRules

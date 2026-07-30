@@ -2,7 +2,7 @@
 
 - **상태:** 채택
 - **일자:** 2026-07
-- **관련:** [03-research-art.md](../03-research-art.md), [04-game-design.md](../04-game-design.md)
+- **관련:** [11-research-art.md](../11-research-art.md), [01-game-design.md](../01-game-design.md)
 
 ## 맥락
 

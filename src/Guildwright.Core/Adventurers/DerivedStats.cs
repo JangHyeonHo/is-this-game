@@ -33,7 +33,7 @@ public enum DerivedStat
 /// 이게 있어야 <b>원천 능력치가 같아도 이력이 다르면 다른 캐릭터</b>가 됩니다.
 /// 그림 없이 개성을 만드는 장치이기도 합니다.
 /// </para>
-/// 근거: docs/04-game-design.md §3.3
+/// 근거: docs/01-game-design.md §3.3
 /// </summary>
 public sealed class DerivedBonuses
 {

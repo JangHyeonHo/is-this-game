@@ -365,7 +365,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
 
                     // ⚠️ ApplyHit은 피해를 실제로 적용합니다. log?.Add(ApplyHit(...))로 쓰면
                     //    log가 null일 때 ?. 가 전체 식을 단락시켜 ApplyHit이 호출되지 않습니다.
-                    //    실제로 그 버그로 배치 시뮬레이션이 전부 무승부가 났습니다. (docs/06 #13)
+                    //    실제로 그 버그로 배치 시뮬레이션이 전부 무승부가 났습니다. (docs/08 #13)
                     string areaLine = ApplyHit(actor, target, hit, areaMagic, prefix: "광역 ");
                     log?.Add(areaLine);
                     Explain(hit, log);
@@ -385,7 +385,7 @@ public sealed class BattleResolver(int maxRounds = 50, bool recordLog = false, b
                     return;
                 }
 
-                // 후열 타격은 스킬입니다 — 사거리만으로 열리지 않습니다 (docs/08 §10).
+                // 후열 타격은 스킬입니다 — 사거리만으로 열리지 않습니다 (docs/07 §10).
                 if (choice.Action == TacticAction.AttackBackRow)
                 {
                     if (!actor.CanAfford(TacticAction.AttackBackRow))

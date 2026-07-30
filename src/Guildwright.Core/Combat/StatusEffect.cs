@@ -16,7 +16,7 @@ namespace Guildwright.Core.Combat;
 /// 그리고 이 구분이 설계 질문에도 답을 줍니다 —
 /// <b>설정값을 다르게 못 주는 것은 만들 이유가 없는 것</b>입니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §18.1
+/// 근거: docs/07-decisions.md §18.1
 /// </summary>
 public enum EffectMechanism
 {
@@ -205,7 +205,7 @@ public enum EffectName
 /// <para>
 /// ⚠️ <b>여기 있는 수치는 전부 임시값입니다.</b> 능력치 999 스케일 전환 뒤에
 /// 배치 시뮬레이션으로 다시 재야 합니다. 감으로 고치지 말고 근거를
-/// docs/06-balance-log.md에 남기세요.
+/// docs/08-balance-log.md에 남기세요.
 /// </para>
 /// </param>
 public sealed record EffectProfile(
@@ -283,7 +283,7 @@ public sealed record StatusEffect(
 /// 상태 효과 목록과 조회.
 /// <para>
 /// ⚠️ <b>수치는 전부 임시값입니다.</b> 능력치 999 스케일 전환 뒤에 배치 시뮬레이션으로
-/// 다시 잡아야 합니다. 근거: docs/08-design-revision.md §18.9
+/// 다시 잡아야 합니다. 근거: docs/07-decisions.md §18.9
 /// </para>
 /// </summary>
 public static class StatusEffects

@@ -46,7 +46,7 @@ internal sealed class Guild(IRandomSource rng)
     private readonly List<Adventurer> _members = [];
 
     /// <summary>
-    /// 파티 장부. <b>가상 파티 누적과 정규 파티</b>가 여기 있습니다 (docs/08 §6).
+    /// 파티 장부. <b>가상 파티 누적과 정규 파티</b>가 여기 있습니다 (docs/07 §6).
     /// <para>
     /// 코어에 있어도 여기에 연결되지 않으면 <b>플레이어는 파티를 만질 수 없습니다.</b>
     /// 실제로 그 상태였습니다 — 층·누적·자격·등급이 전부 있는데 인게임에 없었습니다.
@@ -102,7 +102,7 @@ internal sealed class Guild(IRandomSource rng)
     /// 받아도 그 해가 끝났습니다. 그러면 §17.4가 과잉 전력을 막는 <b>유일한 브레이크</b>로
     /// 지목한 기회비용이 성립하지 않고, 계절도 파티 6개월 누적도 도달할 수 없습니다.
     /// </para>
-    /// 근거: docs/08-design-revision.md §15, §17.4, §17.10
+    /// 근거: docs/07-decisions.md §15, §17.4, §17.10
     /// </summary>
     public void Run()
     {
@@ -573,14 +573,14 @@ internal sealed class Guild(IRandomSource rng)
         }
     }
 
-    /// <summary>난이도 1당 파티 평가. ⚠️ 임시값 — docs/06 #41.</summary>
+    /// <summary>난이도 1당 파티 평가. ⚠️ 임시값 — docs/08 #41.</summary>
     private const int EvaluationPerDifficulty = 4;
 
     /// <summary>
     /// 파견 한 건을 달 단위로 진행합니다.
     /// <para>
     /// <b>플레이어가 고르는 것은 편성과 보급뿐</b>입니다. 일할지 쉴지는 모험가가 판단하고,
-    /// 플레이어가 끼어드는 곳은 전투 안입니다 (docs/08 §17.5).
+    /// 플레이어가 끼어드는 곳은 전투 안입니다 (docs/07 §17.5).
     /// </para>
     /// </summary>
     private (DeploymentSession Session, DeploymentResult Result) RunDeployment(

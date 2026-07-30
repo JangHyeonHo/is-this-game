@@ -97,7 +97,7 @@ public sealed record DeploymentResult(
 /// <para>
 /// 부작용이 없습니다 — 시간·파일에 손대지 않고 난수는 주입받습니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §17.3~§17.7
+/// 근거: docs/07-decisions.md §17.3~§17.7
 /// </summary>
 public sealed class DeploymentSession
 {

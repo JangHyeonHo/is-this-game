@@ -1,4 +1,4 @@
-# 02. 리서치 — 엔진 · 스택 · 게임 내 AI
+# 10. 리서치 — 엔진 · 스택 · 게임 내 AI
 
 조사: 2026-07 · 결론은 [ADR 0001](adr/0001-engine-agnostic-core.md), [ADR 0002](adr/0002-no-genai-in-shipped-content.md)
 

@@ -6,7 +6,7 @@ namespace Guildwright.Core.Parties;
 /// ⚠️ <b>평가 관련 수치는 임시값입니다.</b> 승급 속도는 배치 시뮬레이션으로 잡습니다.
 /// 인원·달 수·등급 격차는 설계에서 나온 값이라 임시값이 아닙니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §6.1
+/// 근거: docs/07-decisions.md §6.1
 /// </summary>
 public static class PartyRules
 {
@@ -31,7 +31,7 @@ public static class PartyRules
     /// </para>
     /// <para>
     /// 코드는 하나를 골라야 돌아가므로 D를 씁니다. <b>이 값에 의존하는 판단을 하지 마세요</b> —
-    /// docs/06 #41 임시값 목록에 올려두었으니 확정되면 여기만 고칩니다.
+    /// docs/08 #41 임시값 목록에 올려두었으니 확정되면 여기만 고칩니다.
     /// </para>
     /// </summary>
     public const Rank SoloingUnlock = Rank.D;

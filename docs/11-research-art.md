@@ -1,4 +1,4 @@
-# 03. 리서치 — 아트 · 사운드 · 스토어 자산
+# 11. 리서치 — 아트 · 사운드 · 스토어 자산
 
 조사: 2026-07 · 결론은 [ADR 0002](adr/0002-no-genai-in-shipped-content.md), [ADR 0003](adr/0003-portrait-layering.md)
 

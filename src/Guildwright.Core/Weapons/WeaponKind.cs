@@ -22,7 +22,7 @@ public enum Hands
 /// 활이 적 후열을 노리는 것은 스킬이 아니라 <b>활이라는 물건의 성질</b>입니다.
 /// 반면 회복·도발·광역은 무기가 아니라 스킬이 정합니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §16.2
+/// 근거: docs/07-decisions.md §16.2
 /// </summary>
 public enum Reach
 {
@@ -46,7 +46,7 @@ public enum Reach
 /// 오른손 검 + 왼손 방패면 그게 한손+방패고, 양쪽 다 검이면 쌍수입니다.
 /// 새 무기를 추가하는 것은 <see cref="Weaponry.Catalogue"/>에 줄 하나를 넣는 일입니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §16.2b
+/// 근거: docs/07-decisions.md §16.2b
 /// </summary>
 public enum WeaponKind
 {
@@ -69,7 +69,7 @@ public enum WeaponKind
     /// 그래서 가방을 든 사람은 그 파견 동안 무방비이고, 파티가 지켜야 합니다.
     /// 짐 용량이 근력이 아니라 <b>칸을 내주는 대가</b>로 정해지는 이유입니다.
     /// </para>
-    /// 근거: docs/08-design-revision.md §16.8b
+    /// 근거: docs/07-decisions.md §16.8b
     /// </summary>
     Backpack
 }
@@ -102,7 +102,7 @@ public enum WeaponKind
 /// </param>
 /// <param name="Load">
 /// 적재량. 가방만 값이 있습니다.
-/// <para>⚠️ 짐 상한은 아직 미결입니다 — docs/08 §18.6</para>
+/// <para>⚠️ 짐 상한은 아직 미결입니다 — docs/07 §18.6</para>
 /// </param>
 public sealed record WeaponSpec(
     WeaponKind Kind,
@@ -128,7 +128,7 @@ public sealed record WeaponSpec(
 /// 무기 목록과 조회.
 /// <para>
 /// ⚠️ <b>수치는 전부 임시값입니다.</b> 999 스케일 전환 뒤 배치 시뮬레이션으로 잡습니다.
-/// 감으로 고치지 말고 근거를 docs/06-balance-log.md에 남기세요.
+/// 감으로 고치지 말고 근거를 docs/08-balance-log.md에 남기세요.
 /// </para>
 /// </summary>
 public static class Weaponry

@@ -7,7 +7,7 @@ namespace Guildwright.Core.Combat;
 /// 뒤에서 활만 쏜 캐릭터가 똑같이 자라면, 파티 편성과 전술 편성이 육성과 무관해집니다.
 /// 이 기록이 있어야 <b>"어떻게 싸웠는가"가 "어떻게 자라는가"로 이어집니다.</b>
 /// </para>
-/// 근거: docs/04-game-design.md §5.7
+/// 근거: docs/01-game-design.md §5.7
 /// </summary>
 public sealed class CombatContribution
 {

@@ -15,11 +15,12 @@
 
 | 알고 싶은 것 | 볼 곳 |
 |---|---|
-| 그 기능 있나 | [docs/09-systems.generated.md](docs/09-systems.generated.md) — 코드 생성. 없으면 없는 것 |
-| 지금 게임이 어떻게 굴러가나 | [docs/04-game-design.md](docs/04-game-design.md) — 현재 명세 |
-| 왜 · 누가 정했나 | [docs/08-design-revision.md](docs/08-design-revision.md) — 결정 기록 |
-| 그 수치는 어디 있나 | [docs/07-formulas.md](docs/07-formulas.md) — 코드 위치 지도 |
-| 왜 아직 없나 · 무엇이 막고 있나 | [docs/09-systems.md](docs/09-systems.md) |
+| 그 기능 있나 | [docs/04-implemented.generated.md](docs/04-implemented.generated.md) — 코드 생성. 없으면 없는 것 |
+| 지금 게임이 어떻게 굴러가나 | [docs/01-game-design.md](docs/01-game-design.md) — 현재 명세 |
+| 코드가 어떻게 나뉘어 있나 | [docs/02-architecture.md](docs/02-architecture.md) — 설계서 |
+| 왜 · 누가 정했나 | [docs/07-decisions.md](docs/07-decisions.md) — 결정 기록 |
+| 그 수치는 어디 있나 | [docs/03-formulas.md](docs/03-formulas.md) — 코드 위치 지도 |
+| 왜 아직 없나 · 무엇이 막고 있나 | [docs/05-gaps.md](docs/05-gaps.md) |
 | 만들면 안 되는 건가 | [docs/00-charter.md](docs/00-charter.md) §4 |
 
 세션 시작 훅이 생성 목록을 컨텍스트에 자동으로 넣는다. 읽는 것이 선택이면 빠지므로
@@ -75,10 +76,10 @@ docker build -t guildwright . && docker run -it --rm guildwright   # .NET 없이
 7. **헌장([docs/00](docs/00-charter.md))과 어긋나는 것을 만들지 않는다.**
    스코프를 넓히려면 **무엇을 대신 뺄지** 함께 제안하고, 합의되면 헌장을 먼저 고친다.
 
-8. **결정 기록(`docs/08`)을 제자리에서 고치지 않는다.** 추가만 한다.
+8. **결정 기록(`docs/07`)을 제자리에서 고치지 않는다.** 추가만 한다.
    바뀌면 새 항목을 쓰고 옛 항목의 상태만 바꾼다. 고치면 그때 무엇이 사실이었는지 알 수 없다.
 
-9. **명세(`docs/04`)에는 폐기된 설계를 남기지 않는다.** 묘비도 두지 않는다 —
+9. **명세(`docs/01`)에는 폐기된 설계를 남기지 않는다.** 묘비도 두지 않는다 —
    묘비가 다음 판단의 근거로 인용된다. 이력은 결정 기록과 git이 가진다.
 
 ## 결정론

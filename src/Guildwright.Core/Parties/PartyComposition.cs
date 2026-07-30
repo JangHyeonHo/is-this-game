@@ -14,7 +14,7 @@ namespace Guildwright.Core.Parties;
 /// 순서는 <b>서수 정렬</b>로 고정합니다. 넣은 순서가 식별자를 바꾸면 A+B와 B+A가
 /// 다른 조합이 되어 누적이 갈라지고, 같은 시드가 다른 결과를 냅니다.
 /// </para>
-/// 근거: docs/08-design-revision.md §6.0
+/// 근거: docs/07-decisions.md §6.0
 /// </summary>
 public sealed class PartyComposition : IEquatable<PartyComposition>
 {
@@ -92,7 +92,7 @@ public enum FormationProblem
 /// 걸립니다.</b> 이미 있던 멤버에게 걸면 파티가 성장하는 순간 자기 멤버들이 자격 미달이
 /// 되어 파티가 스스로 깨집니다 (F등급 둘이 모여 B급까지 올린 파티가 그 예입니다).
 /// </para>
-/// 근거: docs/08-design-revision.md §6.1, §6.2
+/// 근거: docs/07-decisions.md §6.1, §6.2
 /// </summary>
 public static class PartyFormation
 {

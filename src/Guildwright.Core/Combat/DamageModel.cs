@@ -20,7 +20,7 @@ public readonly record struct AttackResult(int Damage, bool Evaded, bool Critica
 /// 데미지·회복 계산.
 /// <para>
 /// ⚠️ 여기 있는 수치는 <b>전부 임시값</b>입니다. 배치 시뮬레이션으로 검증한 뒤
-/// 데이터 파일로 분리할 예정입니다. 감으로 고치지 말고 근거를 docs/06-balance-log.md에 남기세요.
+/// 데이터 파일로 분리할 예정입니다. 감으로 고치지 말고 근거를 docs/08-balance-log.md에 남기세요.
 /// </para>
 /// </summary>
 public static class DamageModel
