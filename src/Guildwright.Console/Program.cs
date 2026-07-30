@@ -178,8 +178,7 @@ internal sealed class Guild(IRandomSource rng)
     /// 지금까지 산 달 — 결산 전의 훈련 달을 포함합니다.
     /// 결산 값만 보면 "실전까지 3달"이 12달 내내 동결된 채 표시됩니다.
     /// </summary>
-    private int LivedMonths(Adventurer a) =>
-        a.MonthsElapsed + (_training.TryGetValue(a.Id, out var t) ? t.MonthsCompleted : 0);
+    private int LivedMonths(Adventurer a) => a.MonthsElapsed; // 달수는 매달 본체에 반영됩니다
 
     /// <summary>실전에 나갈 수 있는가 — 진행 중인 훈련 달을 포함해 판정합니다.</summary>
     private bool CanDeployNow(Adventurer a) =>
@@ -357,7 +356,7 @@ internal sealed class Guild(IRandomSource rng)
             .Where(x => x.g >= 0.05)
             .Select(x => $"{x.k.ToKorean()} +{x.g:F1}");
         string text = string.Join(" ", parts);
-        if (text.Length > 0) Ui.Note($"이번 훈련 기간에 자란 것(능력치 반영 대기): {text}");
+        if (text.Length > 0) Ui.Note($"이번 훈련 기간 성장: {text}");
     }
 
     /// <summary>
@@ -432,7 +431,20 @@ internal sealed class Guild(IRandomSource rng)
         Ui.Note($"컨디션 {session.Condition.ToKorean()} (성장 배율 {session.Condition.Multiplier():F1}) · 피로 {session.Fatigue}" +
                 (session.FailureChance > 0 ? $" · 실패 확률 {session.FailureChance:P0}" : ""));
 
-        var menu = Display.FocusMenu().ToList();
+        // 활동마다 "이 아이가" 얼마나 오를지 기대값을 붙입니다 (§2.4 예보).
+        // 가중치 점만으로는 캐릭터별 차이가 안 보입니다.
+        var menu = Display.FocusMenu()
+            .Select((label, i) =>
+            {
+                var preview = session.PreviewMonth(Display.FocusFromIndex(i))
+                    .Where(x => x.Gain >= 0.05)
+                    .OrderByDescending(x => x.Gain)
+                    .Take(3)
+                    .Select(x => $"{x.Stat.ToKorean()}+{x.Gain:F1}")
+                    .ToList();
+                return preview.Count > 0 ? $"{label} → 예상 {string.Join(" ", preview)}" : label;
+            })
+            .ToList();
         if (allowBack) menu.Add("돌아간다");
         int? last = _lastTraining.TryGetValue(member.Id, out var prev) ? Display.FocusIndexOf(prev) : null;
         int pick = Ui.Choose("   무엇을 훈련할까요", menu, last);

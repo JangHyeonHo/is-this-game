@@ -270,7 +270,7 @@ public sealed class DeploymentSession
             }
 
             fought = true;
-            var (won, killed) = Fight(month, battleRng ?? _rng.Fork($"battle:{month}"), commander, onLine);
+            var (won, killed, foes) = Fight(month, battleRng ?? _rng.Fork($"battle:{month}"), commander, onLine);
 
             if (!won)
             {
@@ -287,7 +287,8 @@ public sealed class DeploymentSession
             }
 
             gained = ProgressFromBattle(killed);
-            note = $"{month}달째: 교전 — {killed}마리 처치";
+            // 상대가 누구였는지 없이는 승패에서 아무것도 배울 수 없습니다.
+            note = $"{month}달째: {foes}와 교전 — {killed}마리 처치";
         }
         else
         {
@@ -401,14 +402,20 @@ public sealed class DeploymentSession
             + _party.Max(a => a.Judgement) / 100.0 * DeploymentRules.DiscoveryPerJudgement,
             0.0, 0.95);
 
-    private (bool Won, int Killed) Fight(
+    private (bool Won, int Killed, string Foes) Fight(
         int month, IRandomSource rng, IBattleCommander? commander, Action<string>? onLine)
     {
         var standing = Standing;
-        if (standing.Count == 0) return (false, 0);
+        if (standing.Count == 0) return (false, 0, "");
 
         var enemies = EncounterGenerator.Generate(
             Contract.Difficulty, Combatants(standing), _rng.Fork($"enc:{month}"), _nameFor);
+
+        // 적 구성 요약 — 이름 × 수와 HP 범위. 순서는 이름 정렬로 고정합니다 (결정론).
+        var byName = enemies.GroupBy(e => e.Name).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => g.Count() > 1 ? $"{g.Key}×{g.Count()}" : g.Key);
+        int hpMin = enemies.Min(e => e.MaxHp), hpMax = enemies.Max(e => e.MaxHp);
+        string foes = $"{string.Join("·", byName)} (HP {(hpMin == hpMax ? hpMin.ToString() : $"{hpMin}~{hpMax}")})";
 
         var state = CombatantFactory.FormParty(standing, enemies, _hp, _potions, _mana);
         var result = new BattleResolver(recordLog: onLine is not null).Resolve(state, rng, commander, onLine);
@@ -431,7 +438,7 @@ public sealed class DeploymentSession
             }
         }
 
-        return (result.Outcome == BattleOutcome.PlayerVictory, killed);
+        return (result.Outcome == BattleOutcome.PlayerVictory, killed, foes);
     }
 
     /// <summary>HP와 마나를 비율만큼 회복합니다. 쓰러진 사람은 파견 중에 일어나지 않습니다.</summary>

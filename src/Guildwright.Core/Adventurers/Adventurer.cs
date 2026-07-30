@@ -329,6 +329,34 @@ public sealed class Adventurer
     /// <summary>멘토가 될 수 있는가. 살아서 은퇴했어야 합니다.</summary>
     public bool CanMentor => Status is AdventurerStatus.Retired or AdventurerStatus.Crippled;
 
+    /// <summary>
+    /// 훈련 한 달을 그 자리에서 반영합니다. 성장과 달수는 달 단위 게임에서 달 단위로
+    /// 움직여야 합니다 — 결산까지 모아 두면 화면의 능력치가 1년 내내 얼어 있습니다.
+    /// </summary>
+    internal void ApplyTrainingMonth(PrimaryStats statGain, double proficiencyGain)
+    {
+        Stats = (Stats + statGain).ClampToZero();
+        AdvanceMonths(1);
+
+        if (proficiencyGain > 0.0)
+        {
+            foreach (var kind in Loadout.Held)
+            {
+                Proficiency.Advance(kind, Aptitudes[kind], proficiencyGain);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 훈련 결산을 반영합니다 — 이력 기록과 잔여 보정(반올림 꼬리·노화)만.
+    /// 달수와 숙련은 이미 매달 반영되었으므로 여기서 다시 더하지 않습니다.
+    /// </summary>
+    internal void ApplySettlement(YearRecord record)
+    {
+        _history.Add(record);
+        Stats = (Stats + record.StatChange).ClampToZero();
+    }
+
     internal void ApplyYear(YearRecord record)
     {
         _history.Add(record);
