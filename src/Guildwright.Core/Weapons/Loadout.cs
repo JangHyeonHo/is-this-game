@@ -39,10 +39,23 @@ public sealed class Loadout
         [(WeaponSet.Secondary, Hand.Left)] = WeaponKind.None
     };
 
+    // 칸마다 재질이 붙는다 (docs/07 §20.7). 재질은 위력만 바꾸므로 여기 말고는
+    // 위력 계산(Power · MainWeapon)만 재질을 본다.
+    private readonly Dictionary<(WeaponSet Set, Hand Hand), WeaponMaterial> _materials = new()
+    {
+        [(WeaponSet.Primary, Hand.Right)] = WeaponMaterial.Iron,
+        [(WeaponSet.Primary, Hand.Left)] = WeaponMaterial.Iron,
+        [(WeaponSet.Secondary, Hand.Right)] = WeaponMaterial.Iron,
+        [(WeaponSet.Secondary, Hand.Left)] = WeaponMaterial.Iron
+    };
+
     /// <summary>지금 들고 있는 세트.</summary>
     public WeaponSet Active { get; private set; } = WeaponSet.Primary;
 
     public WeaponKind this[WeaponSet set, Hand hand] => _slots[(set, hand)];
+
+    /// <summary>그 칸의 재질. 빈 칸이면 의미 없는 값이다 — 칸이 비었는지 먼저 본다.</summary>
+    public WeaponMaterial MaterialOf(WeaponSet set, Hand hand) => _materials[(set, hand)];
 
     public WeaponKind ActiveRight => _slots[(Active, Hand.Right)];
     public WeaponKind ActiveLeft => _slots[(Active, Hand.Left)];
@@ -68,9 +81,10 @@ public sealed class Loadout
             var best = WeaponKind.None;
             double bestPower = 0.0;
 
-            foreach (var kind in new[] { ActiveRight, ActiveLeft })
+            foreach (var hand in new[] { Hand.Right, Hand.Left })
             {
-                double power = Weaponry.Of(kind).Power;
+                var kind = _slots[(Active, hand)];
+                double power = Weaponry.Of(kind).Power * _materials[(Active, hand)].PowerFactor();
                 if (power > bestPower)
                 {
                     bestPower = power;
@@ -110,8 +124,8 @@ public sealed class Loadout
         {
             // 값이 아니라 칸으로 가릅니다 — 쌍수처럼 같은 무기를 두 자루 들면
             // 값으로 빼면 둘 다 빠져버립니다.
-            double right = Weaponry.Of(ActiveRight).Power;
-            double left = Weaponry.Of(ActiveLeft).Power;
+            double right = Weaponry.Of(ActiveRight).Power * _materials[(Active, Hand.Right)].PowerFactor();
+            double left = Weaponry.Of(ActiveLeft).Power * _materials[(Active, Hand.Left)].PowerFactor();
 
             double main = Math.Max(right, left);
             double off = Math.Min(right, left);
@@ -159,15 +173,16 @@ public sealed class Loadout
     /// <b>보조무기 칸도 비웁니다</b> — 짐꾼은 전환할 무기를 가질 수 없습니다.
     /// </para>
     /// </summary>
-    public void Equip(WeaponSet set, Hand hand, WeaponKind kind)
+    public void Equip(WeaponSet set, Hand hand, WeaponKind kind, WeaponMaterial material = WeaponMaterial.Iron)
     {
         var spec = Weaponry.Of(kind);
 
         _slots[(set, hand)] = kind;
+        _materials[(set, hand)] = material;
 
         if (spec.Hands == Hands.Two)
         {
-            _slots[(set, Other(hand))] = WeaponKind.None;
+            Clear(set, Other(hand));
         }
 
         // 가방을 들면 전환할 무기를 가질 수 없습니다. 비우는 것은 <b>반대 세트</b>입니다 —
@@ -176,9 +191,15 @@ public sealed class Loadout
         if (kind == WeaponKind.Backpack)
         {
             var other = set == WeaponSet.Primary ? WeaponSet.Secondary : WeaponSet.Primary;
-            _slots[(other, Hand.Right)] = WeaponKind.None;
-            _slots[(other, Hand.Left)] = WeaponKind.None;
+            Clear(other, Hand.Right);
+            Clear(other, Hand.Left);
         }
+    }
+
+    private void Clear(WeaponSet set, Hand hand)
+    {
+        _slots[(set, hand)] = WeaponKind.None;
+        _materials[(set, hand)] = WeaponMaterial.Iron;
     }
 
     /// <summary>주무기와 보조무기를 바꿔 듭니다. <b>턴을 하나 씁니다.</b></summary>
@@ -219,8 +240,18 @@ public sealed class Loadout
 
     public override string ToString()
     {
-        var held = Held;
-        if (held.Count == 0) return "빈손";
-        return string.Join("+", held.Select(k => k.ToKorean()));
+        var parts = new List<string>();
+        foreach (var hand in new[] { Hand.Right, Hand.Left })
+        {
+            var kind = _slots[(Active, hand)];
+            if (kind == WeaponKind.None) continue;
+
+            // 철이 기본이라 이름에 붙이지 않는다 — "검+방패". 나무·강철만 드러낸다.
+            var material = _materials[(Active, hand)];
+            parts.Add(material == WeaponMaterial.Iron
+                ? kind.ToKorean()
+                : $"{material.ToKorean()}{kind.ToKorean()}");
+        }
+        return parts.Count == 0 ? "빈손" : string.Join("+", parts);
     }
 }

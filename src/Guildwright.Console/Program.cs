@@ -588,8 +588,16 @@ internal sealed class Guild(IRandomSource rng)
                 Potential = new PrimaryStats(66, 62, 64, 68, 55, 58),
                 DeclineAge = 36
             },
-            loadout: Loadout.Pair(WeaponKind.WoodenSword, WeaponKind.None));
+            loadout: WoodenSwordOnly());
         _members.Add(first);
+
+        // 나무검은 무기 종류가 아니라 <b>재질</b>이다 (§20.7) — 검 숙련이 진짜 무장 뒤에도 이어진다.
+        static Loadout WoodenSwordOnly()
+        {
+            var loadout = new Loadout();
+            loadout.Equip(WeaponSet.Primary, Hand.Right, WeaponKind.Sword, WeaponMaterial.Wood);
+            return loadout;
+        }
 
         Ui.Line($"   {first.Name} ({first.Age}세) · 희망 직업: {first.Title}");
         Ui.Line($"   힘{first.Stats.Strength} 민{first.Stats.Agility} 기{first.Stats.Finesse} " +

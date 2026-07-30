@@ -1,0 +1,62 @@
+@* 상점 — 대장간(무기)과 약국(포션) (docs/07 §20.3). 파는 것은 §20.7의 초급 아이템뿐.
+   ⚠️ 가격은 임시값 — 배치 시뮬레이션으로 경제를 측정한 뒤 사람이 정한다. *@
+
+<div class="topbar">
+    <div class="back" @onclick="() => Session.Go(Screen.Main)">← 메인으로</div>
+    <div class="mid">상점</div>
+    <div class="res"><span>자금 <b>@Session.Gold</b></span></div>
+</div>
+
+<div class="order" style="top:76px; position:absolute; left:0; right:0; border-bottom:2px solid #3a352d; background:rgba(28,24,19,.92)">
+    <span class="tag @(_tab == Tab.Smithy ? "hot" : "")" style="font-size:26px; padding:8px 30px; cursor:pointer" @onclick="() => _tab = Tab.Smithy">대장간</span>
+    <span class="tag @(_tab == Tab.Apothecary ? "hot" : "")" style="font-size:26px; padding:8px 30px; cursor:pointer" @onclick="() => _tab = Tab.Apothecary">약국</span>
+    <span class="tag" style="font-size:26px; padding:8px 30px; opacity:.45">제작 — 은퇴자 해금 전</span>
+</div>
+
+<div style="position:absolute; top:170px; left:160px; right:160px; display:grid; grid-template-columns:repeat(3, 1fr); gap:20px">
+    @if (_tab == Tab.Smithy)
+    {
+        @foreach (var (item, price) in Shop.Smithy)
+        {
+            var canBuy = Session.Gold >= price;
+            <div class="card">
+                <div class="t" style="font-size:27px">@item.Korean</div>
+                <div class="m">위력 배율 @((Weaponry.Of(item.Kind).Power * item.Material.PowerFactor()).ToString("F2")) ·
+                    한손 · 보유 @Session.Armory.CountOf(item)</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px">
+                    <b style="color:#d6b45a; font-size:26px">@price G</b>
+                    <button class="btn" style="font-size:23px" disabled="@(!canBuy)"
+                            @onclick="() => Session.TryBuy(item)">@(canBuy ? "산다" : "자금 부족")</button>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        @foreach (var (kind, price) in Shop.Apothecary)
+        {
+            var canBuy = Session.Gold >= price;
+            <div class="card">
+                <div class="t" style="font-size:27px">@kind.ToKorean()</div>
+                <div class="m">보유 @Session.Armory.CountOf(kind) · 사용은 파견 연결 후</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px">
+                    <b style="color:#d6b45a; font-size:26px">@price G</b>
+                    <button class="btn" style="font-size:23px" disabled="@(!canBuy)"
+                            @onclick="() => Session.TryBuy(kind)">@(canBuy ? "산다" : "자금 부족")</button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<div style="position:absolute; bottom:40px; left:0; right:0; text-align:center; font-size:21px; color:#635c50">
+    가격은 임시값이다 — 배치 시뮬레이션으로 경제를 측정한 뒤 정한다.
+    은퇴 모험가의 제작(재료 아이템)은 이후 단계에서 열린다.
+</div>
+
+@code {
+    [CascadingParameter] public required GameSession Session { get; set; }
+
+    private enum Tab { Smithy, Apothecary }
+    private Tab _tab = Tab.Smithy;
+}

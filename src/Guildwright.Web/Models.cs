@@ -1,5 +1,6 @@
 using Guildwright.Core.Adventurers;
 using Guildwright.Core.Careers;
+using Guildwright.Core.Items;
 using Guildwright.Core.Rng;
 using Guildwright.Core.Skills;
 using Guildwright.Core.Training;
@@ -14,6 +15,8 @@ public enum Screen
     Opening,
     Recruit,
     Main,
+    Characters,
+    Shop,
     Prep,
     MonthResult
 }
@@ -94,6 +97,9 @@ public sealed class GameSession
     public List<string> Chronicle { get; } = [];
     public MemberVm? Selected { get; set; }
 
+    /// <summary>길드 인벤토리 — 상점에서 산 것, 벗긴 장비가 쌓인다.</summary>
+    public Armory Armory { get; private set; } = new();
+
     /// <summary>훈련 카드 위에 포커스된 활동 — 오른쪽 전체 스탯에 예상 수치를 만든다.</summary>
     public TrainingActivity? Focused { get; set; }
 
@@ -128,9 +134,65 @@ public sealed class GameSession
         Members.Clear();
         Chronicle.Clear();
         Candidates.Clear();
+        Armory = new Armory();
         Selected = null;
         Focused = null;
         Go(Screen.Opening);
+    }
+
+    // ── 상점 · 장비 (docs/07 §20.3 · §20.7) ──────────────────
+
+    /// <summary>산다 — 자금이 모자라면 아무 일도 없다.</summary>
+    public bool TryBuy(WeaponItem item)
+    {
+        int price = Shop.PriceOf(item);
+        if (Gold < price) return false;
+
+        Gold -= price;
+        Armory.Add(item);
+        Chronicle.Add($"{Year}년 {Month}월: {item.Korean} 구입 (-{price})");
+        return true;
+    }
+
+    public bool TryBuy(ConsumableKind kind)
+    {
+        int price = Shop.PriceOf(kind);
+        if (Gold < price) return false;
+
+        Gold -= price;
+        Armory.Add(kind);
+        Chronicle.Add($"{Year}년 {Month}월: {kind.ToKorean()} 구입 (-{price})");
+        return true;
+    }
+
+    /// <summary>창고의 장비를 그 칸에 끼운다. 끼고 있던 것은 창고로 돌아온다.</summary>
+    public bool EquipFromArmory(MemberVm member, WeaponSet set, Hand hand, WeaponItem item)
+    {
+        if (!Armory.TryTake(item)) return false;
+
+        var loadout = member.Adventurer.Loadout;
+        ReturnToArmory(loadout, set, hand);
+        // 양손 무기는 반대 손 칸을 비우므로, 그 칸의 물건도 먼저 창고로 돌린다.
+        if (Weaponry.Of(item.Kind).Hands == Hands.Two)
+            ReturnToArmory(loadout, set, hand == Hand.Right ? Hand.Left : Hand.Right);
+
+        loadout.Equip(set, hand, item.Kind, item.Material);
+        return true;
+    }
+
+    /// <summary>그 칸을 벗겨 창고로 보낸다.</summary>
+    public void Unequip(MemberVm member, WeaponSet set, Hand hand)
+    {
+        var loadout = member.Adventurer.Loadout;
+        ReturnToArmory(loadout, set, hand);
+        loadout.Equip(set, hand, WeaponKind.None);
+    }
+
+    private void ReturnToArmory(Loadout loadout, WeaponSet set, Hand hand)
+    {
+        var kind = loadout[set, hand];
+        if (kind == WeaponKind.None) return;
+        Armory.Add(new WeaponItem(kind, loadout.MaterialOf(set, hand)));
     }
 
     // ── 모집 — 매년 1월 (콘솔 RecruitPhase와 같은 규칙) ──────────

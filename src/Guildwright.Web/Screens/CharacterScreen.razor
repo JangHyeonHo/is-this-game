@@ -1,0 +1,167 @@
+@* 캐릭터 — 단원 목록 + 상세 + 장비 4칸(주무기 좌·우 / 보조 좌·우, 01 §3.1) + 길드 창고.
+   창고의 장비를 칸에 끼우고, 칸의 장비를 벗겨 창고로 돌린다. 숙련은 무기 종류에
+   붙으므로 재질을 바꿔도 이어진다. *@
+
+<div class="topbar">
+    <div class="back" @onclick="() => Session.Go(Screen.Main)">← 메인으로</div>
+    <div class="mid">캐릭터</div>
+    <div class="res"><span>자금 <b>@Session.Gold</b></span></div>
+</div>
+
+@* ── 좌: 단원 목록 ── *@
+<div class="panel" style="position:absolute; left:36px; top:100px; bottom:40px; width:360px">
+    <h3>단원</h3>
+    <div style="display:flex; flex-direction:column; gap:14px; padding:10px 20px">
+        @foreach (var member in Session.Members)
+        {
+            var isSelected = ReferenceEquals(member, _inspected);
+            <div style="display:flex; gap:14px; align-items:center; cursor:pointer" @onclick="() => Inspect(member)">
+                <div class="portrait @(isSelected ? "sel" : "")" style="width:90px; height:110px; font-size:28px">@ShortName(member.Name)</div>
+                <div style="font-size:23px">
+                    <b style="color:@(isSelected ? "#eadfc0" : "#cfc8ba")">@ShortName(member.Name)</b><br />
+                    <span style="color:#8a8378">@member.JobLabel · @(member.Age)세</span>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@if (_inspected is { } selected)
+{
+    var loadout = selected.Adventurer.Loadout;
+    @* ── 중: 상세 ── *@
+    <div class="panel" style="position:absolute; left:420px; top:100px; bottom:40px; width:560px">
+        <div style="display:flex; gap:20px; padding:20px">
+            <div class="portrait" style="width:150px; height:200px">@ShortName(selected.Name)</div>
+            <div style="font-size:24px">
+                <div style="color:#eadfc0; font-size:29px; font-weight:bold">@selected.Name</div>
+                @selected.JobLabel · @(selected.Age)세<br />
+                컨디션 @selected.ConditionLabel · 피로 @selected.Fatigue<br />
+                <span style="color:#c9b98a">무장 @loadout.ToString()</span><br />
+                <span style="color:#8a8378">위력 배율 @loadout.Power.ToString("F2") · 속도 @loadout.Speed.ToString("F2")</span>
+            </div>
+        </div>
+        <div style="padding:0 24px">
+            @foreach (var stat in PrimaryStats.AllStats)
+            {
+                <div class="statrow"><span>@stat.ToKorean() @selected.Adventurer.Stats[stat]</span></div>
+                <div class="bar"><i style="width:@(Math.Min(selected.Adventurer.Stats[stat], 100))%"></i></div>
+            }
+            <h3 style="padding-left:0">숙련</h3>
+            <div>
+                @foreach (var tag in selected.ProficiencyTags)
+                {
+                    <span class="tag">@tag</span>
+                }
+            </div>
+            <h3 style="padding-left:0">패시브</h3>
+            <div style="font-size:23px">
+                @(selected.InnateLabels.Any() ? string.Join(" · ", selected.InnateLabels) : "없음")
+                <span style="color:#635c50; font-size:19px"> (해금 시스템은 §20.6 구현 전)</span>
+            </div>
+        </div>
+    </div>
+
+    @* ── 우: 장비 4칸 + 창고 ── *@
+    <div class="panel" style="position:absolute; left:1000px; top:100px; bottom:40px; right:36px">
+        <h3>장비 — 칸을 누르면 벗긴다</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:6px 20px">
+            @foreach (var (set, hand, label) in Slots)
+            {
+                var kind = loadout[set, hand];
+                var filled = kind != WeaponKind.None;
+                <div class="card @(_targetItem is not null ? "sel" : "")" style="@(filled ? "" : "opacity:.6")"
+                     @onclick="() => SlotClicked(selected, set, hand)">
+                    <div class="m">@label</div>
+                    <div class="t" style="font-size:24px">
+                        @(filled ? new WeaponItem(kind, loadout.MaterialOf(set, hand)).Korean : "빈손")
+                    </div>
+                </div>
+            }
+        </div>
+        @if (_targetItem is { } picking)
+        {
+            <div style="padding:0 20px; font-size:21px; color:#c9b98a">
+                <b>@picking.Korean</b>을(를) 끼울 칸을 위에서 고른다 —
+                <span style="color:#8a8378; cursor:pointer" @onclick="() => _targetItem = null">(취소)</span>
+            </div>
+        }
+
+        <h3>길드 창고 — 장비를 누르면 끼울 칸을 고른다</h3>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; padding:6px 20px">
+            @if (Session.Armory.Weapons.Count == 0)
+            {
+                <span style="color:#635c50; font-size:22px">비어 있다 — 대장간에서 사거나 벗긴 장비가 여기 쌓인다</span>
+            }
+            @foreach (var (item, count) in Session.Armory.Weapons)
+            {
+                <button class="btn" style="font-size:23px; @(_targetItem == item ? "border-color:#8a7434; color:#eadfc0" : "")"
+                        @onclick="() => _targetItem = item">
+                    @item.Korean ×@count
+                </button>
+            }
+        </div>
+
+        <h3>소모품</h3>
+        <div style="padding:0 20px; font-size:22px; color:#b8afa0">
+            @if (Session.Armory.Consumables.Count == 0)
+            {
+                <span style="color:#635c50">없다</span>
+            }
+            else
+            {
+                @string.Join(" · ", Session.Armory.Consumables.Select(c => $"{c.Item.ToKorean()} ×{c.Count}"))
+            }
+            <span style="color:#635c50; font-size:19px"> — 사용은 파견을 아이템 체계에 잇는 단계에서</span>
+        </div>
+    </div>
+}
+else
+{
+    <div style="position:absolute; left:420px; right:36px; top:100px; bottom:40px; display:grid; place-items:center; color:#635c50; font-size:26px">
+        왼쪽에서 단원을 고른다
+    </div>
+}
+
+@code {
+    [CascadingParameter] public required GameSession Session { get; set; }
+
+    private MemberVm? _inspected;
+    private WeaponItem? _targetItem;
+
+    private static readonly (WeaponSet Set, Hand Hand, string Label)[] Slots =
+    [
+        (WeaponSet.Primary, Hand.Right, "주무기 · 오른손"),
+        (WeaponSet.Primary, Hand.Left, "주무기 · 왼손"),
+        (WeaponSet.Secondary, Hand.Right, "보조무기 · 오른손"),
+        (WeaponSet.Secondary, Hand.Left, "보조무기 · 왼손")
+    ];
+
+    protected override void OnInitialized() => _inspected ??= Session.Members.FirstOrDefault();
+
+    private void Inspect(MemberVm member)
+    {
+        _inspected = member;
+        _targetItem = null;
+    }
+
+    private void SlotClicked(MemberVm member, WeaponSet set, Hand hand)
+    {
+        if (_targetItem is { } item)
+        {
+            Session.EquipFromArmory(member, set, hand, item);
+            // 같은 아이템이 더 남아 있으면 연속 장착, 없으면 선택 해제.
+            if (Session.Armory.CountOf(item) == 0) _targetItem = null;
+        }
+        else
+        {
+            Session.Unequip(member, set, hand);
+        }
+    }
+
+    private static string ShortName(string name)
+    {
+        int cut = name.IndexOf('(');
+        return cut > 0 ? name[..cut] : name;
+    }
+}
