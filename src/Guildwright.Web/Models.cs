@@ -241,6 +241,9 @@ public sealed class GameSession
     /// <summary>영입 확정. 선택이 없어도 모집은 끝난 것으로 친다 (연 1회).</summary>
     public void Hire(IReadOnlyList<Adventurer> picked)
     {
+        // 연타 방지 — 확정을 두 번 눌러도 같은 사람이 두 번 들어오지 않는다.
+        if (Screen != Screen.Recruit) return;
+
         _recruitDoneForYear = Year;
         foreach (var candidate in picked)
         {
@@ -280,6 +283,11 @@ public sealed class GameSession
     /// <summary>한 달을 실행한다 — 배정된 훈련을 코어 세션으로 돌리고 결과를 남긴다.</summary>
     public void RunMonth()
     {
+        // 연타 방지 — 버튼을 두 번 눌러도 한 달은 한 번만 굴러간다.
+        // 이 가드가 없으면 같은 달 훈련이 중복 실행되어 첫해에 힘 60대가 나온다 (docs/08 #68).
+        if (Screen != Screen.Prep) return;
+        Go(Screen.MonthResult);
+
         foreach (var member in Members)
         {
             member.LastOutcome = null;
@@ -300,13 +308,14 @@ public sealed class GameSession
                 member.DeployedMonthsLeft--;
             }
         }
-
-        Go(Screen.MonthResult);
     }
 
     /// <summary>월 결과 확인 — 달력을 넘기고 배정을 비운다. 새해 1월이면 모집이 열린다.</summary>
     public void ConfirmMonth()
     {
+        // 연타 방지 — 확인을 두 번 눌러도 달력은 한 번만 넘어간다.
+        if (Screen != Screen.MonthResult) return;
+
         foreach (var member in Members) member.Assigned = null;
         Selected = null;
 
