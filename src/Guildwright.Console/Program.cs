@@ -25,6 +25,14 @@ if (args.Length > 0 && args[0] == "sim")
     return;
 }
 
+// 고정 시드 측정 케이스 모음 — 조건이 코드에 박혀 있어 누가 돌려도 같은 숫자가 나옵니다.
+//   dotnet run --project src/Guildwright.Console -- balance
+if (args.Length > 0 && args[0] == "balance")
+{
+    BalanceCases.Run();
+    return;
+}
+
 ulong seed = args.Length > 0 && ulong.TryParse(args[0], out ulong s) ? s : 20260728UL;
 var rng = new DeterministicRandom(seed);
 
